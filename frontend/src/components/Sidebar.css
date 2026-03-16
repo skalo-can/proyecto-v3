@@ -1,0 +1,75 @@
+/* Sidebar.css — versión clínica, limpia y responsive */
+
+/* Contenedor del sidebar */
+.sidebar {
+  position: fixed;
+  top: 64px; /* Altura del header */
+  left: 0;
+  width: 240px;
+  height: calc(100vh - 64px);
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  padding: 20px 12px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  transition: transform 0.25s ease-in-out;
+  z-index: 1000;
+}
+
+/* Sidebar oculto en móvil */
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+/* Sidebar siempre visible en desktop */
+@media (min-width: 901px) {
+  .sidebar {
+    transform: translateX(0);
+  }
+}
+
+/* Navegación interna */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Overlay para móvil */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+  z-index: 900;
+}
+
+.sidebar-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Links del sidebar */
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #334155;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sidebar-nav a:hover {
+  background: #f1f5f9;
+}

@@ -1,0 +1,83 @@
+/* Header base */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 64px;
+  width: 100%;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  z-index: 500;
+  box-sizing: border-box;
+}
+
+/* Título */
+.header-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-right: auto;
+}
+
+/* Navegación desktop */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-nav a {
+  text-decoration: none;
+  color: #334155;
+  font-weight: 500;
+}
+
+.header-nav a:hover {
+  color: #0ea5e9;
+}
+
+/* Botón configuración */
+.config-btn {
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.config-btn:hover {
+  background: #0284c7;
+}
+
+/* Botón cerrar sesión */
+.logout-btn {
+  color: #dc2626 !important;
+  font-weight: 600;
+}
+
+/* Botón hamburguesa (solo móvil) */
+.hamburger-btn {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  margin-right: 12px;
+  cursor: pointer;
+  color: #0f172a;
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .header-nav {
+    display: none; /* Ocultar menú en móvil */
+  }
+
+  .hamburger-btn {
+    display: block; /* Mostrar botón hamburguesa */
+  }
+}

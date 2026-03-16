@@ -1,0 +1,78 @@
+/* Pantalla completa */
+.login-page {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #ffffff;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Caja del formulario */
+.login-box {
+  width: 100%;
+  max-width: 380px;
+  background: white;
+  padding: 32px;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Título */
+.login-title {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+/* Formulario */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Inputs */
+.login-input {
+  padding: 14px;
+  border: 1px solid #d0d7e2;
+  border-radius: 8px;
+  font-size: 15px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.login-input:focus {
+  border-color: #0a6cff;
+  box-shadow: 0 0 0 3px rgba(10,108,255,0.15);
+}
+
+/* Botón */
+.login-button {
+  padding: 14px;
+  background: #0a6cff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.login-button:hover {
+  background: #005ce6;
+}
+
+/* Error */
+.login-error {
+  color: #d9534f;
+  text-align: center;
+  font-size: 14px;
+}
