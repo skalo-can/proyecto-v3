@@ -30,7 +30,22 @@ from app.api.paciente_link_api import router as paciente_link_router
 from app.api.paciente_email_api import router as paciente_email_router
 from app.api.reset_api import router as reset_router
 from app.api.dicom_import import router as dicom_import_router
+from app.api.dicom_import_new_api import router as dicom_import_new_router
 from app.api.dicom_stream_api import router as dicom_stream_router
+from app.api.stats_api import router as stats_router # NUEVO
+from app.api.dicom_tools_api import router as dicom_tools_router
+from app.api.dicom_advanced_tools_api import router as dicom_advanced_tools_router
+from app.api.dicom_email_tools_api import router as dicom_email_tools_router
+from app.api.dicom_cd_tools_api import router as dicom_cd_tools_router
+from app.api.auditoria_api import router as auditoria_router
+from app.api.email_logs_api import router as email_logs_router
+from app.api.pdf_report_api import router as pdf_report_router
+from app.api.whatsapp_api import router as whatsapp_router
+from app.api.secure_links_api import router as secure_links_router
+from app.api.filtros.pacientes_filtros_api import router as pacientes_filtros_router
+from app.api.filtros.estudios_filtros_api import router as estudios_filtros_router
+from app.api.filtros.busqueda_global_api import router as busqueda_global_router
+
 
 # Router de conectividad DICOM unificado
 from app.api import dicom_config_api
@@ -43,9 +58,6 @@ from app.models import estudio, estudio_imagen, paciente, dicom_config
 from app.models.usuario import Usuario
 from app.models.medico import Medico
 from app.models.estudio_ia_log import EstudioIALog
-
-# Procesador DICOM continuo
-from app.services.dicom_processor import iniciar_procesador
 
 # Servidor DICOM dinámico
 from app.services.dicom_service import reiniciar_servidor_dicom
@@ -97,8 +109,21 @@ app.include_router(paciente_link_router, prefix="/api")
 app.include_router(paciente_email_router, prefix="/api")
 app.include_router(reset_router, prefix="/api")
 app.include_router(dicom_import_router, prefix="/api")
-
+app.include_router(dicom_tools_router, prefix="/api")
+app.include_router(dicom_import_new_router, prefix="/api")
 app.include_router(dicom_stream_router, prefix="/api")
+app.include_router(stats_router, prefix="/api") # NUEVO
+app.include_router(dicom_advanced_tools_router, prefix="/api")
+app.include_router(dicom_email_tools_router, prefix="/api")
+app.include_router(dicom_cd_tools_router, prefix="/api")
+app.include_router(auditoria_router, prefix="/api")
+app.include_router(email_logs_router, prefix="/api")
+app.include_router(pdf_report_router, prefix="/api")
+app.include_router(whatsapp_router, prefix="/api")
+app.include_router(secure_links_router, prefix="/api")
+app.include_router(pacientes_filtros_router, prefix="/filtros")
+app.include_router(estudios_filtros_router, prefix="/filtros")
+app.include_router(busqueda_global_router, prefix="/filtros")
 
 
 # Router DICOM unificado
@@ -171,9 +196,9 @@ def start_background_tasks(app_instance: FastAPI):
     app_instance.state.dicom_stop_event = stop_event
 
     # Procesador DICOM continuo
-    hilo = Thread(target=iniciar_procesador, args=(stop_event,), daemon=True)
-    app_instance.state.dicom_thread = hilo
-    hilo.start()
+    # hilo = Thread(target=iniciar_procesador, args=(stop_event,), daemon=True)
+    # app_instance.state.dicom_thread = hilo
+    # hilo.start()
 
 # ---------------------------------------------------------
 # ARRANQUE SEGURO DEL SERVIDOR DICOM (Windows + Reload)

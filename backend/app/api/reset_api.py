@@ -17,7 +17,6 @@ import shutil
 from threading import Event, Thread
 
 from app.core.database import Base, engine, get_db
-from app.services.dicom_processor import iniciar_procesador
 
 # Importar modelos para asegurar metadata completa
 from app.models.usuario import Usuario

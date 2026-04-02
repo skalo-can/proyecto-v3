@@ -1,0 +1,2 @@
+def filtrar_estudios_service(db, id, nombre, apellido, modalidad, fecha, sort, order, limit, offset):
+    return filtrar_estudios_db(db, id, nombre, apellido, modalidad, fecha, sort, order, limit, offset)

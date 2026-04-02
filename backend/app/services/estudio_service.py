@@ -120,3 +120,27 @@ def eliminar_estudio(db: Session, estudio_id: int) -> bool:
     db.delete(estudio)
     db.commit()
     return True
+
+from app.models.estudio import Estudio
+from sqlalchemy.orm import Session
+
+def actualizar_estudio(db: Session, id: int, data: dict):
+    estudio = db.query(Estudio).filter(Estudio.id == id).first()
+    if not estudio:
+        return None
+
+    for key, value in data.items():
+        setattr(estudio, key, value)
+
+    db.commit()
+    return estudio
+
+
+def eliminar_estudio(db: Session, id: int):
+    estudio = db.query(Estudio).filter(Estudio.id == id).first()
+    if not estudio:
+        return None
+
+    db.delete(estudio)
+    db.commit()
+    return True

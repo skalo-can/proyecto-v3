@@ -1,0 +1,192 @@
+.wa-page {
+  min-height: 100vh;
+  padding: 30px;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.wa-card.glass {
+  width: 100%;
+  max-width: 1100px;
+  background: rgba(15, 23, 42, 0.75);
+  border-radius: 18px;
+  padding: 24px 28px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #e5e7eb;
+}
+
+.wa-header h1 {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.wa-subtitle {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.wa-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+  align-items: end;
+}
+
+.wa-field label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: #cbd5f5;
+}
+
+.wa-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(15, 23, 42, 0.8);
+  color: #e5e7eb;
+  font-size: 13px;
+}
+
+.wa-field input:focus {
+  outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+}
+
+.wa-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: 0.2s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #0ea5e9, #22c55e);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.btn-secondary {
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+}
+
+.btn-secondary:hover {
+  background: rgba(30, 41, 59, 0.9);
+}
+
+.wa-table-wrapper {
+  margin-top: 10px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.wa-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.wa-table th {
+  background: rgba(15, 23, 42, 0.95);
+  padding: 10px;
+  text-align: left;
+  font-size: 12px;
+  color: #9ca3af;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+}
+
+.wa-table td {
+  padding: 10px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+}
+
+.no-data {
+  text-align: center;
+  padding: 18px;
+  color: #9ca3af;
+}
+
+.mensaje-cell {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.estado.enviado {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.estado.error {
+  color: #f97373;
+  font-weight: 600;
+}
+
+.wa-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.wa-pagination button {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 12px;
+  transition: 0.2s ease;
+}
+
+.wa-pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wa-pagination button:not(:disabled):hover {
+  background: rgba(30, 64, 175, 0.9);
+}
+
+.volver-btn {
+  margin-top: 18px;
+  padding: 9px 14px;
+  background: transparent;
+  color: #e5e7eb;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  cursor: pointer;
+  font-size: 13px;
+  transition: 0.2s ease;
+}
+
+.volver-btn:hover {
+  background: rgba(15, 23, 42, 0.9);
+}

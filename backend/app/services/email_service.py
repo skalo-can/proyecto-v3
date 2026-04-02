@@ -26,9 +26,9 @@ from app.core.email_config import (
 
 
 # ---------------------------------------------------------
-# ENVÍO DE CORREO HTML
+# ENVÍO DE CORREO HTML (VERSIÓN REAL)
 # ---------------------------------------------------------
-def enviar_correo(destinatario: str, asunto: str, mensaje_html: str) -> None:
+def enviar_correo(destinatario: str, asunto: str, mensaje_html: str) -> str:
     """
     Envía un correo electrónico en formato HTML usando SMTP.
 
@@ -37,7 +37,8 @@ def enviar_correo(destinatario: str, asunto: str, mensaje_html: str) -> None:
     - asunto: asunto del mensaje
     - mensaje_html: contenido HTML del correo
 
-    Este servicio se usa para notificaciones clínicas y administrativas.
+    Retorna:
+    - Mensaje de éxito o lanza excepción en caso de error.
     """
 
     msg = MIMEMultipart("alternative")
@@ -53,6 +54,8 @@ def enviar_correo(destinatario: str, asunto: str, mensaje_html: str) -> None:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(FROM_EMAIL, destinatario, msg.as_string())
+
+        return "Correo enviado correctamente"
 
     except Exception as e:
         raise RuntimeError(f"Error enviando correo clínico: {str(e)}")

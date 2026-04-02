@@ -1,0 +1,106 @@
+.estudios-container {
+  padding: 30px;
+  color: white;
+}
+
+.estudios-title {
+  font-size: 32px;
+  font-weight: 800;
+  margin-bottom: 25px;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  padding: 25px;
+  margin-bottom: 25px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+}
+
+/* TABLA */
+.tabla-estudios {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tabla-estudios th {
+  padding: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  color: #e2e8f0;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+
+.tabla-estudios td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.sin-datos-elegante {
+  text-align: center;
+  padding: 40px;
+  opacity: 0.7;
+  font-size: 18px;
+}
+
+/* ACCIONES */
+.acciones {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-accion {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  transition: 0.25s ease;
+}
+
+.btn-accion:hover {
+  transform: translateY(-3px);
+}
+
+.enviar {
+  background: rgba(14,165,233,0.3);
+}
+
+.editar {
+  background: rgba(234,179,8,0.3);
+}
+
+.eliminar {
+  background: rgba(239,68,68,0.3);
+}
+
+/* PAGINACIÓN */
+.paginacion-panel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+
+.paginacion-panel button {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(255,255,255,0.12);
+  color: white;
+  cursor: pointer;
+  transition: 0.25s ease;
+}
+
+.paginacion-panel button:hover:not(:disabled) {
+  background: rgba(255,255,255,0.22);
+  transform: translateY(-3px);
+}
+
+.paginacion-panel button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

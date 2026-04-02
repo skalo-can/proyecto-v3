@@ -1,3 +1,19 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { generarLinkSeguro } from "../services/secureLinksService";
+import { enviarEstudioWhatsApp } from "../services/whatsappService";
+import { generarPDFEstudio } from "../services/pdfService";
+
+import {
+  getTotalPacientes,
+  getTotalEstudios,
+  getTotalImagenes,
+  getPacientesPorMes,
+  getTiposEstudio,
+  getActividadSemanal,
+} from "../tools/statsService";
+
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -25,86 +41,211 @@ ChartJS.register(
 );
 
 export default function Dashboard() {
-  const pacientesPorMes = {
-    labels: ["Ene", "Feb", "Mar", "Abr", "May", "Jun"],
-    datasets: [
-      {
-        label: "Pacientes nuevos",
-        data: [22, 35, 40, 28, 50, 62],
-        backgroundColor: "#0ea5e9",
-      },
-    ],
+  const navigate = useNavigate();
+
+  // -----------------------------
+  // ESTADOS
+  // -----------------------------
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [totalPacientes, setTotalPacientes] = useState(null);
+  const [totalEstudios, setTotalEstudios] = useState(null);
+  const [totalImagenes, setTotalImagenes] = useState(null);
+
+  const [pacientesMes, setPacientesMes] = useState([]);
+  const [tiposEstudio, setTiposEstudio] = useState([]);
+  const [actividadSemanalData, setActividadSemanalData] = useState([]);
+
+  // -----------------------------
+  // MODALES
+  // -----------------------------
+  const [modal, setModal] = useState(null);
+  const [estudioId, setEstudioId] = useState("");
+  const [telefono, setTelefono] = useState("");
+
+  const cerrarModal = () => {
+    setModal(null);
+    setEstudioId("");
+    setTelefono("");
   };
 
-  const estudiosPorTipo = {
-    labels: ["Rayos X", "TAC", "RM", "Ecografía"],
-    datasets: [
-      {
-        label: "Estudios",
-        data: [120, 80, 45, 60],
-        backgroundColor: ["#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc"],
-      },
-    ],
+  // -----------------------------
+  // HANDLERS
+  // -----------------------------
+  const enviarLinkSeguroHandler = async () => {
+    try {
+      const res = await generarLinkSeguro(estudioId);
+      alert("Enlace generado:\n" + res.link);
+      cerrarModal();
+    } catch (error) {
+      console.error(error);
+      alert("Error generando enlace seguro");
+    }
   };
 
-  const actividadSemanal = {
-    labels: ["Lun", "Mar", "Mié", "Jue", "Vie"],
-    datasets: [
-      {
-        label: "Estudios procesados",
-        data: [32, 45, 28, 50, 62],
-        borderColor: "#0ea5e9",
-        backgroundColor: "rgba(14,165,233,0.2)",
-        tension: 0.3,
-      },
-    ],
+  const enviarWhatsAppHandler = async () => {
+    try {
+      await enviarEstudioWhatsApp(estudioId, {
+        telefono,
+        formato: "link",
+      });
+      alert("Enviado correctamente a " + telefono);
+      cerrarModal();
+    } catch (error) {
+      console.error(error);
+      alert("Error enviando por WhatsApp");
+    }
   };
 
+  const generarPDFHandler = async () => {
+    try {
+      const blob = await generarPDFEstudio(estudioId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `estudio_${estudioId}.pdf`;
+      a.click();
+      cerrarModal();
+    } catch (error) {
+      console.error(error);
+      alert("Error generando PDF");
+    }
+  };
+
+  // -----------------------------
+  // CARGA DE DATOS
+  // -----------------------------
+  useEffect(() => {
+    let cancelado = false;
+
+    async function cargarDatos() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [p, e, i, pm, te, as] = await Promise.all([
+          getTotalPacientes(),
+          getTotalEstudios(),
+          getTotalImagenes(),
+          getPacientesPorMes(),
+          getTiposEstudio(),
+          getActividadSemanal(),
+        ]);
+
+        if (cancelado) return;
+
+        setTotalPacientes(p.total);
+        setTotalEstudios(e.total);
+        setTotalImagenes(i.total);
+
+        setPacientesMes(pm);
+        setTiposEstudio(te);
+        setActividadSemanalData(as);
+      } catch (error) {
+        console.error("Error cargando estadísticas:", error);
+        if (!cancelado) setError("No se pudieron cargar las estadísticas.");
+      } finally {
+        if (!cancelado) setLoading(false);
+      }
+    }
+
+    cargarDatos();
+    const interval = setInterval(cargarDatos, 30000);
+
+    return () => {
+      cancelado = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // -----------------------------
+  // LOADER
+  // -----------------------------
+  if (loading) {
+    return (
+      <div className="dashboard-loading">
+        <div className="spinner"></div>
+        <p>Cargando estadísticas clínicas...</p>
+      </div>
+    );
+  }
+
+  // -----------------------------
+  // ERROR
+  // -----------------------------
+  if (error) {
+    return (
+      <div className="dashboard-error">
+        <p>{error}</p>
+        <button onClick={() => window.location.reload()}>Reintentar</button>
+      </div>
+    );
+  }
+
+  // -----------------------------
+  // RENDER FINAL — CORRECTO
+  // -----------------------------
   return (
-    <div className="dashboard-container">
-      <h1 className="dashboard-title">Panel Clínico MI_PACS</h1>
+    <div className="dashboard-wrapper">
+
+      <h1 className="dashboard-title glass-title">Panel Clínico MI_PACS</h1>
 
       {/* Tarjetas estadísticas */}
       <div className="stats-grid">
-        <Card title="Pacientes registrados" value="128" />
-        <Card title="Estudios procesados" value="342" />
-        <Card title="Imágenes almacenadas" value="5,120" />
+        <Card title="Pacientes registrados" value={totalPacientes ?? 0} />
+        <Card title="Estudios procesados" value={totalEstudios ?? 0} />
+        <Card title="Imágenes almacenadas" value={totalImagenes ?? 0} />
       </div>
 
       {/* Gráficas */}
       <div className="charts-grid">
         <GraphCard title="Pacientes nuevos por mes">
-          <Bar data={pacientesPorMes} />
+          {pacientesMes.length === 0 ? (
+            <p className="no-data">Sin datos disponibles</p>
+          ) : (
+            <Bar data={pacientesPorMesChart} />
+          )}
         </GraphCard>
 
         <GraphCard title="Distribución por tipo de estudio">
-          <Doughnut data={estudiosPorTipo} />
+          {tiposEstudio.length === 0 ? (
+            <p className="no-data">Sin datos disponibles</p>
+          ) : (
+            <Doughnut data={estudiosPorTipoChart} />
+          )}
         </GraphCard>
 
         <GraphCard title="Actividad semanal del PACS">
-          <Line data={actividadSemanal} />
+          {actividadSemanalData.length === 0 ? (
+            <p className="no-data">Sin datos disponibles</p>
+          ) : (
+            <Line data={actividadSemanalChart} />
+          )}
         </GraphCard>
       </div>
+
     </div>
   );
-}
 
-/* COMPONENTES AUXILIARES */
+  // -----------------------------
+  // COMPONENTES AUXILIARES
+  // -----------------------------
+  function Card({ title, value }) {
+    return (
+      <div className="card fade-in glass-box">
+        <h3 className="card-title">{title}</h3>
+        <p className="card-value">{value}</p>
+      </div>
+    );
+  }
 
-function Card({ title, value }) {
-  return (
-    <div className="card">
-      <h3 className="card-title">{title}</h3>
-      <p className="card-value">{value}</p>
-    </div>
-  );
-}
-
-function GraphCard({ title, children }) {
-  return (
-    <div className="graph-card">
-      <h2 className="graph-title">{title}</h2>
-      {children}
-    </div>
-  );
+  function GraphCard({ title, children }) {
+    return (
+      <div className="graph-card fade-in glass-box">
+        <h2 className="graph-title">{title}</h2>
+        {children}
+      </div>
+    );
+  }
 }

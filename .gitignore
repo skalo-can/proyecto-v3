@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+# Cython cache
+*.c
+*.cpp
+*.html
+
+# FastAPI / Uvicorn
+*.log
+
+# Node / React
+node_modules/
+dist/
+.vite/
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

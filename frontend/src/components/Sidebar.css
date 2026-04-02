@@ -1,75 +1,128 @@
-/* Sidebar.css — versión clínica, limpia y responsive */
-
-/* Contenedor del sidebar */
+/* ================================
+   SIDEBAR PREMIUM GLASS UI
+================================ */
 .sidebar {
-  position: fixed;
-  top: 64px; /* Altura del header */
+  position: fixed;        /* ← Sidebar fijo */
+  top: 70px;              /* ← Altura exacta del header */
   left: 0;
-  width: 240px;
-  height: calc(100vh - 64px);
-  background: #ffffff;
-  border-right: 1px solid #e2e8f0;
-  padding: 20px 12px;
-  box-sizing: border-box;
+
+  width: 260px;
+  height: calc(100vh - 70px); /* ← Ajuste perfecto */
+
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(18px) saturate(180%);
+  border-right: 1px solid rgba(255, 255, 255, 0.25);
+
+  padding: 25px 18px;
   overflow-y: auto;
-  transition: transform 0.25s ease-in-out;
-  z-index: 1000;
-}
 
-/* Sidebar oculto en móvil */
-@media (max-width: 900px) {
-  .sidebar {
-    transform: translateX(-100%);
-  }
-  .sidebar.open {
-    transform: translateX(0);
-  }
-}
-
-/* Sidebar siempre visible en desktop */
-@media (min-width: 901px) {
-  .sidebar {
-    transform: translateX(0);
-  }
-}
-
-/* Navegación interna */
-.sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 25px;
 }
 
-/* Overlay para móvil */
-.sidebar-overlay {
+.sidebar {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease-in-out;
-  z-index: 900;
+  top: 70px;
+  left: 0;
+  width: 260px;
+  height: calc(100vh - 70px);
+
+  z-index: 3000; /* ← CLAVE: sidebar siempre arriba */
+
+  /* tus estilos existentes */
 }
 
-.sidebar-overlay.show {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Links del sidebar */
-.sidebar-nav a {
+/* LINKS */
+.sidebar-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 500;
-  color: #334155;
+  gap: 12px;
+
+  padding: 14px 16px;
+  border-radius: 14px;
+
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f0;
   text-decoration: none;
-  transition: background 0.2s, color 0.2s;
+
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+
+  transition: 0.25s ease;
 }
 
-.sidebar-nav a:hover {
-  background: #f1f5f9;
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateX(6px);
 }
+
+.sidebar-link.active {
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.45);
+}
+
+/* ACCIONES DEL ESTUDIO */
+.sidebar-actions {
+  background: rgba(255, 255, 255, 0.10);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-actions h3 {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 10px;
+}
+
+/* BOTONES PREMIUM */
+.sidebar-actions .btn {
+  width: 100%;
+  height: 52px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+  border: none;
+
+  font-size: 15px;
+  font-weight: 600;
+
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+
+  transition: 0.25s ease;
+}
+
+.sidebar-actions .btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255,255,255,0.25);
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  opacity: 0.85;
+  transition: 0.25s ease;
+}
+
+.sidebar-link:hover .icon {
+  opacity: 1;
+  transform: scale(1.12);
+}
+

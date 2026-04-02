@@ -3,17 +3,26 @@ dicom_server.py
 ---------------
 Servidor DICOM clínico para MI_PACS.
 
-Registra modalidades reales (AE Title, IP, Puerto)
-y actualiza estudios enviados en cada C‑STORE.
-Incluye estado del servidor y logs para el frontend.
+- Acepta C‑ECHO (Verification)
+- Acepta TODOS los SOP Class de almacenamiento (C‑STORE)
+- Registra modalidades reales (AE Title, IP, Puerto)
+- Guarda las imágenes DICOM en disco (INBOX)
+- Expone estado y logs para el frontend
 """
 
+from pathlib import Path
+
 from pynetdicom import AE, evt, AllStoragePresentationContexts
+from pynetdicom.sop_class import Verification
+
 from app.core.database import SessionLocal
 from app.crud.crud_modality import register_modality
 
 dicom_server_instance = None
 stop_flag = False
+
+# Carpeta donde se guardan las imágenes entrantes
+INBOX_PATH = Path("backend/dicom_inbox")
 
 # ---------------------------------------------------------
 # ESTADO GLOBAL DEL SERVIDOR (para /status y /logs)
@@ -25,6 +34,7 @@ server_state = {
     "last_event": None,
     "logs": []
 }
+
 
 def _log(event: str):
     """Registrar eventos clínicos en memoria."""
@@ -41,16 +51,14 @@ def iniciar_dicom_server(ae_title: str, port: int):
 
     stop_flag = False
 
-    from pynetdicom.sop_class import Verification
-
     ae = AE(ae_title=ae_title)
 
-    # SOP Class para C‑ECHO (compatible con tu versión)
+    # SOP Class para C‑ECHO
     ae.add_supported_context(Verification)
 
-    # Aceptar todos los SOP Class de almacenamiento (C‑STORE)
-    for context in AllStoragePresentationContexts:
-        ae.add_supported_context(context.abstract_syntax)
+    # Aceptar TODOS los SOP Class de almacenamiento (C‑STORE)
+    # usando los contextos completos (abstract + transfer syntaxes)
+    ae.supported_contexts.extend(AllStoragePresentationContexts)
 
     handlers = [
         (evt.EVT_C_STORE, handle_store),
@@ -126,10 +134,33 @@ def handle_store(event):
     calling_ip = event.assoc.requestor.address
     calling_port = event.assoc.requestor.port
 
-    _log(f"📥 C‑STORE recibido de AE={calling_ae}")
+    _log(f"📥 C‑STORE recibido de AE={calling_ae} ({calling_ip}:{calling_port})")
 
+    # Dataset DICOM recibido
+    ds = event.dataset
+    ds.file_meta = event.file_meta
+
+    # Asegurar carpeta INBOX
+    INBOX_PATH.mkdir(parents=True, exist_ok=True)
+
+    # Nombre de archivo basado en SOPInstanceUID
+    sop_uid = getattr(ds, "SOPInstanceUID", None)
+    if not sop_uid:
+        # Fallback por si acaso
+        from uuid import uuid4
+        sop_uid = str(uuid4())
+
+    filename = INBOX_PATH / f"{sop_uid}.dcm"
+
+    # Guardar en disco
+    ds.save_as(str(filename), write_like_original=False)
+
+    _log(f"💾 Imagen almacenada en INBOX: {filename}")
+
+    # Registrar modalidad en BD
     db = SessionLocal()
     register_modality(db, calling_ae, calling_ip, calling_port)
     db.close()
 
+    # Responder éxito DICOM
     return 0x0000

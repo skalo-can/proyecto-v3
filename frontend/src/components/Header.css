@@ -1,83 +1,158 @@
-/* Header base */
+/* ================================
+   HEADER GENERAL
+   Barra superior fija con Glass UI
+   ================================ */
 .header {
+  width: calc(100% - 260px); /* Ajusta el ancho restando el sidebar fijo */
+  height: 70px; /* Altura estándar del header */
+
+  padding: 0px 20px; /* Espaciado interno horizontal */
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Separa izquierda y derecha */
+
+  /* Estilo Glass UI */
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  /* Línea inferior + sombra suave */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  /* Fijo en la parte superior */
   position: fixed;
   top: 0;
-  left: 0;
-  height: 64px;
-  width: 100%;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  z-index: 500;
-  box-sizing: border-box;
+  left: 260px; /* Se alinea con el sidebar */
+  z-index: 2000; /* Encima de todo */
+
+  animation: fadeIn 0.4s ease; /* Animación de entrada */
 }
 
-/* Título */
+/* ================================
+   SECCIÓN IZQUIERDA DEL HEADER
+   (Logo, título, etc.)
+   ================================ */
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+/* ================================
+   SECCIÓN DERECHA DEL HEADER
+   (Botones, menú, usuario)
+   ================================ */
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+/* ================================
+   TÍTULO / LOGO
+   ================================ */
 .header-title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin-right: auto;
-}
-
-/* Navegación desktop */
-.header-nav {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.header-nav a {
-  text-decoration: none;
-  color: #334155;
-  font-weight: 500;
-}
-
-.header-nav a:hover {
-  color: #0ea5e9;
-}
-
-/* Botón configuración */
-.config-btn {
-  background: #0ea5e9;
-  color: white;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.config-btn:hover {
-  background: #0284c7;
-}
-
-/* Botón cerrar sesión */
-.logout-btn {
-  color: #dc2626 !important;
+  font-size: 30px; /* Grande, visible */
   font-weight: 600;
+  color: white;
+  letter-spacing: 1px; /* Espaciado elegante */
+  user-select: none; /* Evita selección accidental */
 }
 
-/* Botón hamburguesa (solo móvil) */
-.hamburger-btn {
-  display: none;
-  background: none;
-  border: none;
-  font-size: 1.8rem;
-  margin-right: 12px;
+/* ================================
+   CONTENEDOR DEL MENÚ DROPDOWN
+   (Posiciona el menú relativo al botón)
+   ================================ */
+.menu-container {
+  position: relative; /* Necesario para posicionar el dropdown */
+}
+
+/* ================================
+   BOTÓN DEL MENÚ
+   ================================ */
+.menu-btn {
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.306);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+
+  color: white;
   cursor: pointer;
-  color: #0f172a;
+  font-size: 14px;
+
+  transition: all 0.2s ease; /* Hover suave */
 }
 
-/* RESPONSIVE */
-@media (max-width: 900px) {
-  .header-nav {
-    display: none; /* Ocultar menú en móvil */
-  }
+.menu-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px); /* Efecto flotante */
+}
 
-  .hamburger-btn {
-    display: block; /* Mostrar botón hamburguesa */
+/* ================================
+   DROPDOWN DEL MENÚ
+   ================================ */
+.menu-dropdown {
+  position: absolute;
+  top: 45px; /* Debajo del botón */
+  right: 0; /* Alineado al borde derecho del botón */
+  left: auto;
+
+  width: 170px;
+  padding: 8px 0;
+
+  background: rgba(30, 30, 30, 0.9); /* Fondo oscuro translúcido */
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  animation: fadeIn 0.2s ease; /* Animación rápida */
+  z-index: 3000; /* Encima del header */
+}
+
+/* ================================
+   ITEMS DEL DROPDOWN
+   ================================ */
+.dropdown-item {
+  width: 100%;
+  padding: 10px 14px;
+
+  background: transparent;
+  border: none;
+  text-align: left;
+
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.12); /* Hover translúcido */
+}
+
+/* ================================
+   ITEM DE LOGOUT
+   ================================ */
+.logout-item {
+  color: #ff6b6b !important; /* Rojo clínico */
+}
+
+.logout-item:hover {
+  background: rgba(255, 0, 0, 0.15); /* Hover rojo translúcido */
+}
+
+/* ================================
+   ANIMACIÓN DE ENTRADA
+   ================================ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px); /* Ligeramente arriba */
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0); /* Posición final */
   }
 }

@@ -1,143 +1,162 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "../AuthContext";
 import axios from "axios";
 import DicomConfigModal from "../components/DicomConfigModal";
+import "./SystemConfig.css";
 
 export default function SystemConfig() {
-    const [showDicomModal, setShowDicomModal] = useState(false);
-    const [systemInfo, setSystemInfo] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState(null);
-    const [error, setError] = useState(null);
+  const { user } = useAuth();
 
-    useEffect(() => {
-        setLoading(true);
-        axios
-            .get("http://127.0.0.1:8000/status")
-            .then((res) => setSystemInfo(res.data))
-            .catch(() => setError("No se pudo obtener el estado del sistema."))
-            .finally(() => setLoading(false));
-    }, []);
+  const [showDicomModal, setShowDicomModal] = useState(false);
+  const [systemInfo, setSystemInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null);
+  const [error, setError] = useState(null);
 
-    useEffect(() => {
-        if (message || error) {
-            const timer = setTimeout(() => {
-                setMessage(null);
-                setError(null);
-            }, 3500);
-            return () => clearTimeout(timer);
-        }
-    }, [message, error]);
+  /* ============================
+     Cargar estado del sistema
+  ============================ */
+  useEffect(() => {
+    setLoading(true);
+    axios
+      .get("http://127.0.0.1:8000/status")
+      .then((res) => setSystemInfo(res.data))
+      .catch(() => setError("No se pudo obtener el estado del sistema."))
+      .finally(() => setLoading(false));
+  }, []);
 
-    const limpiarThumbnails = () => {
-        axios
-            .post("http://127.0.0.1:8000/api/reset/thumbnails")
-            .then(() => setMessage("Thumbnails limpiados correctamente."))
-            .catch(() => setError("Error al limpiar thumbnails."));
-    };
+  /* ============================
+     Mensajes temporales
+  ============================ */
+  useEffect(() => {
+    if (message || error) {
+      const timer = setTimeout(() => {
+        setMessage(null);
+        setError(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [message, error]);
 
-    const limpiarInbox = () => {
-        axios
-            .post("http://127.0.0.1:8000/api/reset/inbox")
-            .then(() => setMessage("Inbox DICOM limpiado correctamente."))
-            .catch(() => setError("Error al limpiar inbox."));
-    };
+  /* ============================
+     Acciones de mantenimiento
+  ============================ */
+  const limpiarThumbnails = () => {
+    axios
+      .post("http://127.0.0.1:8000/api/reset/thumbnails")
+      .then(() => setMessage("Thumbnails limpiados correctamente."))
+      .catch(() => setError("Error al limpiar thumbnails."));
+  };
 
-    const reiniciarServicios = () => {
-        axios
-            .post("http://127.0.0.1:8000/api/reset/restart-services")
-            .then(() => setMessage("Servicios reiniciados correctamente."))
-            .catch(() => setError("Error al reiniciar servicios."));
-    };
+  const limpiarInbox = () => {
+    axios
+      .post("http://127.0.0.1:8000/api/reset/inbox")
+      .then(() => setMessage("Inbox DICOM limpiado correctamente."))
+      .catch(() => setError("Error al limpiar inbox."));
+  };
 
-    return (
-        <div className="p-8">
-            <h1 className="text-3xl font-bold mb-6 text-gray-800">
-                Configuración del Sistema
-            </h1>
+  const reiniciarServicios = () => {
+    axios
+      .post("http://127.0.0.1:8000/api/reset/restart-services")
+      .then(() => setMessage("Servicios reiniciados correctamente."))
+      .catch(() => setError("Error al reiniciar servicios."));
+  };
 
-            {message && (
-                <p className="text-green-600 font-semibold mb-4">{message}</p>
-            )}
-            {error && (
-                <p className="text-red-600 font-semibold mb-4">{error}</p>
-            )}
+  /* ============================
+     Resetear Base de Datos
+     (Solo superadmin)
+  ============================ */
+  const resetDatabase = () => {
+    if (!window.confirm("⚠️ ¿Seguro que deseas resetear toda la base de datos? Esta acción es irreversible.")) return;
+    if (!window.confirm("⚠️ Confirmación final: Se eliminarán TODOS los pacientes, estudios y archivos. ¿Continuar?")) return;
 
-            <div className="bg-white shadow rounded-lg p-6 mb-8">
-                <h2 className="text-xl font-semibold mb-4 text-gray-700">
-                    Configuración DICOM
-                </h2>
+    fetch("http://localhost:8000/admin/reset-db", { method: "POST" })
+      .then(() => alert("Base de datos reseteada correctamente."))
+      .catch(() => alert("Error al resetear la base de datos."));
+  };
 
-                <p className="text-gray-600 mb-4">
-                    Ajusta los parámetros de comunicación DICOM del servidor MI_PACS.
-                </p>
+  return (
+    <div className="config-container">
 
-                <button
-                    onClick={() => setShowDicomModal(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                    Abrir configuración DICOM
-                </button>
-            </div>
+      <h1 className="config-title">Configuración MI PACS</h1>
 
-            <div className="bg-white shadow rounded-lg p-6 mb-8">
-                <h2 className="text-xl font-semibold mb-4 text-gray-700">
-                    Información del Sistema
-                </h2>
+      {message && <p className="msg success">{message}</p>}
+      {error && <p className="msg error">{error}</p>}
 
-                {loading ? (
-                    <p className="text-gray-600">Cargando información...</p>
-                ) : (
-                    <div className="text-gray-700">
-                        <p>
-                            <strong>Estado:</strong>{" "}
-                            {systemInfo?.message || "Desconocido"}
-                        </p>
-                        <p>
-                            <strong>Backend:</strong> http://127.0.0.1:8000
-                        </p>
-                        <p>
-                            <strong>Frontend:</strong> http://127.0.0.1:5173
-                        </p>
-                        <p>
-                            <strong>Versión MI_PACS:</strong> 3.0
-                        </p>
-                    </div>
-                )}
-            </div>
+      {/* ============================
+          Panel DICOM
+      ============================ */}
+      <div className="glass-panel">
+        <h2>Configuración DICOM</h2>
+        <p>Ajusta los parámetros de comunicación DICOM del servidor MI_PACS.</p>
 
-            <div className="bg-white shadow rounded-lg p-6 mb-8">
-                <h2 className="text-xl font-semibold mb-4 text-gray-700">
-                    Mantenimiento del Sistema
-                </h2>
+        <button
+          onClick={() => setShowDicomModal(true)}
+          className="btn-primary"
+        >
+          Abrir configuración DICOM
+        </button>
+      </div>
 
-                <div className="flex flex-col gap-3">
-                    <button
-                        onClick={limpiarThumbnails}
-                        className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800"
-                    >
-                        Limpiar thumbnails
-                    </button>
+      {/* ============================
+          Información del sistema
+      ============================ */}
+      <div className="glass-panel">
+        <h2>Información del Sistema</h2>
 
-                    <button
-                        onClick={limpiarInbox}
-                        className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800"
-                    >
-                        Limpiar inbox DICOM
-                    </button>
+        {loading ? (
+          <p>Cargando información...</p>
+        ) : (
+          <div>
+            <p><strong>Estado:</strong> {systemInfo?.message || "Desconocido"}</p>
+            <p><strong>Backend:</strong> http://127.0.0.1:8000</p>
+            <p><strong>Frontend:</strong> http://127.0.0.1:5173</p>
+            <p><strong>Versión MI_PACS:</strong> 3.0</p>
+          </div>
+        )}
+      </div>
 
-                    <button
-                        onClick={reiniciarServicios}
-                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                    >
-                        Reiniciar servicios
-                    </button>
-                </div>
-            </div>
+      {/* ============================
+          Mantenimiento del sistema
+      ============================ */}
+      <div className="glass-panel">
+        <h2>Mantenimiento del Sistema</h2>
 
-            <DicomConfigModal
-                isOpen={showDicomModal}
-                onClose={() => setShowDicomModal(false)}
-            />
+        <div className="btn-group">
+          <button onClick={limpiarThumbnails} className="btn-secondary">
+            Limpiar thumbnails
+          </button>
+
+          <button onClick={limpiarInbox} className="btn-secondary">
+            Limpiar inbox DICOM
+          </button>
+
+          <button onClick={reiniciarServicios} className="btn-danger">
+            Reiniciar servicios
+          </button>
         </div>
-    );
+      </div>
+
+      {/* ============================
+          Panel Avanzado (solo superadmin)
+      ============================ */}
+      {user?.role === "superadmin" && (
+        <div className="glass-panel danger-zone">
+          <h2 className="danger-title">⚠️ Herramientas Avanzadas</h2>
+          <p className="danger-text">
+            Estas acciones son extremadamente sensibles. Úsalas solo si sabes exactamente lo que estás haciendo.
+          </p>
+
+          <button className="danger-btn" onClick={resetDatabase}>
+            🔥 Resetear Base de Datos
+          </button>
+        </div>
+      )}
+
+      <DicomConfigModal
+        isOpen={showDicomModal}
+        onClose={() => setShowDicomModal(false)}
+      />
+    </div>
+  );
 }

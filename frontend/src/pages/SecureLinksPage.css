@@ -1,0 +1,86 @@
+.secure-container {
+  padding: 30px;
+}
+
+.secure-title {
+  font-size: 28px;
+  margin-bottom: 20px;
+  color: #0f172a;
+}
+
+.secure-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.secure-table th {
+  background: #e2e8f0;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.secure-table td {
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.no-data {
+  text-align: center;
+  padding: 20px;
+  color: #64748b;
+}
+
+.estado.activo {
+  color: #059669;
+  font-weight: bold;
+}
+
+.estado.expirado {
+  color: #b91c1c;
+  font-weight: bold;
+}
+
+.estado.revocado {
+  color: #d97706;
+  font-weight: bold;
+}
+
+.revocar-btn {
+  padding: 8px 12px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.revocar-btn:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.disabled {
+  color: #94a3b8;
+}
+
+.volver-btn {
+  margin-top: 20px;
+  padding: 12px 18px;
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.volver-btn:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}

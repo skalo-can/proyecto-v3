@@ -1,0 +1,119 @@
+.config-container {
+  padding: 30px;
+  color: white;
+}
+
+.config-title {
+  font-size: 32px;
+  font-weight: 800;
+  margin-bottom: 30px;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  padding: 25px 30px;
+  margin-bottom: 25px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+}
+
+.glass-panel h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.danger-btn {
+  width: 100%;
+  height: 50px;
+  border-radius: 12px;
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.25s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(14,165,233,0.45);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-3px);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ff3b3b, #ff6b6b);
+  color: white;
+}
+
+.btn-danger:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(255,0,0,0.45);
+}
+
+.danger-zone {
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  background: rgba(255, 0, 0, 0.08);
+  box-shadow: 0 8px 25px rgba(255,0,0,0.25);
+}
+
+.danger-title {
+  color: #ff6b6b;
+  font-weight: 800;
+}
+
+.danger-text {
+  opacity: 0.85;
+  margin-bottom: 20px;
+}
+
+.danger-btn {
+  background: linear-gradient(135deg, #ff3b3b, #ff6b6b);
+  color: white;
+}
+
+.danger-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(255,0,0,0.45);
+}
+
+.msg {
+  padding: 12px 18px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.msg.success {
+  background: rgba(0, 255, 0, 0.15);
+  color: #4ade80;
+}
+
+.msg.error {
+  background: rgba(255, 0, 0, 0.15);
+  color: #f87171;
+}
+
+.btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

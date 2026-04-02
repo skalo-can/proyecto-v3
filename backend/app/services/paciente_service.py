@@ -144,3 +144,27 @@ def eliminar_paciente(db: Session, paciente_id: int) -> bool:
     paciente.activo = False
     db.commit()
     return True
+
+from app.models.paciente import Paciente
+from sqlalchemy.orm import Session
+
+def actualizar_paciente(db: Session, id: int, data: dict):
+    paciente = db.query(Paciente).filter(Paciente.id == id).first()
+    if not paciente:
+        return None
+
+    for key, value in data.items():
+        setattr(paciente, key, value)
+
+    db.commit()
+    return paciente
+
+
+def eliminar_paciente(db: Session, id: int):
+    paciente = db.query(Paciente).filter(Paciente.id == id).first()
+    if not paciente:
+        return None
+
+    db.delete(paciente)
+    db.commit()
+    return True
