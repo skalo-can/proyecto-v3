@@ -107,43 +107,238 @@
 }
 
 /* ==============================================
-   AJUSTE DE SCROLL (MANTENIENDO EL DISEÑO)
+   AJUSTE DE SCROLL GLOBAL (SOLUCIÓN DEFINITIVA)
    ============================================== */
 .layout-container {
   display: flex;
   flex-direction: column;
-  height: 100vh; /* Volvemos a fijar altura */
-  width: 100%;
-  overflow: hidden; /* El contenedor padre no scrollea */
+  height: 100vh;      /* Altura fija al 100% de la ventana */
+  width: 100vw;       /* Ancho fijo al 100% de la ventana */
+  overflow: hidden;   /* PROHIBIDO el scroll externo */
   background: #0f172a;
 }
 
 .layout-body {
   display: flex;
-  flex: 1;
-  margin-top: 90px;
-  overflow: hidden; /* El cuerpo tampoco */
+  flex: 1;            /* Ocupa todo el alto restante debajo del header */
+  margin-top: 90px;   /* Altura del header */
+  overflow: hidden;   /* Evita que el cuerpo empuje hacia afuera */
 }
 
 .layout-content {
-  flex: 1;
-  margin: 20px;
-  margin-left: 280px !important;
-  padding: 30px;
+  flex: 1;            /* SE AJUSTA AUTOMÁTICAMENTE al espacio restante */
+  margin: 15px;       /* Margen uniforme para que se vea el "borde" del dashboard */
+  margin-left: 280px !important; /* Espacio para el Sidebar fijo */
+  padding: 20px;
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(12px);
   border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   
-  /* AQUÍ ESTÁ EL SCROLL LATERIAL DERECHO QUE NECESITABAS */
+  /* SCROLL INTERNO: Solo aparecerá aquí cuando sea necesario */
   overflow-y: auto !important; 
-  max-height: calc(100vh - 130px); /* Esto crea la barra lateral derecha */
+  display: flex;
+  flex-direction: column;
 }
 
-/* Estilo para que la barra de scroll sea discreta */
+/* Estilo de la barra de scroll interna para que sea estética */
 .layout-content::-webkit-scrollbar {
   width: 8px;
 }
 .layout-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: #fbbf24; /* Color dorado para combinar con tu sistema */
   border-radius: 10px;
 }
+.layout-content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+
+
+/* ==============================================
+   ESTILOS PARA LA PÁGINA DE PACIENTES
+   ============================================== */
+
+.titulo-seccion {
+  color: #fbbf24; /* Dorado para el título también */
+  font-size: 2rem;
+  margin-bottom: 25px;
+  font-weight: 700;
+}
+
+/* Contenedor de botones de acción */
+.contenedor-acciones {
+  display: flex !important;
+  gap: 20px !important; /* Espacio entre botones */
+  margin-bottom: 30px !important;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Botón base estilo MI_PACS */
+.btn-accion {
+  padding: 12px 24px !important;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  font-size: 1rem !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Estilo para Configuración (Dorado al hover) */
+.btn-config-pacs {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.btn-config-pacs:hover {
+  background: #fbbf24 !important; /* Dorado MI_PACS */
+  transform: translateY(-3px) !important;
+  box-shadow: 0 5px 15px rgba(251, 191, 36, 0.3) !important;
+}
+
+/* Estilo para Resetear (Rojo de advertencia pero elegante) */
+.btn-reset {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+.btn-reset:hover {
+  background: #ef4444 !important;
+  color: white !important;
+  transform: translateY(-3px) !important;
+  box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Botón de la tabla (Ver estudios) */
+.btn-ver-estudios {
+  background: transparent !important;
+  color: #fbbf24 !important;
+  border: 1px solid #fbbf24 !important;
+  padding: 6px 15px !important;
+  border-radius: 6px !important;
+  font-size: 0.9rem !important;
+  cursor: pointer !important;
+}
+
+.btn-ver-estudios:hover {
+  background: #fbbf24 !important;
+  color: #0f172a !important;
+}
+
+/* ==============================================
+   SIDEBAR PROFESIONAL MI_PACS
+   ============================================== */
+.sidebar {
+  width: 260px;
+  background: #1e293b !important; /* Mismo tono que el Header */
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding-top: 100px; /* Debajo del header de 90px */
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+  z-index: 1500;
+}
+
+.sidebar-header {
+  padding: 0 20px;
+  margin-bottom: 20px;
+}
+
+.sidebar-subtitle {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 0 15px;
+  gap: 8px;
+}
+
+/* Enlaces y Botones del Sidebar */
+.sidebar-link, .sidebar-btn-action {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  color: #e2e8f0;
+  text-decoration: none;
+  border-radius: 10px;
+  font-weight: 600;
+  transition: all 0.2s;
+  background: transparent;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.sidebar-link:hover, .sidebar-btn-action:hover {
+  background: rgba(251, 191, 36, 0.1); /* Fondo dorado sutil */
+  color: #fbbf24; /* Texto dorado */
+}
+
+.sidebar-link.active {
+  background: #fbbf24 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3);
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  margin: 15px 10px;
+}
+
+/* Submenú de Administración */
+.sidebar-submenu {
+  margin-left: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-left: 2px solid rgba(251, 191, 36, 0.3);
+  padding-left: 10px;
+  margin-top: 5px;
+}
+
+.submenu-link {
+  color: #94a3b8;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.submenu-link:hover {
+  color: #fbbf24;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.reset-link {
+  color: #f87171 !important;
+  text-align: left;
+  background: transparent;
+  border: none;
+}
+
+.section-title {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin: 10px 15px 5px;
+}
+

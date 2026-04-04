@@ -1,15 +1,15 @@
 """
 auth_api.py — MI_PACS
 ---------------------------------------------------------
-Endpoints clínicos de autenticación.
+Endpoints clínicos de autenticación actualizados para SKALO.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import autenticar_usuario, crear_token
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, verify_password
 
 from app.models.usuario import Usuario
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
 # ---------------------------------------------------------
-# LOGIN USUARIO CLÍNICO
+# LOGIN USUARIO CLÍNICO (Soporta Email o Nombre de Usuario)
 # ---------------------------------------------------------
 @router.post("/login")
 def login_endpoint(
@@ -26,38 +26,46 @@ def login_endpoint(
 ):
     """
     Autenticación clínica general.
-    Retorna token JWT y datos del usuario.
+    Permite entrar con 'admin@mipacs.com' o con 'SKALO'.
     """
 
-    email = credenciales.get("email")
+    identifier = credenciales.get("email") # El frontend suele enviar el campo como "email"
     password = credenciales.get("password")
 
-    usuario = autenticar_usuario(db, email, password)
+    # 1. Buscamos al usuario por Email o por Nombre (para soportar a SKALO)
+    usuario = db.query(Usuario).filter(
+        (Usuario.email == identifier) | (Usuario.nombre == identifier)
+    ).first()
 
-    if not usuario:
-        raise HTTPException(status_code=401, detail="Credenciales inválidas.")
+    # 2. Verificamos contraseña usando la lógica de seguridad del core
+    if not usuario or not verify_password(password, usuario.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Credenciales inválidas."
+        )
 
-    # crear_token devuelve un STRING
+    if not usuario.activo:
+        raise HTTPException(status_code=403, detail="Usuario inactivo.")
+
+    # 3. Generamos el token JWT
     token_str = crear_token(usuario)
 
-    # Estructura EXACTA que el frontend espera
+    # 4. Estructura de respuesta plana para sincronizar con AuthContext.jsx
     return {
-        "token": {
-            "access_token": token_str,
-            "token_type": "bearer",
-            "expires_in": 3600
-        },
-        "usuario": {
+        "access_token": token_str,
+        "token_type": "bearer",
+        "user": {
             "id": usuario.id,
+            "username": usuario.email if "@" in usuario.email else usuario.nombre,
             "nombre": usuario.nombre,
-            "rol": usuario.rol,
+            "rol": usuario.rol, # Aquí viajará 'superadmin' o 'admin'
             "activo": usuario.activo
         }
     }
 
 
 # ---------------------------------------------------------
-# REGISTRO DE USUARIOS (solo admin)
+# REGISTRO DE USUARIOS (Solo Admin o Superadmin)
 # ---------------------------------------------------------
 @router.post("/registrar")
 def registrar_usuario_endpoint(
@@ -66,7 +74,6 @@ def registrar_usuario_endpoint(
 ):
     """
     Registro clínico de usuarios.
-    Solo administradores deben usar este endpoint.
     """
 
     existente = db.query(Usuario).filter(Usuario.email == data["email"]).first()

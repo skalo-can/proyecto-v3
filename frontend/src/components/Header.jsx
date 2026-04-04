@@ -1,98 +1,52 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../AuthContext";
 
-export const Header = ({
-  handleDicomImport,
-  handleDicomExport,
-  onOpenDicom,
-  onDicomFilesSelected,
-  onToggleSidebar // Aseguramos que esta prop se reciba si se usa
-}) => {
+export const Header = ({ onOpenDicom, onResetDB }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user } = useAuth();
   const menuRef = useRef(null);
 
-  // 🔹 Cerrar menú al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+  // Verificación segura: si no hay usuario, isSkalo es falso
+  const isSkalo = user && user.rol === "superadmin";
 
   return (
     <header className="header">
-      
-      {/* SECCIÓN IZQUIERDA: Logo Dorado y Grande */}
       <div className="header-left">
-        {/* Si tienes un botón de hamburguesa para el sidebar, iría aquí */}
-        {/* <button onClick={onToggleSidebar} className="sidebar-toggle">☰</button> */}
         <div className="header-title">MI_PACS</div>
       </div>
 
-      {/* SECCIÓN DERECHA: Menú de Opciones */}
       <div className="header-right" ref={menuRef}>
         <div className="menu-container">
-          <button
-            className="menu-btn"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
+          <button className="menu-btn" onClick={() => setMenuOpen(!menuOpen)}>
             Opciones ▾
           </button>
 
           {menuOpen && (
             <div className="menu-dropdown fade-in">
-              
-              <button className="dropdown-item" onClick={() => {
-                handleDicomImport && handleDicomImport();
-                setMenuOpen(false);
-              }}>
-                Importar
-              </button>
-
-              <button className="dropdown-item" onClick={() => {
-                handleDicomExport && handleDicomExport();
-                setMenuOpen(false);
-              }}>
-                Exportar
-              </button>
-
-              <button className="dropdown-item" onClick={() => {
-                onOpenDicom && onOpenDicom();
-                setMenuOpen(false);
-              }}>
+              <button className="dropdown-item" onClick={() => { onOpenDicom?.(); setMenuOpen(false); }}>
                 Configuración
               </button>
 
-              {/* Línea divisoria visual */}
-              <div className="dropdown-divider"></div>
+              {/* Solo aparece si es superadmin (SKALO) */}
+              {isSkalo && onResetDB && (
+                <button 
+                  className="dropdown-item" 
+                  style={{ color: '#ff4d4d' }}
+                  onClick={() => { onResetDB(); setMenuOpen(false); }}
+                >
+                  ⚠️ Resetear Sistema
+                </button>
+              )}
 
-              <Link to="/logout" className="dropdown-item logout-item" onClick={() => setMenuOpen(false)}>
+              <div className="dropdown-divider"></div>
+              <Link to="/logout" className="dropdown-item" onClick={() => setMenuOpen(false)}>
                 Cerrar sesión
               </Link>
-
             </div>
           )}
         </div>
       </div>
-
-      {/* INPUT OCULTO PARA CARGA DE ARCHIVOS */}
-      <input
-        id="dicomInput"
-        type="file"
-        multiple
-        webkitdirectory="true"
-        directory="true"
-        accept=".dcm"
-        style={{ display: "none" }}
-        onChange={onDicomFilesSelected}
-      />
-
     </header>
   );
 };

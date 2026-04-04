@@ -2,24 +2,6 @@
 usuario.py
 ----------
 Modelo SQLAlchemy para usuarios del sistema MI_PACS.
-
-Responsabilidades:
-- Registrar credenciales seguras de acceso al sistema
-- Definir el rol clínico o administrativo del usuario
-- Mantener información personal básica
-- Controlar el estado activo/inactivo del usuario
-- Relacionar usuarios con médicos cuando aplica
-
-Este modelo actúa como capa intermedia entre:
-- Servicios de autenticación y autorización
-- Módulo de médicos (relación uno a uno)
-- Administración del sistema MI_PACS
-- Base de datos SQLAlchemy (tabla usuarios)
-
-Notas clínicas:
-- Un usuario puede ser médico, administrador o técnico
-- Los médicos tienen un registro adicional en la tabla medicos
-- El hash de contraseña debe ser seguro y nunca reversible
 """
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
@@ -31,7 +13,6 @@ from app.core.database import Base
 class Usuario(Base):
     """
     Modelo de usuario clínico del sistema MI_PACS.
-
     Representa a médicos, administradores y técnicos que acceden
     al sistema con credenciales seguras y roles definidos.
     """
@@ -71,7 +52,7 @@ class Usuario(Base):
     rol = Column(
         String(50),
         nullable=False,
-        doc="Rol del usuario: medico | admin | tecnico"
+        doc="Rol del usuario: medico | admin | tecnico | superadmin" # Agregado superadmin
     )
 
     password_hash = Column(

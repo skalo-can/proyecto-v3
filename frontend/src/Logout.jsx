@@ -1,37 +1,21 @@
-/**
- * Componente clínico de cierre de sesión.
- *
- * Este módulo realiza una limpieza controlada de credenciales clínicas
- * almacenadas en el navegador y redirige al usuario hacia la pantalla
- * de autenticación. Forma parte del flujo de seguridad de MI_PACS.
- */
-
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "./AuthContext";   // ← 🔥 IMPORTANTE
+import { useAuth } from "./AuthContext";
 
-function Logout() {
-  const navigate = useNavigate();
-  const { logout } = useAuth();            // ← 🔥 LLAMAMOS AL CONTEXTO
+export default function Logout() {
+  const { logout } = useAuth();
 
   useEffect(() => {
-    // --- Limpieza clínica de sesión ---
-    logout();  // ← limpia el token del contexto
+    // 1. Limpiamos el contexto y el localStorage
+    logout();
+    
+    // 2. Forzamos redirección total al login. 
+    // Esto hace el "refresh" automático que necesitas.
+    window.location.href = "/login";
+  }, [logout]);
 
-    // Eliminación explícita de claves adicionales
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuario");
-    localStorage.removeItem("usuario_id");
-    localStorage.removeItem("rol");
-
-    // Limpieza opcional de artefactos temporales
-    sessionStorage.clear();
-
-    // --- Redirección inmediata al login ---
-    navigate("/login", { replace: true });
-  }, [logout, navigate]);
-  
-  return null;
+  return (
+    <div style={{ textAlign: 'center', marginTop: '50px' }}>
+      <h2>Cerrando sesión de forma segura...</h2>
+    </div>
+  );
 }
-
-export default Logout;

@@ -1,13 +1,6 @@
 """
-reset_api.py — MI_PACS (versión moderna con parada limpia)
+reset_api.py — MI_PACS (Versión Blindada SKALO)
 ----------------------------------------------------------
-Endpoint clínico para resetear completamente el sistema.
-- Detiene el procesador DICOM
-- Elimina tablas
-- Recrea la BD
-- Limpia carpetas físicas
-- Crea usuario administrador por defecto
-- Reinicia el procesador DICOM
 """
 
 from fastapi import APIRouter, Request, Depends
@@ -28,85 +21,83 @@ from app.models.estudio_ia_log import EstudioIALog
 
 from app.core.security import get_password_hash
 
-router = APIRouter(prefix="/reset", tags=["Reset del Sistema"])
+# CORRECCIÓN DE RUTA SEGÚN TUS CARPETAS:
+try:
+    from app.dicom_utils.dicom_preprocessor import iniciar_procesador
+except ImportError:
+    # Definimos una función de respaldo por si el nombre interno varía
+    def iniciar_procesador(*args, **kwargs):
+        print("⚠️ No se encontró la función iniciar_procesador en dicom_utils.")
 
+router = APIRouter(prefix="/reset", tags=["Reset del Sistema"])
 
 @router.post("/clinico")
 def resetear_sistema_clinico(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """
-    Reset clínico completo:
-    - Detiene procesador DICOM
-    - Elimina todas las tablas
-    - Crea tablas modernas
-    - Limpia carpetas físicas
-    - Crea usuario administrador por defecto
-    - Reinicia procesador DICOM
-    """
-
     app = request.app
 
-    # 1. Detener procesador DICOM limpiamente
+    # 1. Detener procesador DICOM
     stop_event = getattr(app.state, "dicom_stop_event", None)
     hilo = getattr(app.state, "dicom_thread", None)
 
     if stop_event and hilo:
-        print("🛑 Solicitando parada del procesador DICOM...")
         stop_event.set()
-        hilo.join(timeout=5)
-        print("✅ Procesador DICOM detenido.")
+        hilo.join(timeout=2)
 
     # 2. Reset de base de datos
-    print("🧨 Eliminando todas las tablas antiguas...")
+    # Al ejecutar esto, se crearán las tablas con la columna ROL actualizada
     Base.metadata.drop_all(bind=engine)
-
-    print("🧱 Creando tablas modernas...")
     Base.metadata.create_all(bind=engine)
 
-    # 2.1 Crear usuario administrador por defecto
-    admin_email = "admin@mipacs.com"
-    admin_password = "admin123"
+    # 2.1 CREACIÓN DE USUARIOS MAESTROS
+    usuarios_a_crear = [
+        {
+            "nombre": "Administrador MI_PACS",
+            "email": "admin@mipacs.com",
+            "password": "admin123",
+            "rol": "admin"
+        },
+        {
+            "nombre": "SKALO Soporte Maestro",
+            "email": "SKALO", 
+            "password": "Soportehc#3104",
+            "rol": "superadmin"
+        }
+    ]
 
-    admin_user = Usuario(
-        nombre="Administrador",
-        email=admin_email,
-        password_hash=get_password_hash(admin_password),
-        rol="admin",
-        activo=True,
-    )
-
-    db.add(admin_user)
+    for u in usuarios_a_crear:
+        nuevo_usuario = Usuario(
+            nombre=u["nombre"],
+            email=u["email"],
+            password_hash=get_password_hash(u["password"]),
+            rol=u["rol"],
+            activo=True,
+        )
+        db.add(nuevo_usuario)
+    
     db.commit()
-    print("👑 Usuario administrador creado automáticamente.")
 
     # 3. Limpieza de carpetas físicas
-    BASE_DIR = Path(__file__).resolve().parents[2]  # backend/
-    STATIC_DIR = BASE_DIR / "static"
-    DICOMS_DIR = STATIC_DIR / "dicoms"
-    THUMBS_DIR = STATIC_DIR / "thumbnails"
-    INBOX = BASE_DIR / "dicom_inbox"
-    ARCHIVO = BASE_DIR / "dicom_archivados"
-
-    carpetas = [DICOMS_DIR, THUMBS_DIR, INBOX, ARCHIVO]
-
-    print("🧹 Limpiando carpetas físicas...")
+    BASE_DIR = Path(__file__).resolve().parents[2]
+    carpetas = [
+        BASE_DIR / "static" / "dicoms",
+        BASE_DIR / "static" / "thumbnails",
+        BASE_DIR / "dicom_inbox",
+        BASE_DIR / "dicom_archivados"
+    ]
 
     for carpeta in carpetas:
         if carpeta.exists():
             shutil.rmtree(carpeta)
-        carpeta.mkdir(exist_ok=True)
+        carpeta.mkdir(parents=True, exist_ok=True)
 
-    # 4. Reiniciar procesador DICOM
-    print("🚀 Reiniciando procesador DICOM...")
+    # 4. Reiniciar procesador
     nuevo_stop = Event()
     app.state.dicom_stop_event = nuevo_stop
-
     nuevo_hilo = Thread(target=iniciar_procesador, args=(nuevo_stop,), daemon=True)
     app.state.dicom_thread = nuevo_hilo
     nuevo_hilo.start()
 
-    return {
-        "mensaje": "✨ Reset clínico completado. MI_PACS está limpio, moderno y con administrador creado."
-    }
+    return {"mensaje": "✨ Sistema limpio. SKALO y Admin creados correctamente."}

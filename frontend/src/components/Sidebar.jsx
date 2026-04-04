@@ -1,82 +1,85 @@
 import { Link, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { useAuth } from "../AuthContext.jsx"; 
 import "./Sidebar.css";
 
 export default function Sidebar({ isOpen, onClose, onAction }) {
   const location = useLocation();
+  const { user } = useAuth();
+  const [openAdmin, setOpenAdmin] = useState(false);
 
-  const isActive = (path) => location.pathname.startsWith(path);
+  const isActive = (path) => location.pathname === path;
+
+  // Lógica de permisos
+  const isSkalo = user?.username === "SKALO" || user?.rol === "superadmin";
+  const isAdmin = user?.rol === "admin" || isSkalo;
 
   return (
     <>
-      {/* Overlay SOLO para móvil */}
-      <div
-        className={`sidebar-overlay ${isOpen ? "show" : ""}`}
-        onClick={onClose}
-      />
-
-      {/* SIDEBAR FIJO EN ESCRITORIO + DESLIZABLE EN MÓVIL */}
-      <aside className={`sidebar glass-sidebar ${isOpen ? "open" : ""}`}>
-        <nav className="sidebar-nav">
-
-          <Link
-            to="/pacientes"
-            className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`}
-            style={{ marginBottom: "12px" }}   // separación clínica
-          >
-            <span className="icon">👤</span>
-            Pacientes
-          </Link>
-
-          <Link
-            to="/estudios"
-            className={`sidebar-link ${isActive("/estudios") ? "active" : ""}`}
-          >
-            <span className="icon">🩻</span>
-            Estudios
-          </Link>
-
-        </nav>
-
-        {/* PANEL DE ACCIONES DEL ESTUDIO */}
-        <div className="sidebar-actions">
-          <h3>Acciones del Estudio</h3>
-
-          <button className="btn btn-primary" onClick={() => onAction("link")}>
-            🔗 Generar enlace seguro
-          </button>
-
-          <button className="btn btn-success" onClick={() => onAction("whatsapp")}>
-            📱 Enviar por WhatsApp
-          </button>
-
-          <button className="btn btn-warning" onClick={() => onAction("pdf")}>
-            📄 Generar PDF
-          </button>
-
-          <button className="btn btn-info" onClick={() => onAction("auditoria")}>
-            📊 Ver auditoría
-          </button>
-
-          <button className="btn btn-info" onClick={() => onAction("emailLogs")}>
-            ✉️ Ver logs de email
-          </button>
-
-          <button className="btn btn-info" onClick={() => onAction("secureLinks")}>
-            🔐 Ver enlaces seguros
-          </button>
-
-          <button className="btn btn-info" onClick={() => onAction("whatsappPanel")}>
-            📱 Panel WhatsApp
-          </button>
-
-          <button className="btn btn-info" onClick={() => onAction("pdfPanel")}>
-            📄 Panel PDF
-          </button>
-
-          <button className="btn btn-email" onClick={() => onAction("email")}>
-            ✉️ Enviar por Email
-          </button>
+      <div className={`sidebar-overlay ${isOpen ? "show" : ""}`} onClick={onClose} />
+      
+      <aside className={`sidebar ${isOpen ? "open" : ""}`}>
+        <div className="sidebar-header">
+          <span className="sidebar-subtitle">MI_PACS SYSTEM</span>
+          <br />
+          <small style={{ color: '#fbbf24', fontWeight: 'bold' }}>
+            {isSkalo ? "🚀 MODO MAESTRO" : `🛡️ ${user?.rol?.toUpperCase()}`}
+          </small>
         </div>
+
+        <nav className="sidebar-nav">
+          {/* SECCIÓN CLÍNICA */}
+          <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`}>
+            <span className="icon">👥</span> Pacientes
+          </Link>
+
+          {isAdmin && (
+            <Link to="/estadisticas" className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`}>
+              <span className="icon">📊</span> Estadísticas Estudios
+            </Link>
+          )}
+
+          <div className="sidebar-divider"></div>
+
+          {/* PANEL DE ADMINISTRACIÓN */}
+          {isAdmin && (
+            <div className="sidebar-section">
+              <button className="sidebar-link dropdown-toggle" onClick={() => setOpenAdmin(!openAdmin)}>
+                <span className="icon">⚙️</span> Administración {openAdmin ? "▴" : "▾"}
+              </button>
+              
+              {openAdmin && (
+                <div className="sidebar-submenu">
+                  {/* AQUÍ ESTÁ TU CONFIGURACIÓN COMPLETA */}
+                  {isSkalo && (
+                    <Link to="/configuracion" className="submenu-link" style={{ color: '#fbbf24', fontWeight: 'bold' }}>
+                      ⚙️ Configuración MI_PACS
+                    </Link>
+                  )}
+
+                  <Link to="/estadisticas" className="submenu-link">📈 Reporte Cobros</Link>
+                  <Link to="/auditoria" className="submenu-link">📊 Auditoría</Link>
+                  <Link to="/email-logs" className="submenu-link">✉️ Logs Email</Link>
+                  <Link to="/whatsapp-logs" className="submenu-link">📱 Logs WhatsApp</Link>
+                  
+                  {isSkalo && (
+                    <button 
+                      className="submenu-link reset-link" 
+                      onClick={() => onAction("resetDB")}
+                      style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px' }}
+                    >
+                      ⚠️ Resetear Sistema
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <Link to="/logout" className="sidebar-link logout-btn" style={{ color: '#ff4d4d', marginTop: '20px' }}>
+            <span className="icon">🚪</span> Cerrar Sesión
+          </Link>
+        </nav>
       </aside>
     </>
   );

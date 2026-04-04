@@ -2,21 +2,19 @@
    CONTENEDOR PRINCIPAL
 ================================ */
 .dashboard-wrapper {
-  width: calc(100% - 260px);   /* ← Ocupa todo el espacio restante */
-  margin-left: 260px;          /* ← Se coloca detrás del sidebar */
-  margin-top: 70px;            /* ← Respeta el header */
-
+  /* Quitamos el width fijo y el margin-left manual porque ya los maneja el Layout */
+  width: 100%; 
+  height: 100%; 
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 20px; /* Reducimos el gap para ganar espacio */
 
-  background: rgba(255, 255, 255, 0.263);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
-  padding: 40px;
-  backdrop-filter: blur(14px);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+  /* Mantenemos tu estética de cristal */
+  background: transparent; 
+  border: none; 
+  padding: 10px;
 }
+
 
 /* ================================
    TÍTULO
