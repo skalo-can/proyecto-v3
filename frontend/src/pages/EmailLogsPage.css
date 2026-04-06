@@ -1,62 +1,79 @@
+/* Contenedor principal sin scroll global */
 .email-container {
   padding: 30px;
+  height: 100vh; /* Ocupa el alto de la pantalla */
+  display: flex;
+  flex-direction: column; /* Alinea título y card verticalmente */
+  overflow: hidden; /* Evita que aparezca el scroll dorado lateral en toda la página */
+  box-sizing: border-box;
 }
 
+/* El título se queda arriba, fijo por la estructura flex */
 .email-title {
   font-size: 28px;
   margin-bottom: 20px;
-  color: #0f172a;
+  color: #FFD700 !important;
+  flex-shrink: 0; /* Impide que el título se encoja */
+}
+
+/* El bloque de la tabla ahora maneja su propio scroll interno */
+.email-card {
+  background-color: #1e222d; 
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid #333;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  
+  /* Configuración del Scroll Interno */
+  flex-grow: 1; /* Ocupa el resto del espacio disponible */
+  overflow-y: auto; /* Solo muestra el scroll si el contenido sobrepasa el alto */
+  overflow-x: auto; /* Scroll horizontal si la tabla es muy ancha */
+}
+
+/* Estilo para la barra de scroll (para que no sea el dorado chillón por defecto) */
+.email-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.email-card::-webkit-scrollbar-track {
+  background: #1e222d;
+}
+
+.email-card::-webkit-scrollbar-thumb {
+  background: #333; /* Un gris sutil para que no distraiga */
+  border-radius: 10px;
+}
+
+.email-card::-webkit-scrollbar-thumb:hover {
+  background: #444;
 }
 
 .email-table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  background: transparent !important;
 }
 
+/* Mantener el encabezado de la tabla visible al bajar (Sticky) */
 .email-table th {
-  background: #e2e8f0;
+  position: sticky;
+  top: 0;
+  background-color: #1e222d !important; /* Fondo sólido para que no se traslapen las letras */
+  z-index: 10;
+  color: #FFD700;
   padding: 12px;
   text-align: left;
-  font-weight: 600;
+  border-bottom: 2px solid #444;
 }
 
 .email-table td {
   padding: 12px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.no-data {
-  text-align: center;
-  padding: 20px;
-  color: #64748b;
-}
-
-.estado.ok {
-  color: #059669;
-  font-weight: bold;
-}
-
-.estado.error {
-  color: #b91c1c;
-  font-weight: bold;
+  color: #d1d1d1;
+  border-bottom: 1px solid #2a2e3d;
 }
 
 .volver-btn {
   margin-top: 20px;
-  padding: 12px 18px;
-  background: #0ea5e9;
-  color: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.volver-btn:hover {
-  transform: translateY(-2px);
-  opacity: 0.9;
+  flex-shrink: 0; /* El botón siempre visible al final */
+  width: fit-content;
 }

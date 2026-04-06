@@ -23,59 +23,51 @@ export default function AuditoriaPage() {
     cargar();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="auditoria-loading">
-        <div className="spinner"></div>
-        <p>Cargando auditoría...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="auditoria-error">
-        <p>{error}</p>
-        <button onClick={() => window.location.reload()}>Reintentar</button>
-      </div>
-    );
-  }
+  if (loading) return <div className="auditoria-loading"><p>Cargando...</p></div>;
+  if (error) return <div className="auditoria-error"><p>{error}</p></div>;
 
   return (
     <div className="auditoria-container">
+      {/* Título principal */}
       <h1 className="auditoria-title">Auditoría de Descargas</h1>
 
-      <table className="auditoria-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Estudio</th>
-            <th>IP</th>
-            <th>Resultado</th>
-            <th>Fecha</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {auditoria.length === 0 ? (
+      {/* Contenedor oscuro con scroll interno */}
+      <div className="auditoria-card">
+        <table className="auditoria-table">
+          <thead>
             <tr>
-              <td colSpan="5" className="no-data">
-                No hay registros de auditoría
-              </td>
+              <th>ID</th>
+              <th>Paciente</th>
+              <th>Estudio</th>
+              <th>IP</th>
+              <th>Resultado</th>
+              <th>Fecha</th>
             </tr>
-          ) : (
-            auditoria.map((item) => (
-              <tr key={item.id}>
-                <td>{item.id}</td>
-                <td>{item.estudio_id}</td>
-                <td>{item.ip}</td>
-                <td className={`estado ${item.estado}`}>{item.estado}</td>
-                <td>{new Date(item.fecha).toLocaleString()}</td>
+          </thead>
+          <tbody>
+            {auditoria.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="no-data">No hay registros de auditoría</td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              auditoria.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.id}</td>
+                  <td className="paciente-nombre">{item.paciente_nombre || "Sin nombre"}</td>
+                  <td>{item.estudio_id}</td>
+                  <td>{item.ip}</td>
+                  <td>
+                    <span className={`estado-badge ${item.estado}`}>
+                      {item.estado}
+                    </span>
+                  </td>
+                  <td>{new Date(item.fecha).toLocaleString()}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <button className="volver-btn" onClick={() => window.history.back()}>
         ⬅ Volver
