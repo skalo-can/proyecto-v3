@@ -1,21 +1,18 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../AuthContext";
 import axios from "axios";
-import DicomConfigModal from "../components/DicomConfigModal";
+// Eliminamos la importación local del modal para usar el global
 import "./SystemConfig.css";
 
-export default function SystemConfig() {
+// Recibimos onOpenDicom como prop desde el Layout/App
+export default function SystemConfig({ onOpenDicom }) {
   const { user } = useAuth();
 
-  const [showDicomModal, setShowDicomModal] = useState(false);
   const [systemInfo, setSystemInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
-  /* ============================
-     Cargar estado del sistema
-  ============================ */
   useEffect(() => {
     setLoading(true);
     axios
@@ -25,9 +22,6 @@ export default function SystemConfig() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* ============================
-     Mensajes temporales
-  ============================ */
   useEffect(() => {
     if (message || error) {
       const timer = setTimeout(() => {
@@ -38,9 +32,6 @@ export default function SystemConfig() {
     }
   }, [message, error]);
 
-  /* ============================
-     Acciones de mantenimiento
-  ============================ */
   const limpiarThumbnails = () => {
     axios
       .post("http://127.0.0.1:8000/api/reset/thumbnails")
@@ -62,14 +53,8 @@ export default function SystemConfig() {
       .catch(() => setError("Error al reiniciar servicios."));
   };
 
-  /* ============================
-     Resetear Base de Datos
-     (Solo superadmin)
-  ============================ */
   const resetDatabase = () => {
-    if (!window.confirm("⚠️ ¿Seguro que deseas resetear toda la base de datos? Esta acción es irreversible.")) return;
-    if (!window.confirm("⚠️ Confirmación final: Se eliminarán TODOS los pacientes, estudios y archivos. ¿Continuar?")) return;
-
+    if (!window.confirm("⚠️ ¿Seguro que deseas resetear toda la base de datos?")) return;
     fetch("http://localhost:8000/admin/reset-db", { method: "POST" })
       .then(() => alert("Base de datos reseteada correctamente."))
       .catch(() => alert("Error al resetear la base de datos."));
@@ -77,33 +62,26 @@ export default function SystemConfig() {
 
   return (
     <div className="config-container">
-
       <h1 className="config-title">Configuración MI PACS</h1>
 
       {message && <p className="msg success">{message}</p>}
       {error && <p className="msg error">{error}</p>}
 
-      {/* ============================
-          Panel DICOM
-      ============================ */}
       <div className="glass-panel">
         <h2>Configuración DICOM</h2>
         <p>Ajusta los parámetros de comunicación DICOM del servidor MI_PACS.</p>
 
+        {/* CAMBIO CLAVE: Usamos onOpenDicom que viene del Layout */}
         <button
-          onClick={() => setShowDicomModal(true)}
-          className="btn-primary"
+          onClick={onOpenDicom} 
+          className="btn-primary btn-dicom-gradient"
         >
           Abrir configuración DICOM
         </button>
       </div>
 
-      {/* ============================
-          Información del sistema
-      ============================ */}
       <div className="glass-panel">
         <h2>Información del Sistema</h2>
-
         {loading ? (
           <p>Cargando información...</p>
         ) : (
@@ -116,47 +94,23 @@ export default function SystemConfig() {
         )}
       </div>
 
-      {/* ============================
-          Mantenimiento del sistema
-      ============================ */}
       <div className="glass-panel">
         <h2>Mantenimiento del Sistema</h2>
-
         <div className="btn-group">
-          <button onClick={limpiarThumbnails} className="btn-secondary">
-            Limpiar thumbnails
-          </button>
-
-          <button onClick={limpiarInbox} className="btn-secondary">
-            Limpiar inbox DICOM
-          </button>
-
-          <button onClick={reiniciarServicios} className="btn-danger">
-            Reiniciar servicios
-          </button>
+          <button onClick={limpiarThumbnails} className="btn-secondary">Limpiar thumbnails</button>
+          <button onClick={limpiarInbox} className="btn-secondary">Limpiar inbox DICOM</button>
+          <button onClick={reiniciarServicios} className="btn-danger">Reiniciar servicios</button>
         </div>
       </div>
 
-      {/* ============================
-          Panel Avanzado (solo superadmin)
-      ============================ */}
       {user?.role === "superadmin" && (
         <div className="glass-panel danger-zone">
           <h2 className="danger-title">⚠️ Herramientas Avanzadas</h2>
-          <p className="danger-text">
-            Estas acciones son extremadamente sensibles. Úsalas solo si sabes exactamente lo que estás haciendo.
-          </p>
-
-          <button className="danger-btn" onClick={resetDatabase}>
-            🔥 Resetear Base de Datos
-          </button>
+          <button className="danger-btn" onClick={resetDatabase}>🔥 Resetear Base de Datos</button>
         </div>
       )}
-
-      <DicomConfigModal
-        isOpen={showDicomModal}
-        onClose={() => setShowDicomModal(false)}
-      />
+      
+      {/* ELIMINADO: Ya no renderizamos el modal aquí, usamos el global de App.jsx */}
     </div>
   );
 }

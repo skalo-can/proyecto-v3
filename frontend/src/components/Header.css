@@ -1,16 +1,13 @@
-/* ================================
-   HEADER GENERAL
-   Barra superior fija con Glass UI
-   ================================ */
+/* ============================================================
+   HEADER GENERAL - Barra superior fija con Glass UI
+   ============================================================ */
 .header {
   width: calc(100% - 260px); /* Ajusta el ancho restando el sidebar fijo */
-  height: 70px; /* Altura estándar del header */
-
-  padding: 0px 20px; /* Espaciado interno horizontal */
-
+  height: 70px;
+  padding: 0px 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Separa izquierda y derecha */
+  justify-content: space-between;
 
   /* Estilo Glass UI */
   background: rgba(255, 255, 255, 0.12);
@@ -21,138 +18,124 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 
-  /* Fijo en la parte superior */
+  /* Posicionamiento fijo */
   position: fixed;
   top: 0;
-  left: 260px; /* Se alinea con el sidebar */
-  z-index: 2000; /* Encima de todo */
-
-  animation: fadeIn 0.4s ease; /* Animación de entrada */
+  left: 260px;
+  z-index: 2000;
+  animation: fadeIn 0.4s ease;
 }
 
-/* ================================
-   SECCIÓN IZQUIERDA DEL HEADER
-   (Logo, título, etc.)
-   ================================ */
+/* ============================================================
+   SECCIÓN IZQUIERDA - Zona Interactiva MI_PACS
+   ============================================================ */
 .header-left {
   display: flex;
   align-items: center;
 }
 
-/* ================================
-   SECCIÓN DERECHA DEL HEADER
-   (Botones, menú, usuario)
-   ================================ */
+/* Nueva clase para asegurar que el título funcione como botón */
+.clickable-title {
+  cursor: pointer !important; /* Fuerza la mano en toda la zona */
+  display: flex;
+  align-items: center;
+  padding: 5px 15px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.clickable-title:hover {
+  background: rgba(255, 255, 255, 0.1); /* Brillo sutil al pasar el mouse */
+}
+
+.clickable-title:active {
+  transform: scale(0.96); /* Efecto de pulsación física al hacer clic */
+}
+
+.header-title {
+  cursor: pointer !important; /* Refuerza la mano sobre el texto */
+  font-size: 30px;
+  font-weight: 600;
+  color: white;
+  letter-spacing: 1px;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================
+   SECCIÓN DERECHA - Menú y Opciones
+   ============================================================ */
 .header-right {
   display: flex;
   align-items: center;
 }
 
-/* ================================
-   TÍTULO / LOGO
-   ================================ */
-.header-title {
-  font-size: 30px; /* Grande, visible */
-  font-weight: 600;
-  color: white;
-  letter-spacing: 1px; /* Espaciado elegante */
-  user-select: none; /* Evita selección accidental */
-}
-
-/* ================================
-   CONTENEDOR DEL MENÚ DROPDOWN
-   (Posiciona el menú relativo al botón)
-   ================================ */
 .menu-container {
-  position: relative; /* Necesario para posicionar el dropdown */
+  position: relative;
 }
 
-/* ================================
-   BOTÓN DEL MENÚ
-   ================================ */
 .menu-btn {
   padding: 8px 14px;
   background: rgba(255, 255, 255, 0.306);
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 8px;
-
   color: white;
   cursor: pointer;
   font-size: 14px;
-
-  transition: all 0.2s ease; /* Hover suave */
+  transition: all 0.2s ease;
 }
 
 .menu-btn:hover {
   background: rgba(255, 255, 255, 0.25);
-  transform: translateY(-1px); /* Efecto flotante */
+  transform: translateY(-1px);
 }
 
-/* ================================
-   DROPDOWN DEL MENÚ
-   ================================ */
+/* DROPDOWN */
 .menu-dropdown {
   position: absolute;
-  top: 45px; /* Debajo del botón */
-  right: 0; /* Alineado al borde derecho del botón */
-  left: auto;
-
+  top: 45px;
+  right: 0;
   width: 170px;
   padding: 8px 0;
-
-  background: rgba(30, 30, 30, 0.9); /* Fondo oscuro translúcido */
+  background: rgba(30, 30, 30, 0.9);
   backdrop-filter: blur(10px);
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
-  animation: fadeIn 0.2s ease; /* Animación rápida */
-  z-index: 3000; /* Encima del header */
+  animation: fadeIn 0.2s ease;
+  z-index: 3000;
 }
 
-/* ================================
-   ITEMS DEL DROPDOWN
-   ================================ */
 .dropdown-item {
   width: 100%;
   padding: 10px 14px;
-
   background: transparent;
   border: none;
   text-align: left;
-
   color: white;
   font-size: 14px;
   cursor: pointer;
-
   transition: 0.2s ease;
 }
 
 .dropdown-item:hover {
-  background: rgba(255, 255, 255, 0.12); /* Hover translúcido */
+  background: rgba(255, 255, 255, 0.12);
 }
 
-/* ================================
-   ITEM DE LOGOUT
-   ================================ */
 .logout-item {
   color: #ff6b6b !important; /* Rojo clínico */
 }
 
-.logout-item:hover {
-  background: rgba(255, 0, 0, 0.15); /* Hover rojo translúcido */
-}
-
-/* ================================
-   ANIMACIÓN DE ENTRADA
-   ================================ */
+/* ============================================================
+   ANIMACIONES
+   ============================================================ */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(-5px); /* Ligeramente arriba */
+    transform: translateY(-5px);
   }
   to {
     opacity: 1;
-    transform: translateY(0); /* Posición final */
+    transform: translateY(0);
   }
 }
