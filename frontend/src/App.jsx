@@ -1,4 +1,4 @@
-import React, { useState } from "react"; 
+import React, { useState } from "react"; // CORREGIDO: Importación completa
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
@@ -20,8 +20,6 @@ import SecureLinksPage from "./pages/SecureLinksPage";
 import WhatsAppLogsPage from "./pages/WhatsAppLogsPage";
 import DashboardStats from "./pages/DashboardStats";
 
-import ReporteCobrosPage from "./pages/ReporteCobrosPage";
-
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <div className="global-loading"><div className="spinner"></div><p>Validando sesión...</p></div>;
@@ -29,7 +27,7 @@ function ProtectedRoute({ children }) {
 }
 
 function Layout({ children, onOpenDicom }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false); 
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Ahora sí funcionará
 
   return (
     <div className="layout-container">
@@ -38,7 +36,6 @@ function Layout({ children, onOpenDicom }) {
         onOpenDicom={onOpenDicom} 
       />
       <div className="layout-body">
-        {/* El Sidebar ahora vivirá junto al contenido del reporte */}
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="layout-content">
           {children}
@@ -61,6 +58,7 @@ export default function App() {
         <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><Estudios /></ProtectedRoute></Layout>} />
         <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
         
+        {/* RUTA DE CONFIGURACIÓN QUE BUSCAMOS */}
         <Route path="/configuracion" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><SystemConfig /></ProtectedRoute></Layout>} />
         
         <Route path="/auditoria" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><AuditoriaPage /></ProtectedRoute></Layout>} />
@@ -68,15 +66,6 @@ export default function App() {
         <Route path="/secure-links" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><SecureLinksPage /></ProtectedRoute></Layout>} />
         <Route path="/whatsapp-logs" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/estadisticas" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><DashboardStats /></ProtectedRoute></Layout>} />
-
-        {/* CORRECCIÓN: Ahora el Reporte de Cobros está dentro del Layout y Protegido */}
-        <Route path="/reporte-cobros" element={
-          <Layout onOpenDicom={() => setShowDicomModal(true)}>
-            <ProtectedRoute>
-              <ReporteCobrosPage />
-            </ProtectedRoute>
-          </Layout>
-        } />
 
         <Route path="/logout" element={<Logout />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -86,3 +75,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

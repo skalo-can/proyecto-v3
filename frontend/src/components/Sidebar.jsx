@@ -10,7 +10,7 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
 
   const isActive = (path) => location.pathname === path;
 
-  // Lógica de permisos intacta
+  // Lógica de permisos
   const isSkalo = user?.username === "SKALO" || user?.rol === "superadmin";
   const isAdmin = user?.rol === "admin" || isSkalo;
 
@@ -33,10 +33,9 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
             <span className="icon">👥</span> Pacientes
           </Link>
 
-          {/* Botón Estadísticas actualizado */}
           {isAdmin && (
             <Link to="/estadisticas" className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`}>
-              <span className="icon">📊</span> Estadísticas
+              <span className="icon">📊</span> Estadísticas Estudios
             </Link>
           )}
 
@@ -51,20 +50,14 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
               
               {openAdmin && (
                 <div className="sidebar-submenu">
+                  {/* AQUÍ ESTÁ TU CONFIGURACIÓN COMPLETA */}
                   {isSkalo && (
                     <Link to="/configuracion" className="submenu-link" style={{ color: '#fbbf24', fontWeight: 'bold' }}>
                       ⚙️ Configuración MI_PACS
                     </Link>
                   )}
 
-                  {/* CONEXIÓN AL REPORTE DE COBROS CORREGIDA */}
-                  <Link 
-                    to="/reporte-cobros" 
-                    className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}
-                  >
-                    📈 Reporte Cobros
-                  </Link>
-
+                  <Link to="/estadisticas" className="submenu-link">📈 Reporte Cobros</Link>
                   <Link to="/auditoria" className="submenu-link">📊 Auditoría</Link>
                   <Link to="/email-logs" className="submenu-link">✉️ Logs Email</Link>
                   <Link to="/whatsapp-logs" className="submenu-link">📱 Logs WhatsApp</Link>
