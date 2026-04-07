@@ -38,7 +38,6 @@ function Layout({ children, onOpenDicom }) {
         onOpenDicom={onOpenDicom} 
       />
       <div className="layout-body">
-        {/* El Sidebar ahora vivirá junto al contenido del reporte */}
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="layout-content">
           {children}
@@ -51,27 +50,39 @@ function Layout({ children, onOpenDicom }) {
 export default function App() {
   const [showDicomModal, setShowDicomModal] = useState(false);
 
+  // Función para abrir el modal (compartida por Header y otras vistas)
+  const openDicom = () => setShowDicomModal(true);
+
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
         
-        <Route path="/" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><Dashboard /></ProtectedRoute></Layout>} />
-        <Route path="/pacientes" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><Pacientes /></ProtectedRoute></Layout>} />
-        <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><Estudios /></ProtectedRoute></Layout>} />
-        <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
+        <Route path="/" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><Dashboard /></ProtectedRoute></Layout>} />
+        <Route path="/pacientes" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><Pacientes /></ProtectedRoute></Layout>} />
+        <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><Estudios /></ProtectedRoute></Layout>} />
+        <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
         
-        <Route path="/configuracion" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><SystemConfig /></ProtectedRoute></Layout>} />
+        {/* CORRECCIÓN AQUÍ: Pasamos openDicom directamente al componente SystemConfig */}
+        <Route 
+          path="/configuracion" 
+          element={
+            <Layout onOpenDicom={openDicom}>
+              <ProtectedRoute>
+                <SystemConfig onOpenDicom={openDicom} />
+              </ProtectedRoute>
+            </Layout>
+          } 
+        />
         
-        <Route path="/auditoria" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><AuditoriaPage /></ProtectedRoute></Layout>} />
-        <Route path="/email-logs" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><EmailLogsPage /></ProtectedRoute></Layout>} />
-        <Route path="/secure-links" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><SecureLinksPage /></ProtectedRoute></Layout>} />
-        <Route path="/whatsapp-logs" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
-        <Route path="/estadisticas" element={<Layout onOpenDicom={() => setShowDicomModal(true)}><ProtectedRoute><DashboardStats /></ProtectedRoute></Layout>} />
+        <Route path="/auditoria" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><AuditoriaPage /></ProtectedRoute></Layout>} />
+        <Route path="/email-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><EmailLogsPage /></ProtectedRoute></Layout>} />
+        <Route path="/secure-links" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><SecureLinksPage /></ProtectedRoute></Layout>} />
+        <Route path="/whatsapp-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
+        <Route path="/estadisticas" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><DashboardStats /></ProtectedRoute></Layout>} />
 
-        {/* CORRECCIÓN: Ahora el Reporte de Cobros está dentro del Layout y Protegido */}
         <Route path="/reporte-cobros" element={
-          <Layout onOpenDicom={() => setShowDicomModal(true)}>
+          <Layout onOpenDicom={openDicom}>
             <ProtectedRoute>
               <ReporteCobrosPage />
             </ProtectedRoute>

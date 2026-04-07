@@ -19,46 +19,48 @@ export default function DicomConfigModal({ isOpen, onClose }) {
   const [lastSender, setLastSender] = useState(null);
   const [logs, setLogs] = useState([]);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  // Esta función recupera los datos exactamente como lo hacías antes
+  const loadData = () => {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
 
     setLoading(true);
-    setMessage(null);
-    setError(null);
 
-    axios
-      .get("http://127.0.0.1:8000/api/dicom/config", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      })
+    // 1. Cargar Configuración
+    axios.get("http://127.0.0.1:8000/api/dicom/config", { headers })
       .then((res) => {
         setForm({
-          ae_title: res.data.ae_title,
-          ip: res.data.ip,
-          port: res.data.port,
-          client_ae: res.data.client_ae,
+          ae_title: res.data.ae_title || "",
+          ip: res.data.ip || "",
+          port: res.data.port || "",
+          client_ae: res.data.client_ae || "",
         });
       })
-      .catch(() => setError("No se pudo cargar la configuración DICOM."))
-      .finally(() => setLoading(false));
+      .catch(() => setError("Error al cargar configuración."));
 
-    axios
-      .get("http://127.0.0.1:8000/api/dicom/status", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      })
+    // 2. Cargar Estado
+    axios.get("http://127.0.0.1:8000/api/dicom/status", { headers })
       .then((res) => {
-      setServerStatus(res.data.running ? "LISTENING" : "STOPPED");
-      setLastSender(res.data.last_event || null);
+        setServerStatus(res.data.running ? "LISTENING" : "STOPPED");
+        setLastSender(res.data.last_event || null);
       })
       .catch(() => setServerStatus("DESCONOCIDO"));
 
-    axios
-      .get("http://127.0.0.1:8000/api/dicom/logs", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      })
+    // 3. Cargar Logs
+    axios.get("http://127.0.0.1:8000/api/dicom/logs", { headers })
       .then((res) => setLogs(res.data.logs || []))
-      .catch(() => setLogs(["No se pudieron cargar los logs."]));
+      .catch(() => setLogs(["No hay logs disponibles."]))
+      .finally(() => setLoading(false));
+  };
+
+  // EFECTO PRINCIPAL: Se dispara cada vez que isOpen cambia a TRUE
+  useEffect(() => {
+    if (isOpen) {
+      loadData();
+    }
   }, [isOpen]);
 
+  // Manejo de limpieza de mensajes
   useEffect(() => {
     if (message || error) {
       const timer = setTimeout(() => {
@@ -69,67 +71,32 @@ export default function DicomConfigModal({ isOpen, onClose }) {
     }
   }, [message, error]);
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
-
-  const validate = () => {
-    if (!form.ae_title.trim()) return "El AE Title del servidor es obligatorio.";
-    if (!form.client_ae.trim()) return "El AE Title del cliente es obligatorio.";
-    if (!form.ip.trim()) return "La IP del servidor es obligatoria.";
-
-    const ipRegex = /^\d{1,3}(\.\d{1,3}){3}$/;
-    if (!ipRegex.test(form.ip)) return "La IP no tiene un formato válido.";
-
-    if (!form.port || form.port < 1 || form.port > 65535)
-      return "El puerto debe estar entre 1 y 65535.";
-
-    return null;
-  };
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSave = () => {
-    const validationError = validate();
-    if (validationError) return setError(validationError);
-
     setLoading(true);
-    setMessage(null);
-    setError(null);
-
-    axios
-      .put("http://127.0.0.1:8000/api/dicom/config", form, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      })
-      .then(() => setMessage("Configuración guardada correctamente."))
-      .catch((err) =>
-        setError(
-          err.response?.data?.detail || "Error al guardar la configuración."
-        )
-      )
-      .finally(() => setLoading(false));
+    axios.put("http://127.0.0.1:8000/api/dicom/config", form, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+    .then(() => {
+      setMessage("Guardado con éxito.");
+      loadData(); // Refrescar
+    })
+    .catch(() => setError("Error al guardar."))
+    .finally(() => setLoading(false));
   };
 
   const handleTestConnection = () => {
-    const validationError = validate();
-    if (validationError) return setError(validationError);
-
     setTesting(true);
-    setMessage(null);
-    setError(null);
-
-    axios
-      .post("http://127.0.0.1:8000/api/dicom/test-connection", form, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      })
-      .then((res) => {
-        setMessage(res.data.message || "C‑ECHO exitoso.");
-        if (res.data.logs) setLogs((prev) => [...prev, ...res.data.logs]);
-      })
-      .catch((err) =>
-        setError(
-          err.response?.data?.detail ||
-            "Error al probar la conexión DICOM."
-        )
-      )
-      .finally(() => setTesting(false));
+    axios.post("http://127.0.0.1:8000/api/dicom/test-connection", form, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+    .then((res) => {
+      setMessage(res.data.message || "Prueba exitosa.");
+      loadData(); // Refrescar para ver los nuevos logs
+    })
+    .catch(() => setError("Error en la prueba."))
+    .finally(() => setTesting(false));
   };
 
   if (!isOpen) return null;
@@ -141,107 +108,49 @@ export default function DicomConfigModal({ isOpen, onClose }) {
 
         <div className="dicom-status-row">
           <span className="dicom-status-label">Estado del servidor:</span>
-          <span
-            className={
-              serverStatus === "LISTENING"
-                ? "dicom-status-pill ok"
-                : "dicom-status-pill warn"
-            }
-          >
-            {serverStatus || "DESCONOCIDO"}
+          <span className={`dicom-status-pill ${serverStatus === "LISTENING" ? "ok" : "warn"}`}>
+            {serverStatus || "Cargando..."}
           </span>
         </div>
 
         <div className="dicom-status-row">
           <span className="dicom-status-label">Último emisor:</span>
-          <span className="dicom-status-value">
-            {lastSender || "Sin registros"}
-          </span>
+          <span className="dicom-status-value">{lastSender || "Sin registros"}</span>
         </div>
 
-        {loading ? (
-          <p className="dicom-loading">Cargando configuración...</p>
-        ) : (
-          <>
-            <label className="dicom-label">AE Title del servidor PACS</label>
-            <input
-              type="text"
-              name="ae_title"
-              value={form.ae_title}
-              onChange={handleChange}
-              className="dicom-input"
-            />
+        <label className="dicom-label">AE Title del servidor PACS</label>
+        <input type="text" name="ae_title" value={form.ae_title} onChange={handleChange} className="dicom-input" />
 
-            <label className="dicom-label">IP del servidor PACS</label>
-            <input
-              type="text"
-              name="ip"
-              value={form.ip}
-              onChange={handleChange}
-              className="dicom-input"
-            />
+        <label className="dicom-label">IP del servidor PACS</label>
+        <input type="text" name="ip" value={form.ip} onChange={handleChange} className="dicom-input" />
 
-            <label className="dicom-label">Puerto DICOM</label>
-            <input
-              type="number"
-              name="port"
-              value={form.port}
-              onChange={handleChange}
-              className="dicom-input"
-            />
+        <label className="dicom-label">Puerto DICOM</label>
+        <input type="number" name="port" value={form.port} onChange={handleChange} className="dicom-input" />
 
-            <label className="dicom-label">AE Title del cliente (WEASIS)</label>
-            <input
-              type="text"
-              name="client_ae"
-              value={form.client_ae}
-              onChange={handleChange}
-              className="dicom-input"
-            />
+        <label className="dicom-label">AE Title del cliente (WEASIS)</label>
+        <input type="text" name="client_ae" value={form.client_ae} onChange={handleChange} className="dicom-input" />
 
-            {message && <p className="dicom-success">{message}</p>}
-            {error && <p className="dicom-error">{error}</p>}
+        {message && <p className="dicom-success">{message}</p>}
+        {error && <p className="dicom-error">{error}</p>}
 
-            <div className="dicom-logs-container">
-              <div className="dicom-logs-header">Logs DICOM recientes</div>
-              <div className="dicom-logs-body">
-                {logs.length > 0 ? (
-                  logs.map((line, idx) => (
-                    <div key={idx} className="dicom-log-line">
-                      {line}
-                    </div>
-                  ))
-                ) : (
-                  <div className="dicom-log-line empty">
-                    No hay logs disponibles.
-                  </div>
-                )}
-              </div>
-            </div>
+        <div className="dicom-logs-container">
+          <div className="dicom-logs-header">Logs DICOM recientes</div>
+          <div className="dicom-logs-body">
+            {logs.map((line, idx) => (
+              <div key={idx} className="dicom-log-line">{line}</div>
+            ))}
+          </div>
+        </div>
 
-            <div className="dicom-buttons">
-              <button onClick={onClose} className="dicom-btn-close">
-                Cerrar
-              </button>
-
-              <button
-                onClick={handleTestConnection}
-                disabled={testing}
-                className="dicom-btn-test"
-              >
-                {testing ? "Probando..." : "Probar conexión"}
-              </button>
-
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="dicom-btn-save"
-              >
-                {loading ? "Guardando..." : "Guardar"}
-              </button>
-            </div>
-          </>
-        )}
+        <div className="dicom-buttons">
+          <button onClick={onClose} className="dicom-btn-close">Cerrar</button>
+          <button onClick={handleTestConnection} disabled={testing} className="dicom-btn-test">
+            {testing ? "Probando..." : "Probar conexión"}
+          </button>
+          <button onClick={handleSave} disabled={loading} className="dicom-btn-save">
+            {loading ? "Guardando..." : "Guardar"}
+          </button>
+        </div>
       </div>
     </div>
   );
