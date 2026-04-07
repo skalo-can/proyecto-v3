@@ -1,67 +1,67 @@
 .auditoria-container {
-  padding: 30px;
+  padding: 10px 20px;
+  height: calc(100vh - 100px); /* Ajuste para que quepa debajo del Header */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important; /* Elimina el scroll dorado lateral */
+  box-sizing: border-box;
 }
 
 .auditoria-title {
   font-size: 28px;
-  margin-bottom: 20px;
-  color: #0f172a;
+  margin-bottom: 15px;
+  color: #FFD700 !important; /* Dorado MI_PACS */
+  flex-shrink: 0;
 }
+
+.auditoria-card {
+  background-color: #1e222d !important; /* Fondo oscuro profesional */
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid #333;
+  flex-grow: 1;
+  overflow-y: auto; /* Solo scroll interno */
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+/* Personalización del scroll interno */
+.auditoria-card::-webkit-scrollbar { width: 8px; }
+.auditoria-card::-webkit-scrollbar-thumb { background: #3d4253; border-radius: 10px; }
 
 .auditoria-table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  background: transparent !important;
 }
 
 .auditoria-table th {
-  background: #e2e8f0;
+  position: sticky;
+  top: 0;
+  background: #1e222d !important;
+  color: #FFD700;
   padding: 12px;
   text-align: left;
-  font-weight: 600;
+  border-bottom: 2px solid #444;
+  z-index: 10;
 }
 
 .auditoria-table td {
   padding: 12px;
-  border-bottom: 1px solid #f1f5f9;
+  color: #d1d1d1;
+  border-bottom: 1px solid #2a2e3d; /* Línea divisoria que te gusta */
 }
 
-.no-data {
-  text-align: center;
-  padding: 20px;
-  color: #64748b;
-}
-
-.estado.ok {
-  color: #059669;
-  font-weight: bold;
-}
-
-.estado.expirado {
-  color: #b91c1c;
-  font-weight: bold;
-}
-
-.estado.denegado {
-  color: #d97706;
-  font-weight: bold;
-}
+.estado.ok { color: #4caf50; font-weight: bold; }
+.estado.expirado { color: #f44336; font-weight: bold; }
+.estado.denegado { color: #ff9800; font-weight: bold; }
 
 .volver-btn {
   margin-top: 20px;
-  padding: 12px 18px;
-  background: #0ea5e9;
+  padding: 10px 18px;
+  background: #333;
   color: white;
-  border: none;
-  border-radius: 10px;
+  border: 1px solid #444;
+  border-radius: 8px;
   cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.volver-btn:hover {
-  transform: translateY(-2px);
-  opacity: 0.9;
+  width: fit-content;
 }
