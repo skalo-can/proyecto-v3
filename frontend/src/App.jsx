@@ -1,3 +1,5 @@
+import RecepcionPage from "./pages/RecepcionPage";
+
 import React, { useState } from "react"; 
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -88,6 +90,17 @@ export default function App() {
             </ProtectedRoute>
           </Layout>
         } />
+
+        <Route 
+          path="/recepcion" 
+          element={
+            <Layout onOpenDicom={openDicom}>
+              <ProtectedRoute>
+                <RecepcionPage />
+              </ProtectedRoute>
+            </Layout>
+          } 
+        />
 
         <Route path="/logout" element={<Logout />} />
         <Route path="*" element={<Navigate to="/" replace />} />
