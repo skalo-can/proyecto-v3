@@ -108,13 +108,19 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart }) => {
                         <FaTrash />
                       </button>
 
-                      {/* BOTÓN INICIAR */}
-                      <button 
-                        className="btn-action-start" 
-                        onClick={() => onStart(order)}
-                      >
-                        Iniciar
-                      </button>
+                      {order.estado_ris === "En Espera" ? (
+                        <button 
+                          className="btn-action-start" 
+                          onClick={() => onStart(order)}
+                        >
+                          Iniciar
+                        </button>
+                      ) : (
+                        <span className="badge-iniciado">
+                          <i className="fas fa-check-circle"></i> En Worklist
+                        </span>
+                      )}
+
                     </td>
                   </tr>
                 );

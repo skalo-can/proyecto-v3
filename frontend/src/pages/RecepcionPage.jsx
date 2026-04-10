@@ -27,7 +27,7 @@ export default function RecepcionPage() {
     try {
       if (orderToEdit) {
         await axios.put(`http://127.0.0.1:8000/api/ris/order/${orderToEdit.id_orden}`, orderData);
-        setOrderToEdit(null); // Importante: Cerramos modo edición tras éxito
+        setOrderToEdit(null);
       } else {
         await axios.post("http://127.0.0.1:8000/api/ris/order", orderData);
       }
@@ -57,6 +57,22 @@ export default function RecepcionPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // 🔥 5. INICIAR ORDEN (Ahora dentro del componente para que funcione)
+  const handleStartOrder = async (order) => {
+    try {
+      // Llamada al endpoint que cambia el estado a 'Iniciado'
+      await axios.put(`http://127.0.0.1:8000/api/ris/order/start/${order.id_orden}`);
+      
+      // Actualizamos la tabla inmediatamente
+      await fetchWorklist();
+      
+      alert(`✅ Paciente ${order.nombre} enviado a la Worklist (${order.modalidad})`);
+    } catch (error) {
+      console.error("Error al iniciar:", error);
+      alert("No se pudo iniciar la orden. Verifica la conexión con el servidor.");
+    }
+  };
+
   return (
     <div className="recepcion-page-wrapper">
       <div className="recepcion-header-info">
@@ -66,7 +82,6 @@ export default function RecepcionPage() {
 
       <div className="recepcion-layout-split">
         <div className="layout-section-form">
-          {/* AQUÍ ESTÁ LA CORRECCIÓN: Un solo formulario con onCancel */}
           <RecepcionForm 
             onRegisterOrder={handleRegisterOrder} 
             initialData={orderToEdit} 
@@ -85,7 +100,7 @@ export default function RecepcionPage() {
             orders={orders} 
             onDelete={handleDelete}
             onEdit={handleEditRequest}
-            onStart={(order) => console.log("Iniciando:", order)}
+            onStart={handleStartOrder} /* <-- Conectado correctamente */
           />
         </div>
       </div>
