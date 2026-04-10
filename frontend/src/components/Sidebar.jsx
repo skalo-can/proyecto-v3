@@ -1,6 +1,7 @@
+import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
 import { useAuth } from "../AuthContext.jsx"; 
+import { FaUserPlus } from "react-icons/fa"; // <--- ESTO ES LO QUE FALTABA
 import "./Sidebar.css";
 
 export default function Sidebar({ isOpen, onClose, onAction }) {
@@ -10,7 +11,7 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
 
   const isActive = (path) => location.pathname === path;
 
-  // Lógica de permisos intacta
+  // Lógica de permisos
   const isSkalo = user?.username === "SKALO" || user?.rol === "superadmin";
   const isAdmin = user?.rol === "admin" || isSkalo;
 
@@ -29,13 +30,30 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
 
         <nav className="sidebar-nav">
           {/* SECCIÓN CLÍNICA */}
-          <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`}>
+          <Link 
+            to="/pacientes" 
+            className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`}
+            onClick={onClose}
+          >
             <span className="icon">👥</span> Pacientes
+          </Link>
+
+          {/* NUEVO BOTÓN PARA EL RIS - Estilizado como los demás */}
+          <Link 
+            to="/recepcion" 
+            className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`}
+            onClick={onClose}
+          >
+            <span className="icon"><FaUserPlus /></span> Recepción / RIS
           </Link>
 
           {/* Botón Estadísticas actualizado */}
           {isAdmin && (
-            <Link to="/estadisticas" className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`}>
+            <Link 
+              to="/estadisticas" 
+              className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`}
+              onClick={onClose}
+            >
               <span className="icon">📊</span> Estadísticas
             </Link>
           )}
@@ -52,27 +70,32 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
               {openAdmin && (
                 <div className="sidebar-submenu">
                   {isSkalo && (
-                    <Link to="/configuracion" className="submenu-link" style={{ color: '#fbbf24', fontWeight: 'bold' }}>
+                    <Link 
+                      to="/configuracion" 
+                      className="submenu-link" 
+                      style={{ color: '#fbbf24', fontWeight: 'bold' }}
+                      onClick={onClose}
+                    >
                       ⚙️ Configuración MI_PACS
                     </Link>
                   )}
 
-                  {/* CONEXIÓN AL REPORTE DE COBROS CORREGIDA */}
                   <Link 
                     to="/reporte-cobros" 
                     className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}
+                    onClick={onClose}
                   >
                     📈 Reporte Cobros
                   </Link>
 
-                  <Link to="/auditoria" className="submenu-link">📊 Auditoría</Link>
-                  <Link to="/email-logs" className="submenu-link">✉️ Logs Email</Link>
-                  <Link to="/whatsapp-logs" className="submenu-link">📱 Logs WhatsApp</Link>
+                  <Link to="/auditoria" className="submenu-link" onClick={onClose}>📊 Auditoría</Link>
+                  <Link to="/email-logs" className="submenu-link" onClick={onClose}>✉️ Logs Email</Link>
+                  <Link to="/whatsapp-logs" className="submenu-link" onClick={onClose}>📱 Logs WhatsApp</Link>
                   
                   {isSkalo && (
                     <button 
                       className="submenu-link reset-link" 
-                      onClick={() => onAction("resetDB")}
+                      onClick={() => { onAction("resetDB"); onClose(); }}
                       style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px' }}
                     >
                       ⚠️ Resetear Sistema

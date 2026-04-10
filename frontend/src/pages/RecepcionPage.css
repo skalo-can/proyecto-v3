@@ -1,0 +1,87 @@
+.recepcion-page-wrapper {
+  padding: 20px;
+  color: white;
+}
+
+.recepcion-layout-split {
+  display: flex;
+  flex-direction: row;
+  gap: 30px;
+  align-items: flex-start;
+  margin-top: 20px;
+}
+
+/* El formulario ocupa el 40% */
+.layout-section-form {
+  flex: 0 0 40%;
+}
+
+/* La tabla ocupa el 60% restante */
+.layout-section-list {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  overflow: hidden;
+}
+
+.list-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-refresh {
+  background: transparent;
+  border: 1px solid #00d2ff;
+  color: #00d2ff;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-refresh:hover {
+  background: #00d2ff;
+  color: #000;
+}
+
+/* Responsivo: Si la pantalla es pequeña, se ponen uno abajo del otro */
+@media (max-width: 1200px) {
+  .recepcion-layout-split {
+    flex-direction: column;
+  }
+  .layout-section-form, .layout-section-list {
+    width: 100%;
+  }
+}
+
+/* Esto evita que la página entera genere scroll */
+.recepcion-page-wrapper {
+  height: 100vh; /* Altura exacta de la ventana */
+  overflow: hidden; /* Prohibido el scroll exterior */
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+/* Ajuste del layout para que ocupe el resto del espacio */
+.recepcion-layout-split {
+  flex: 1;
+  display: flex;
+  gap: 20px;
+  overflow: hidden; /* Evita que los hijos estiren el contenedor */
+  min-height: 0; /* Truco de Flexbox para permitir scroll interno */
+}
+
+.layout-section-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}

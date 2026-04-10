@@ -46,6 +46,9 @@ from app.api.filtros.pacientes_filtros_api import router as pacientes_filtros_ro
 from app.api.filtros.estudios_filtros_api import router as estudios_filtros_router
 from app.api.filtros.busqueda_global_api import router as busqueda_global_router
 
+# 🔥 NUEVO: Router del RIS (Admisión)
+from app.api.ris import router as ris_router
+
 
 # Router de conectividad DICOM unificado
 from app.api import dicom_config_api
@@ -54,7 +57,9 @@ from app.api import dicom_config_api
 from app.api.dicom_modalities_api import router as dicom_modalities_router
 
 # Modelos (aseguran creación de tablas)
-from app.models import estudio, estudio_imagen, paciente, dicom_config
+# Modelos (aseguran creación de tablas)
+from app.models import estudio, estudio_imagen, paciente, dicom_config, ris_orden 
+from app.models.usuario import Usuario
 from app.models.usuario import Usuario
 from app.models.medico import Medico
 from app.models.estudio_ia_log import EstudioIALog
@@ -122,6 +127,8 @@ app.include_router(pdf_report_router, prefix="/api")
 app.include_router(whatsapp_router, prefix="/api")
 app.include_router(secure_links_router, prefix="/api")
 app.include_router(pacientes_filtros_router, prefix="/filtros")
+# Registro del módulo RIS
+app.include_router(ris_router, prefix="/api/ris", tags=["RIS"])
 app.include_router(estudios_filtros_router, prefix="/filtros")
 app.include_router(busqueda_global_router, prefix="/filtros")
 

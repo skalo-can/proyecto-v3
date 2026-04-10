@@ -1,0 +1,155 @@
+/* ============================================================
+   ESTILOS DE RECEPCIÓN (RIS) - Glass UI & Modular Design
+   ============================================================ */
+
+.recepcion-container {
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: calc(100vh - 70px);
+  margin-top: 70px; /* Espacio para el Header fijo */
+}
+
+.glass-form {
+  width: 100%;
+  max-width: 900px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 30px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.form-title {
+  color: #fff;
+  font-size: 24px;
+  margin-bottom: 25px;
+  border-left: 4px solid #00d2ff; /* Color cian médico */
+  padding-left: 15px;
+}
+
+.form-section {
+  margin-bottom: 30px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.form-section h3 {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 16px;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
+.form-group input, 
+.form-group select {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  color: #fff;
+  outline: none;
+  transition: border 0.3s ease;
+}
+
+.form-group input:focus {
+  border-color: #00d2ff;
+}
+
+/* SELECTOR DE PRIORIDAD */
+.priority-selector {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-priority {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  opacity: 0.4;
+  transition: all 0.3s ease;
+  color: #fff;
+}
+
+.btn-priority.active {
+  opacity: 1;
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.btn-priority.rutina { background: #2ecc71; }
+.btn-priority.prioritario { background: #f1c40f; color: #000; }
+.btn-priority.urgente { background: #e74c3c; }
+
+/* BOTÓN ACCIÓN PRINCIPAL */
+.btn-confirmar {
+  width: 100%;
+  padding: 15px;
+  margin-top: 20px;
+  background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.btn-confirmar:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+/* Fuerza la visibilidad del texto dentro del selector de modalidades */
+.form-group select {
+    color: #ffffff !important; /* Blanco puro para máxima nitidez */
+    background-color: rgba(15, 23, 42, 0.9) !important; /* Fondo oscuro sólido */
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* Mejora la apariencia de las opciones cuando se despliegan */
+.form-group select option {
+    background-color: #0f172a; /* Fondo oscuro para que no se vea blanco/gris */
+    color: #ffffff; /* Texto blanco */
+    padding: 10px;
+}
+
+/* Estilo para el foco (cuando haces clic) */
+.form-group select:focus {
+    border-color: #00d2ff;
+    box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
+    outline: none;
+}
+
+/* Si usas un navegador basado en Webkit (Chrome, Edge), esto ayuda con el contraste */
+.form-group select::-webkit-listbox {
+    background-color: #0f172a;
+}
