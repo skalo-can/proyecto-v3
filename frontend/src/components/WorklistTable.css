@@ -189,3 +189,39 @@
 .worklist-table-container::-webkit-scrollbar-thumb:hover {
   background: #00d2ff; /* Color cian sólido al pasar el mouse */
 }
+
+/* Contenedor principal de la tabla */
+.worklist-table-container {
+    max-height: 500px; /* 👈 Ajusta esta altura según prefieras */
+    overflow-y: auto;  /* 👈 Activa el scroll vertical */
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Hacer que el encabezado se quede fijo mientras haces scroll */
+.worklist-table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #1a1a1a; /* Color sólido para que no se transparente al bajar */
+    z-index: 10;
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.4);
+}
+
+/* Personalización de la barra de scroll para que combine con MI_PACS */
+.worklist-table-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.worklist-table-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.worklist-table-container::-webkit-scrollbar-thumb {
+    background: #3a7bd5;
+    border-radius: 10px;
+}
+
+.worklist-table-container::-webkit-scrollbar-thumb:hover {
+    background: #00d2ff;
+}

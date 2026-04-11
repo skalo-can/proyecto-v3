@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, func
-from app.core.database import Base # Ruta correcta
+from app.core.database import Base 
 
 class RISOrden(Base):
     __tablename__ = "worklist_orders"
@@ -16,3 +16,7 @@ class RISOrden(Base):
     estado_ris = Column(String, default="En Espera")
     estado_pacs = Column(String, default="Sin Imágenes")
     fecha_creacion = Column(DateTime, server_default=func.now())
+    
+    # 🔥 ESTE ES EL CAMBIO (Punto 3):
+    # Aquí se guardarán como JSON todos los campos manuales que crees
+    metadata_extra = Column(String, nullable=True)

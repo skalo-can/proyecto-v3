@@ -7,22 +7,24 @@ import "./RecepcionPage.css";
 export default function RecepcionPage() {
   const [orders, setOrders] = useState([]);
   const [orderToEdit, setOrderToEdit] = useState(null);
+  const [dynamicFields, setDynamicFields] = useState([]);
 
-  // 1. Obtener la lista
-  const fetchWorklist = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get("http://127.0.0.1:8000/api/ris/worklist");
-      setOrders(response.data);
+      const resWorklist = await axios.get("http://127.0.0.1:8000/api/ris/worklist");
+      setOrders(resWorklist.data);
+
+      const resFields = await axios.get("http://127.0.0.1:8000/api/dicom/campos-activos");
+      setDynamicFields(resFields.data);
     } catch (error) {
-      console.error("Error cargando la Worklist:", error);
+      console.error("Error cargando datos:", error);
     }
   };
 
   useEffect(() => {
-    fetchWorklist();
+    fetchData();
   }, []);
 
-  // 2. Registrar o Actualizar
   const handleRegisterOrder = async (orderData) => {
     try {
       if (orderToEdit) {
@@ -31,45 +33,54 @@ export default function RecepcionPage() {
       } else {
         await axios.post("http://127.0.0.1:8000/api/ris/order", orderData);
       }
-      fetchWorklist();
+      fetchData();
     } catch (error) {
       console.error("Error en la operación:", error);
       alert("Error al procesar la solicitud.");
     }
   };
 
-  // 3. Eliminar
   const handleDelete = async (orderId) => {
     const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar esta orden?");
     if (confirmacion) {
       try {
         await axios.delete(`http://127.0.0.1:8000/api/ris/order/${orderId}`);
-        fetchWorklist();
+        fetchData();
       } catch (error) {
         alert(error.response?.data?.detail || "No se pudo eliminar.");
       }
     }
   };
 
-  // 4. Preparar Edición
   const handleEditRequest = (order) => {
     setOrderToEdit(order);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 🔥 5. INICIAR ORDEN (Ahora dentro del componente para que funcione)
   const handleStartOrder = async (order) => {
     try {
-      // Llamada al endpoint que cambia el estado a 'Iniciado'
       await axios.put(`http://127.0.0.1:8000/api/ris/order/start/${order.id_orden}`);
-      
-      // Actualizamos la tabla inmediatamente
-      await fetchWorklist();
-      
+      await fetchData();
       alert(`✅ Paciente ${order.nombre} enviado a la Worklist (${order.modalidad})`);
     } catch (error) {
       console.error("Error al iniciar:", error);
-      alert("No se pudo iniciar la orden. Verifica la conexión con el servidor.");
+      alert("No se pudo iniciar la orden.");
+    }
+  };
+
+  // 🔥 NUEVA FUNCIÓN: FINALIZAR/ATENDER ORDEN EN WORKLIST
+  const handleAtenderOrder = async (orderId) => {
+    try {
+      // Llamada al backend para cambiar estado a 'Atendido'
+      await axios.put(`http://127.0.0.1:8000/api/ris/order/atender/${orderId}`);
+      
+      // Actualizamos la lista local inmediatamente
+      await fetchData();
+      
+      console.log(`✅ Orden ${orderId} marcada como atendida.`);
+    } catch (error) {
+      console.error("Error al atender la orden:", error);
+      alert("No se pudo marcar como atendido.");
     }
   };
 
@@ -85,14 +96,15 @@ export default function RecepcionPage() {
           <RecepcionForm 
             onRegisterOrder={handleRegisterOrder} 
             initialData={orderToEdit} 
-            onCancel={() => setOrderToEdit(null)} 
+            onCancel={() => setOrderToEdit(null)}
+            dynamicFields={dynamicFields} 
           />
         </div>
 
         <div className="layout-section-list">
           <div className="list-card-header">
             <h3><i className="fas fa-list"></i> Pacientes en Espera Hoy</h3>
-            <button onClick={fetchWorklist} className="btn-refresh">
+            <button onClick={fetchData} className="btn-refresh">
               <i className="fas fa-sync"></i>
             </button>
           </div>
@@ -100,7 +112,8 @@ export default function RecepcionPage() {
             orders={orders} 
             onDelete={handleDelete}
             onEdit={handleEditRequest}
-            onStart={handleStartOrder} /* <-- Conectado correctamente */
+            onStart={handleStartOrder} 
+            onAtender={handleAtenderOrder} // 👈 CONEXIÓN FINALIZADA
           />
         </div>
       </div>

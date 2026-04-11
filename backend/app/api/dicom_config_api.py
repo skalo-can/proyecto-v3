@@ -1,169 +1,51 @@
-"""
-dicom_config_api.py
--------------------
-API clínica para la configuración DICOM dentro del sistema MI_PACS.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pathlib import Path
-import subprocess
-
 from app.core.database import get_db
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
+from app.models.dicom_config import DicomMapeoCampos # Asegúrate que este modelo exista
+from pydantic import BaseModel
 
-from app.models.dicom_config import DicomConfig
-from app.schemas.dicom_config import (
-    DicomConfigUpdate,
-    DicomConfigResponse
-)
+# 🔥 CORRECCIÓN: Sin prefijo interno para que no se duplique con el main.py
+router = APIRouter(tags=["Configuración DICOM"])
 
-from app.services.dicom_service import reiniciar_servidor_dicom
-from app.dicom_utils.dicom_server import server_state
+# Schema para validar lo que llega del Frontend
+class MapeoCreate(BaseModel):
+    nombre_mostrar: str
+    tag_dicom: str
 
+@router.get("/mapeo")
+def listar_mapeos(db: Session = Depends(get_db)):
+    # Quitamos temporalmente el chequeo de usuario para probar conexión
+    return db.query(DicomMapeoCampos).all()
 
-# ---------------------------------------------------------
-# 🔥 UN SOLO ROUTER (el correcto)
-# ---------------------------------------------------------
-router = APIRouter(prefix="/dicom", tags=["DICOM"])
-
-
-# ---------------------------------------------------------
-# RUTA DEL ECHOSCU (DCMTK)
-# ---------------------------------------------------------
-ECHOSCU_PATH = (
-    Path(__file__).resolve()
-    .parent.parent.parent  # ← subimos desde backend/app/ hasta backend/
-    / "tools"
-    / "dcmtk-3.7.0-win64-dynamic"
-    / "bin"
-    / "echoscu.exe"
-)
-
-# ---------------------------------------------------------
-# OBTENER CONFIGURACIÓN DICOM
-# ---------------------------------------------------------
-@router.get("/config", response_model=DicomConfigResponse)
-def get_dicom_config(
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    requiere_rol(usuario, ["admin"])
-
-    config = db.query(DicomConfig).filter(DicomConfig.id == 1).first()
-
-    if not config:
-        config = DicomConfig(
-            id=1,
-            ae_title="MI_PACS",
-            ip="127.0.0.1",
-            port=104,
-            client_ae="WEASIS"
-        )
-        db.add(config)
-        db.commit()
-        db.refresh(config)
-
-        reiniciar_servidor_dicom(config.ae_title, config.port)
-
-    return config
-
-
-# ---------------------------------------------------------
-# ACTUALIZAR CONFIGURACIÓN DICOM
-# ---------------------------------------------------------
-@router.put("/config", response_model=DicomConfigResponse)
-def update_dicom_config(
-    data: DicomConfigUpdate,
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    requiere_rol(usuario, ["admin"])
-
-    config = db.query(DicomConfig).filter(DicomConfig.id == 1).first()
-
-    if not config:
-        config = DicomConfig(id=1)
-
-    config.ae_title = data.ae_title
-    config.ip = data.ip
-    config.port = data.port
-    config.client_ae = data.client_ae
-
-    db.add(config)
-    db.commit()
-    db.refresh(config)
-
-    reiniciar_servidor_dicom(config.ae_title, config.port)
-
-    return config
-
-
-# ---------------------------------------------------------
-# PROBAR CONEXIÓN C‑ECHO
-# ---------------------------------------------------------
-@router.post("/test-connection")
-def test_connection_endpoint(
-    payload: DicomConfigUpdate,
-    usuario=Depends(obtener_usuario_actual)
-):
-    requiere_rol(usuario, ["admin"])
-
-    if not ECHOSCU_PATH.exists():
-        raise HTTPException(
-            status_code=500,
-            detail=f"No se encontró echoscu.exe en: {ECHOSCU_PATH}"
-        )
-
-    cmd = [
-        str(ECHOSCU_PATH),
-        "-aet", payload.client_ae,
-        "-aec", payload.ae_title,
-        payload.ip,
-        str(payload.port),
-    ]
-
+@router.post("/mapeo")
+def crear_mapeo_manual(data: MapeoCreate, db: Session = Depends(get_db)):
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10,
+        nuevo_campo = DicomMapeoCampos(
+            nombre_mostrar=data.nombre_mostrar,
+            tag_dicom=data.tag_dicom,
+            tipo_dato="text", # Valor por defecto
+            activo=True
         )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(
-            status_code=504,
-            detail="Tiempo de espera agotado al intentar C‑ECHO."
-        )
+        db.add(nuevo_campo)
+        db.commit()
+        db.refresh(nuevo_campo)
+        return nuevo_campo
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
-    if result.returncode != 0:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Fallo C‑ECHO:\n{result.stderr or result.stdout}"
-        )
+@router.delete("/mapeo/{mapeo_id}")
+def eliminar_mapeo(mapeo_id: int, db: Session = Depends(get_db)):
+    mapeo = db.query(DicomMapeoCampos).filter(DicomMapeoCampos.id == mapeo_id).first()
+    if not mapeo:
+        raise HTTPException(status_code=404, detail="Mapeo no encontrado")
+    db.delete(mapeo)
+    db.commit()
+    return {"message": "Eliminado"}
 
-    return {"message": result.stdout or "C‑ECHO completado correctamente."}
-
-
-# ---------------------------------------------------------
-# ESTADO REAL DEL SERVIDOR DICOM
-# ---------------------------------------------------------
-@router.get("/status")
-def dicom_status():
-    return {
-        "running": server_state["running"],
-        "ae_title": server_state["ae_title"],
-        "port": server_state["port"],
-        "last_event": server_state["last_event"]
-    }
-
-
-# ---------------------------------------------------------
-# LOGS CLÍNICOS DICOM
-# ---------------------------------------------------------
-@router.get("/logs")
-def dicom_logs():
-    return {
-        "logs": server_state["logs"][-50:]
-    }
+@router.get("/campos-activos") # <--- ASEGÚRATE QUE DIGA EXACTAMENTE ASÍ
+def get_campos_para_recepcion(db: Session = Depends(get_db)):
+    """Este endpoint lo usa RecepcionForm para dibujar los inputs automáticamente."""
+    return db.query(DicomMapeoCampos).filter(DicomMapeoCampos.activo == True).all()

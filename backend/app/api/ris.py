@@ -32,7 +32,7 @@ def post_nueva_orden(orden: RISOrdenCreate, db: Session = Depends(get_db)):
 # --- READ ---
 @router.get("/worklist", response_model=List[RISOrdenResponse])
 def get_worklist(db: Session = Depends(get_db)):
-    """Obtiene la lista de pacientes que no han terminado su proceso."""
+    """Obtiene la lista de pacientes que no han terminado su proceso (Finalizado)."""
     return db.query(RISOrden).filter(RISOrden.estado_ris != "Finalizado").all()
 
 # --- UPDATE (MODIFICAR DATOS) ---
@@ -51,7 +51,7 @@ def modificar_orden(order_id: int, updated_data: RISOrdenCreate, db: Session = D
     db.refresh(db_order)
     return db_order
 
-# --- UPDATE (INICIAR FLUJO DICOM) - ESTO ES LO QUE NECESITA LA AGFA ---
+# --- UPDATE (INICIAR FLUJO DICOM) ---
 @router.put("/order/start/{order_id}")
 def iniciar_orden(order_id: int, db: Session = Depends(get_db)):
     """
@@ -65,7 +65,23 @@ def iniciar_orden(order_id: int, db: Session = Depends(get_db)):
 
     db_order.estado_ris = "Iniciado"
     db.commit()
-    return {"status": "success", "message": f"Orden {db_order.accession_number} lista en Worklist"}
+    return {"status": "success", "message": f"Orden {db_order.accession_number} enviada al Worklist"}
+
+# 🔥 NUEVO: UPDATE (ATENDER / LIMPIAR WORKLIST) 🔥
+@router.put("/order/atender/{order_id}")
+def atender_orden(order_id: int, db: Session = Depends(get_db)):
+    """
+    Cambia el estado a 'Atendido'. 
+    Esto hace que el servidor DICOM deje de mostrar al paciente en la modalidad.
+    """
+    db_order = db.query(RISOrden).filter(RISOrden.id_orden == order_id).first()
+    
+    if not db_order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    db_order.estado_ris = "Atendido"
+    db.commit()
+    return {"status": "success", "message": f"Paciente {db_order.apellido} marcado como atendido"}
 
 # --- DELETE ---
 @router.delete("/order/{order_id}")

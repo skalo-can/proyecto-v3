@@ -80,6 +80,16 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
                     </Link>
                   )}
 
+                  {/* 🔥 NUEVO BOTÓN: MAPEO DE TAGS DICOM */}
+                  <Link 
+                    to="/config-mapeo" 
+                    className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`}
+                    onClick={onClose}
+                    style={{ color: '#1890ff', fontWeight: '500' }}
+                  >
+                    🏷️ Configurar Tags DICOM
+                  </Link>
+
                   <Link 
                     to="/reporte-cobros" 
                     className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}

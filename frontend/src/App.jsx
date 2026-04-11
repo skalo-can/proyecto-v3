@@ -1,14 +1,12 @@
-import RecepcionPage from "./pages/RecepcionPage";
-
 import React, { useState } from "react"; 
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 
+// Componentes y Páginas
 import { Header } from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import DicomConfigModal from "./components/DicomConfigModal";
-
 import Dashboard from "./components/Dashboard";
 import Pacientes from "./Pacientes";
 import Login from "./Login";
@@ -21,8 +19,11 @@ import EmailLogsPage from "./pages/EmailLogsPage";
 import SecureLinksPage from "./pages/SecureLinksPage";
 import WhatsAppLogsPage from "./pages/WhatsAppLogsPage";
 import DashboardStats from "./pages/DashboardStats";
-
 import ReporteCobrosPage from "./pages/ReporteCobrosPage";
+import RecepcionPage from "./pages/RecepcionPage";
+
+// 🔥 La nueva página de mapeo
+import ConfigMapeoPage from './pages/ConfigMapeoPage';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -51,8 +52,6 @@ function Layout({ children, onOpenDicom }) {
 
 export default function App() {
   const [showDicomModal, setShowDicomModal] = useState(false);
-
-  // Función para abrir el modal (compartida por Header y otras vistas)
   const openDicom = () => setShowDicomModal(true);
 
   return (
@@ -60,12 +59,12 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         
+        {/* Rutas Protegidas dentro del Layout */}
         <Route path="/" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><Dashboard /></ProtectedRoute></Layout>} />
         <Route path="/pacientes" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><Pacientes /></ProtectedRoute></Layout>} />
         <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><Estudios /></ProtectedRoute></Layout>} />
         <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
         
-        {/* CORRECCIÓN AQUÍ: Pasamos openDicom directamente al componente SystemConfig */}
         <Route 
           path="/configuracion" 
           element={
@@ -76,31 +75,26 @@ export default function App() {
             </Layout>
           } 
         />
+
+        {/* 🔥 NUEVA RUTA DE MAPEO CONFIGURADA CORRECTAMENTE */}
+        <Route 
+          path="/config-mapeo" 
+          element={
+            <Layout onOpenDicom={openDicom}>
+              <ProtectedRoute>
+                <ConfigMapeoPage />
+              </ProtectedRoute>
+            </Layout>
+          } 
+        />
         
         <Route path="/auditoria" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><AuditoriaPage /></ProtectedRoute></Layout>} />
         <Route path="/email-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><EmailLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/secure-links" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><SecureLinksPage /></ProtectedRoute></Layout>} />
         <Route path="/whatsapp-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/estadisticas" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><DashboardStats /></ProtectedRoute></Layout>} />
-
-        <Route path="/reporte-cobros" element={
-          <Layout onOpenDicom={openDicom}>
-            <ProtectedRoute>
-              <ReporteCobrosPage />
-            </ProtectedRoute>
-          </Layout>
-        } />
-
-        <Route 
-          path="/recepcion" 
-          element={
-            <Layout onOpenDicom={openDicom}>
-              <ProtectedRoute>
-                <RecepcionPage />
-              </ProtectedRoute>
-            </Layout>
-          } 
-        />
+        <Route path="/reporte-cobros" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><ReporteCobrosPage /></ProtectedRoute></Layout>} />
+        <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><RecepcionPage /></ProtectedRoute></Layout>} />
 
         <Route path="/logout" element={<Logout />} />
         <Route path="*" element={<Navigate to="/" replace />} />
