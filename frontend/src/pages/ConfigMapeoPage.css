@@ -1,0 +1,46 @@
+/* Bloqueo total del scroll exterior */
+:global(body), :global(html) {
+    overflow: hidden !important;
+    height: 100% !important;
+}
+
+.mapeo-page-container {
+    padding: 24px;
+    background: #0b131e;
+    /* Usamos fixed para que se pegue a los bordes sin empujar el scroll */
+    position: fixed; 
+    top: 64px; /* Ajusta esto al alto exacto de tu Header */
+    left: 250px; /* Ajusta esto al ancho exacto de tu Sidebar */
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    
+    /* Ocultar scroll interno por si acaso */
+    overflow: hidden;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.mapeo-page-container::-webkit-scrollbar {
+    display: none;
+}
+
+/* Estética de las tarjetas */
+.mapeo-page-container .ant-card {
+    border-radius: 8px;
+    background: #141c27 !important;
+    border: 1px solid #303030 !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.mapeo-page-container .ant-card-head {
+    border-bottom: 1px solid #303030 !important;
+}
+
+.mapeo-page-container .ant-table {
+    background: transparent !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background-color: #1d2939 !important;
+}
