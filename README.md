@@ -5,4 +5,4 @@
 # prueba commit ultimas modificaciones sadat
 
 # ris funcional
-# otros cambios en db
+# otros cambios en db totales
