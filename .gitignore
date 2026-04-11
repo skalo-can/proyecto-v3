@@ -29,8 +29,3 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
-
-# DATABASE
-*.db
-*.sqlite
-*.sqlite3
