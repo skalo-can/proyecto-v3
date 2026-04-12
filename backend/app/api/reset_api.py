@@ -101,3 +101,33 @@ def resetear_sistema_clinico(
     nuevo_hilo.start()
 
     return {"mensaje": "✨ Sistema limpio. SKALO y Admin creados correctamente."}
+
+# --- AGREGAR AL FINAL DE reset_api.py ---
+
+from app.services.dicom_service import reiniciar_servidor_dicom
+from app.crud.dicom_config_crud import get_config
+
+@router.post("/restart-services")
+def reiniciar_servicios_sistema(db: Session = Depends(get_db)):
+    """
+    Este es el endpoint que el botón rojo 'Reiniciar servicios' busca.
+    Ruta final: /api/reset/restart-services
+    """
+    try:
+        # 1. Obtener la configuración DICOM actual
+        config = get_config(db)
+        
+        # 2. Si no hay config, usamos valores por defecto
+        ae_title = config.ae_title if config else "MIPACS"
+        port = config.port if config else 11112
+        
+        # 3. Llamar al reinicio físico del servidor DICOM
+        reiniciar_servidor_dicom(ae_title, port)
+        
+        return {
+            "success": True, 
+            "message": f"Servidor DICOM ({ae_title}:{port}) reiniciado correctamente."
+        }
+    except Exception as e:
+        print(f"❌ Error al reiniciar servicios: {e}")
+        return {"success": False, "message": str(e)}
