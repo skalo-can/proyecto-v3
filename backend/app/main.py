@@ -1,22 +1,32 @@
 """
-MI_PACS — Backend principal corregido
+MI_PACS — Backend principal con Soporte de Notificaciones Real-Time
 ---------------------------------------------------------
-Inicializa la aplicación FastAPI, configura CORS, registra routers
-clínicos (PACS + RIS), monta carpetas estáticas y expone endpoints.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 import os
-import platform
-from threading import Thread, Event
+from typing import List
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 
-# Routers clínicos
+# ---------------------------------------------------------
+# 1. IMPORTACIÓN CRÍTICA DE MODELOS (Orden corregido)
+# ---------------------------------------------------------
+# Importamos todos los modelos ANTES de crear las tablas para evitar el error 'Medico'
+from app.models.medico import Medico  # <--- Importante que este sea de los primeros
+from app.models.usuario import Usuario
+from app.models.paciente import Paciente
+from app.models.estudio import Estudio
+from app.models.estudio_imagen import EstudioImagen
+from app.models.dicom_config import DicomConfig
+from app.models.ris_orden import RISOrden
+from app.models.estudio_ia_log import EstudioIALog
+
+# --- ROUTERS CLÍNICOS ---
 from app.api.paciente_api import router as paciente_router
 from app.api.auth_api import router as auth_router
 from app.api.estudio_api import router as estudio_router
@@ -29,10 +39,10 @@ from app.api.paciente_link_api import router as paciente_link_router
 from app.api.paciente_email_api import router as paciente_email_router
 from app.api.reset_api import router as reset_router
 from app.api.dicom_import import router as dicom_import_router
+from app.api.dicom_tools_api import router as dicom_tools_router
 from app.api.dicom_import_new_api import router as dicom_import_new_router
 from app.api.dicom_stream_api import router as dicom_stream_router
 from app.api.stats_api import router as stats_router
-from app.api.dicom_tools_api import router as dicom_tools_router
 from app.api.dicom_advanced_tools_api import router as dicom_advanced_tools_router
 from app.api.dicom_email_tools_api import router as dicom_email_tools_router
 from app.api.dicom_cd_tools_api import router as dicom_cd_tools_router
@@ -50,15 +60,33 @@ from app.api.ris import router as ris_router
 from app.api import dicom_config_api
 from app.api.dicom_modalities_api import router as dicom_modalities_router
 
-# Modelos para asegurar creación de tablas
-from app.models import estudio, estudio_imagen, paciente, dicom_config, ris_orden 
-from app.models.usuario import Usuario
-from app.models.medico import Medico
-from app.models.estudio_ia_log import EstudioIALog
-
 # Servidor DICOM dinámico
 from app.services.dicom_service import reiniciar_servidor_dicom
 from app.crud.dicom_config_crud import get_config, create_default_config
+
+# ---------------------------------------------------------
+# GESTOR DE CONEXIONES EN TIEMPO REAL (WEBSOCKETS)
+# ---------------------------------------------------------
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def notify_update(self):
+        for connection in self.active_connections:
+            try:
+                await connection.send_text("refresh_data")
+            except Exception:
+                pass
+
+manager = ConnectionManager()
 
 # ---------------------------------------------------------
 # FASTAPI — CONFIGURACIÓN PRINCIPAL
@@ -68,11 +96,8 @@ app = FastAPI(
     version=settings.API_VERSION,
 )
 
-# CORS - Asegurando compatibilidad con el puerto de Vite
-ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# CORS
+ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -82,8 +107,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Crear tablas en la DB (Asegura la creación de DicomMapeoCampos)
+# 2. CREACIÓN DE TABLAS (Ahora con todos los modelos cargados)
 Base.metadata.create_all(bind=engine)
+
+# ---------------------------------------------------------
+# ENDPOINT WEBSOCKET PARA EL FRONTEND
+# ---------------------------------------------------------
+@app.websocket("/ws/notifications")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
 
 # ---------------------------------------------------------
 # REGISTRO DE ROUTERS
@@ -116,12 +153,13 @@ app.include_router(pacientes_filtros_router, prefix="/filtros")
 app.include_router(ris_router, prefix="/api/ris", tags=["RIS"])
 app.include_router(estudios_filtros_router, prefix="/filtros")
 app.include_router(busqueda_global_router, prefix="/filtros")
-
-# ✅ REGISTRO UNIFICADO DE CONFIGURACIÓN DICOM (Corregido)
 app.include_router(dicom_config_api.router, prefix="/api/dicom", tags=["Configuración DICOM"])
-
-# Modalidades conectadas
 app.include_router(dicom_modalities_router)
+
+@app.post("/api/notify-new-study")
+async def trigger_notification():
+    await manager.notify_update()
+    return {"status": "Notificación enviada"}
 
 # ---------------------------------------------------------
 # ARCHIVOS ESTÁTICOS
@@ -131,37 +169,18 @@ static_dir = os.path.join(BASE_DIR, "static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# ---------------------------------------------------------
-# ENDPOINTS ADICIONALES
-# ---------------------------------------------------------
-@app.get("/uploads/{filename}")
-async def serve_dicom(filename: str):
-    file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads", filename))
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
-    with open(file_path, "rb") as f:
-        data = f.read()
-    media_type = "application/dicom" if filename.lower().endswith(".dcm") else "application/octet-stream"
-    return Response(content=data, media_type=media_type)
+@app.on_event("startup")
+def startup_event():
+    db = SessionLocal()
+    config = get_config(db)
+    if not config:
+        config = create_default_config(db)
+    
+    if os.environ.get("SERVER_STARTED") != "true":
+        os.environ["SERVER_STARTED"] = "true"
+        print(f"🔵 Iniciando Servidor DICOM → AE={config.ae_title}, Puerto={config.port}")
+        reiniciar_servidor_dicom(config.ae_title, config.port)
 
 @app.get("/status")
 def status():
     return {"message": "Sistema clínico funcionando correctamente"}
-
-# ---------------------------------------------------------
-# ARRANQUE SEGURO DEL SERVIDOR DICOM
-# ---------------------------------------------------------
-db = SessionLocal()
-config = get_config(db)
-if not config:
-    config = create_default_config(db)
-
-if os.environ.get("SERVER_STARTED") != "true":
-    os.environ["SERVER_STARTED"] = "true"
-    print(f"🔵 Iniciando Servidor DICOM → AE={config.ae_title}, Puerto={config.port}")
-    reiniciar_servidor_dicom(config.ae_title, config.port)
-
-@app.on_event("startup")
-def startup_event():
-    # Inicialización de tareas de fondo si fuesen necesarias
-    pass
