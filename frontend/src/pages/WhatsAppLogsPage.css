@@ -1,15 +1,20 @@
 .wa-page {
-  min-height: 100vh;
+  /* Cambio crítico: altura fija y box-sizing */
+  height: 100vh; 
+  width: 100%;
   padding: 30px;
   background: radial-gradient(circle at top, #0f172a, #020617);
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  box-sizing: border-box; /* Evita que el padding sume al tamaño total */
+  overflow: hidden;       /* Mata el scroll dorado de raíz */
 }
 
 .wa-card.glass {
   width: 100%;
   max-width: 1100px;
+  max-height: 100%;       /* Asegura que no se pase del contenedor padre */
   background: rgba(15, 23, 42, 0.75);
   border-radius: 18px;
   padding: 24px 28px;
@@ -17,6 +22,9 @@
   backdrop-filter: blur(18px);
   border: 1px solid rgba(148, 163, 184, 0.35);
   color: #e5e7eb;
+  display: flex;
+  flex-direction: column; /* Permite que la tabla crezca internamente */
+  box-sizing: border-box;
 }
 
 .wa-header h1 {
@@ -35,6 +43,7 @@
   gap: 16px;
   margin: 20px 0;
   align-items: end;
+  flex-shrink: 0; /* Evita que los filtros se aplasten */
 }
 
 .wa-field label {
@@ -99,8 +108,9 @@
 .wa-table-wrapper {
   margin-top: 10px;
   border-radius: 14px;
-  overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.4);
+  overflow-y: auto; /* Solo la tabla tendrá scroll si hay muchos datos */
+  flex-grow: 1;     /* La tabla ocupa el espacio sobrante */
 }
 
 .wa-table {
@@ -116,6 +126,9 @@
   font-size: 12px;
   color: #9ca3af;
   border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+  position: sticky; /* El encabezado se queda fijo al hacer scroll en la tabla */
+  top: 0;
+  z-index: 10;
 }
 
 .wa-table td {
@@ -153,6 +166,7 @@
   align-items: center;
   margin-top: 14px;
   font-size: 13px;
+  flex-shrink: 0; /* Evita que la paginación se aplaste */
 }
 
 .wa-pagination button {
@@ -185,6 +199,7 @@
   cursor: pointer;
   font-size: 13px;
   transition: 0.2s ease;
+  flex-shrink: 0;
 }
 
 .volver-btn:hover {

@@ -7,7 +7,6 @@ const COLORS = ["#fbbf24", "#3b82f6", "#10b981", "#ef4444", "#8b5cf6"];
 export default function DashboardStats() {
   const { token } = useAuth();
   
-  // Estadísticas Globales
   const [stats, setStats] = useState({
     pacientesTotal: 0,
     estudiosTotal: 0,
@@ -15,10 +14,9 @@ export default function DashboardStats() {
     almacenamientoGB: "0.00",
     porcentajeNAS: 0,
     crecimiento: [],
-    modalidades: [] // Ej: [{name: 'RX', value: 400}, {name: 'CT', value: 300}]
+    modalidades: [] 
   });
 
-  // Filtros y Resultados Filtrados
   const [filtros, setFiltros] = useState({ inicio: "", fin: "" });
   const [datosFiltrados, setDatosFiltrados] = useState({
     estudiosEnRango: 0,
@@ -43,23 +41,32 @@ export default function DashboardStats() {
   };
 
   const aplicarFiltro = () => {
-    // Aquí simulamos la respuesta del backend para el rango seleccionado
-    // En producción, esto vendría de un fetch enviando filtros.inicio y filtros.fin
     setDatosFiltrados({
       estudiosEnRango: 125,
-      gbConsumidos: 45.8, // GB ocupados en ese mes/año
-      porcentajeDelTotal: 15 // % que representa del NAS total
+      gbConsumidos: 45.8,
+      porcentajeDelTotal: 15 
     });
   };
 
   return (
-    <div style={{ padding: '20px', color: 'white', backgroundColor: '#0f1114', minHeight: '100vh' }}>
-      <h2 style={{ color: '#fbbf24', marginBottom: '20px', borderLeft: '4px solid #fbbf24', paddingLeft: '15px' }}>
+    <div style={{ 
+      padding: '20px', 
+      color: 'white', 
+      backgroundColor: '#0f1114', 
+      height: '100vh',           // Altura fija al 100% de la ventana
+      width: '100%',             // Asegura el ancho total
+      boxSizing: 'border-box',   // CRÍTICO: El padding no suma al tamaño total
+      overflowY: 'auto',         // Scroll interno solo si el contenido crece mucho
+      overflowX: 'hidden',       // Mata el scroll horizontal definitivamente
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      <h2 style={{ color: '#fbbf24', marginBottom: '20px', borderLeft: '4px solid #fbbf24', paddingLeft: '15px', flexShrink: 0 }}>
         Panel de Control Estadístico
       </h2>
 
       {/* 🚀 TARJETAS GLOBALES SUPERIORES */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '30px', flexShrink: 0 }}>
         <div style={cardStyle}><span style={labelStyle}>Total Pacientes</span><div style={valueStyle}>{stats.pacientesTotal}</div></div>
         <div style={cardStyle}><span style={labelStyle}>Total Estudios</span><div style={{ ...valueStyle, color: '#fbbf24' }}>{stats.estudiosTotal}</div></div>
         <div style={cardStyle}><span style={labelStyle}>Imágenes Almacenadas</span><div style={valueStyle}>{stats.imagenesTotal}</div></div>
@@ -71,7 +78,7 @@ export default function DashboardStats() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '20px', marginBottom: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '20px', marginBottom: '30px', flexShrink: 0 }}>
         
         {/* 🔍 SECCIÓN DE FILTROS Y CONSUMO POR RANGO */}
         <div style={cardStyle}>
@@ -113,7 +120,7 @@ export default function DashboardStats() {
       </div>
 
       {/* 🥧 DISTRIBUCIÓN POR MODALIDADES (TORTA + TABLA) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexShrink: 0 }}>
         <div style={cardStyle}>
           <h3 style={labelStyle}>Distribución de Modalidades (%)</h3>
           <div style={{ height: '300px' }}>

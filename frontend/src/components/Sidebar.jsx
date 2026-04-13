@@ -1,19 +1,80 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx"; 
-import { FaUserPlus } from "react-icons/fa"; // <--- ESTO ES LO QUE FALTABA
+import { FaUserPlus } from "react-icons/fa";
 import "./Sidebar.css";
 
-export default function Sidebar({ isOpen, onClose, onAction }) {
+export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
   const { user } = useAuth();
   const [openAdmin, setOpenAdmin] = useState(false);
 
   const isActive = (path) => location.pathname === path;
 
-  // Lógica de permisos
-  const isSkalo = user?.username === "SKALO" || user?.rol === "superadmin";
+  // Identificación Maestra: Detecta si el nombre contiene "SKALO"
+  const currentUsername = user?.username?.trim().toUpperCase() || "";
+  const isSkalo = currentUsername.includes("SKALO") || user?.rol === "superadmin";
   const isAdmin = user?.rol === "admin" || isSkalo;
+
+  // 🔥 LÓGICA DE RESETEO CON TRIPLE SEGURIDAD (Confirmar + Palabra + Password)
+  const handleResetSystem = async () => {
+    // 1. Validación de identidad de usuario
+    if (!currentUsername.includes("SKALO")) {
+      alert(`Acceso denegado. Solo el usuario Maestro SKALO tiene permisos para esta acción.`);
+      return;
+    }
+
+    // 2. PRIMER CHEQUEO: Confirmación nativa
+    const confirmacion = window.confirm(
+      "⚠️ ADVERTENCIA CRÍTICA: Estás a punto de borrar todos los datos del sistema (Pacientes, Estudios e Imágenes). ¿Realmente deseas continuar?"
+    );
+
+    if (confirmacion) {
+      // 3. SEGUNDO CHEQUEO: Palabra clave obligatoria
+      const palabraMaestra = window.prompt(
+        "Para proceder, confirma escribiendo la palabra maestra (SKALO):"
+      );
+
+      if (palabraMaestra?.trim().toUpperCase() === "SKALO") {
+        
+        // 4. TERCER CHEQUEO: Validación de Password de acceso
+        const passwordConfirm = window.prompt(
+          "🛡️ VERIFICACIÓN FINAL: Ingresa tu contraseña de acceso para autorizar el reseteo del sistema:"
+        );
+
+        if (!passwordConfirm) {
+          alert("Contraseña requerida para continuar. Acción cancelada.");
+          return;
+        }
+
+        try {
+          // Enviamos la contraseña al backend para validación final antes del borrado físico
+          const response = await fetch("http://127.0.0.1:8000/api/reset-system", {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user?.token}` 
+            },
+            body: JSON.stringify({ password: passwordConfirm }) 
+          });
+
+          if (response.ok) {
+            alert("✅ SISTEMA RESETEADO EXITOSAMENTE. Los archivos y registros han sido eliminados. La página se recargará.");
+            onClose();
+            window.location.reload(); 
+          } else {
+            const errorData = await response.json();
+            alert(`❌ ERROR DE SEGURIDAD: ${errorData.detail || 'Contraseña incorrecta o fallo de autorización'}`);
+          }
+        } catch (error) {
+          console.error("Error en reset:", error);
+          alert("❌ Error de red: No se pudo conectar con el servidor para ejecutar el comando.");
+        }
+      } else {
+        alert("Palabra maestra incorrecta. Acción cancelada por seguridad.");
+      }
+    }
+  };
 
   return (
     <>
@@ -30,30 +91,16 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
 
         <nav className="sidebar-nav">
           {/* SECCIÓN CLÍNICA */}
-          <Link 
-            to="/pacientes" 
-            className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`}
-            onClick={onClose}
-          >
+          <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`} onClick={onClose}>
             <span className="icon">👥</span> Pacientes
           </Link>
 
-          {/* NUEVO BOTÓN PARA EL RIS - Estilizado como los demás */}
-          <Link 
-            to="/recepcion" 
-            className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`}
-            onClick={onClose}
-          >
+          <Link to="/recepcion" className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`} onClick={onClose}>
             <span className="icon"><FaUserPlus /></span> Recepción / RIS
           </Link>
 
-          {/* Botón Estadísticas actualizado */}
           {isAdmin && (
-            <Link 
-              to="/estadisticas" 
-              className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`}
-              onClick={onClose}
-            >
+            <Link to="/estadisticas" className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`} onClick={onClose}>
               <span className="icon">📊</span> Estadísticas
             </Link>
           )}
@@ -70,31 +117,16 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
               {openAdmin && (
                 <div className="sidebar-submenu">
                   {isSkalo && (
-                    <Link 
-                      to="/configuracion" 
-                      className="submenu-link" 
-                      style={{ color: '#fbbf24', fontWeight: 'bold' }}
-                      onClick={onClose}
-                    >
+                    <Link to="/configuracion" className="submenu-link" style={{ color: '#fbbf24', fontWeight: 'bold' }} onClick={onClose}>
                       ⚙️ Configuración MI_PACS
                     </Link>
                   )}
 
-                  {/* 🔥 NUEVO BOTÓN: MAPEO DE TAGS DICOM */}
-                  <Link 
-                    to="/config-mapeo" 
-                    className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`}
-                    onClick={onClose}
-                    style={{ color: '#1890ff', fontWeight: '500' }}
-                  >
+                  <Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} onClick={onClose} style={{ color: '#1890ff', fontWeight: '500' }}>
                     🏷️ Configurar Tags DICOM
                   </Link>
 
-                  <Link 
-                    to="/reporte-cobros" 
-                    className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}
-                    onClick={onClose}
-                  >
+                  <Link to="/reporte-cobros" className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`} onClick={onClose}>
                     📈 Reporte Cobros
                   </Link>
 
@@ -105,8 +137,18 @@ export default function Sidebar({ isOpen, onClose, onAction }) {
                   {isSkalo && (
                     <button 
                       className="submenu-link reset-link" 
-                      onClick={() => { onAction("resetDB"); onClose(); }}
-                      style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px' }}
+                      onClick={handleResetSystem} 
+                      style={{ 
+                        color: '#ff4d4d', 
+                        fontWeight: 'bold', 
+                        marginTop: '10px',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        width: '100%',
+                        cursor: 'pointer',
+                        padding: '8px 12px'
+                      }}
                     >
                       ⚠️ Resetear Sistema
                     </button>
