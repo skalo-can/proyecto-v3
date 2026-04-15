@@ -22,8 +22,9 @@ import DashboardStats from "./pages/DashboardStats";
 import ReporteCobrosPage from "./pages/ReporteCobrosPage";
 import RecepcionPage from "./pages/RecepcionPage";
 
-// 🔥 La nueva página de mapeo
+// 🔥 Importaciones nuevas
 import ConfigMapeoPage from './pages/ConfigMapeoPage';
+import Productividad from "./pages/Productividad"; // <--- Agregado
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -65,6 +66,18 @@ export default function App() {
         <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><Estudios /></ProtectedRoute></Layout>} />
         <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
         
+        {/* 📊 NUEVA RUTA DE PRODUCTIVIDAD AGREGADA */}
+        <Route 
+          path="/productividad" 
+          element={
+            <Layout onOpenDicom={openDicom}>
+              <ProtectedRoute>
+                <Productividad />
+              </ProtectedRoute>
+            </Layout>
+          } 
+        />
+
         <Route 
           path="/configuracion" 
           element={
