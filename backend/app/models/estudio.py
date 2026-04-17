@@ -93,3 +93,4 @@ class Estudio(Base):
         cascade="all, delete-orphan",
         doc="Logs generados por los módulos de IA asociados al estudio"
     )
+    
