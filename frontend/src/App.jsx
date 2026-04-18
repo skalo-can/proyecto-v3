@@ -26,6 +26,8 @@ import RecepcionPage from "./pages/RecepcionPage";
 import ConfigMapeoPage from './pages/ConfigMapeoPage';
 import Productividad from "./pages/Productividad"; // <--- Agregado
 
+import TecnologoConsole from "./pages/TecnologoConsole";
+
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <div className="global-loading"><div className="spinner"></div><p>Validando sesión...</p></div>;
@@ -108,6 +110,8 @@ export default function App() {
         <Route path="/estadisticas" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><DashboardStats /></ProtectedRoute></Layout>} />
         <Route path="/reporte-cobros" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><ReporteCobrosPage /></ProtectedRoute></Layout>} />
         <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><RecepcionPage /></ProtectedRoute></Layout>} />
+
+        <Route path="/tecnologo" element={<TecnologoConsole />} />
 
         <Route path="/logout" element={<Logout />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -60,6 +60,8 @@ from app.api.ris import router as ris_router
 from app.api import dicom_config_api
 from app.api.dicom_modalities_api import router as dicom_modalities_router
 
+from app.api.ris_tecnologo_api import router as tecnologo_api
+
 # Servidor DICOM dinámico
 from app.services.dicom_service import reiniciar_servidor_dicom
 from app.crud.dicom_config_crud import get_config, create_default_config
@@ -155,6 +157,8 @@ app.include_router(estudios_filtros_router, prefix="/filtros")
 app.include_router(busqueda_global_router, prefix="/filtros")
 app.include_router(dicom_config_api.router, prefix="/api/dicom", tags=["Configuración DICOM"])
 app.include_router(dicom_modalities_router)
+
+app.include_router(tecnologo_api, prefix="/api")
 
 @app.post("/api/notify-new-study")
 async def trigger_notification():
