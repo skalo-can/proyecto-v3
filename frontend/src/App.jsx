@@ -22,8 +22,11 @@ import DashboardStats from "./pages/DashboardStats";
 import ReporteCobrosPage from "./pages/ReporteCobrosPage";
 import RecepcionPage from "./pages/RecepcionPage";
 
-// 🔥 La nueva página de mapeo
+// 🔥 Importaciones nuevas
 import ConfigMapeoPage from './pages/ConfigMapeoPage';
+import Productividad from "./pages/Productividad"; // <--- Agregado
+
+import TecnologoConsole from "./pages/TecnologoConsole";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -65,6 +68,18 @@ export default function App() {
         <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><Estudios /></ProtectedRoute></Layout>} />
         <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
         
+        {/* 📊 NUEVA RUTA DE PRODUCTIVIDAD AGREGADA */}
+        <Route 
+          path="/productividad" 
+          element={
+            <Layout onOpenDicom={openDicom}>
+              <ProtectedRoute>
+                <Productividad />
+              </ProtectedRoute>
+            </Layout>
+          } 
+        />
+
         <Route 
           path="/configuracion" 
           element={
@@ -95,6 +110,8 @@ export default function App() {
         <Route path="/estadisticas" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><DashboardStats /></ProtectedRoute></Layout>} />
         <Route path="/reporte-cobros" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><ReporteCobrosPage /></ProtectedRoute></Layout>} />
         <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute><RecepcionPage /></ProtectedRoute></Layout>} />
+
+        <Route path="/tecnologo" element={<TecnologoConsole />} />
 
         <Route path="/logout" element={<Logout />} />
         <Route path="*" element={<Navigate to="/" replace />} />
