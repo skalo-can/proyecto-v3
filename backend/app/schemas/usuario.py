@@ -21,8 +21,7 @@ class UsuarioBase(BaseModel):
     # Email como Opcional y str para evitar fallos si el reset crea correos simples
     email: Optional[str] = Field(None, example="usuario@mipacs.com")
     username: str = Field(..., example="skalo_maestro")
-    rol: str = Field(..., description="Rol del usuario: superadmin | medico | admin | tecnico")
-
+    rol: str = Field(..., description="Rol: superadmin | admin | tecnologo | radiologo | medico | recepcion")
 
 # ---------------------------------------------------------
 # CREATE

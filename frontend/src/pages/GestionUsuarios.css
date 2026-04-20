@@ -4,7 +4,7 @@
     display: flex;
     flex-direction: column;
     background: #0b0e11;
-    color: #ffffff; /* Texto general en blanco */
+    color: #ffffff;
     font-family: 'Inter', sans-serif;
     overflow: hidden;
 }
@@ -19,7 +19,7 @@
     min-height: 0;
 }
 
-/* 2. REGISTRO SUPERIOR (Estilo Imagen 8) */
+/* 2. REGISTRO SUPERIOR */
 .gestion-card-registro {
     background: #1a1d21;
     padding: 30px;
@@ -37,7 +37,7 @@
 
 .field-group label {
     font-size: 0.75rem;
-    color: #fbbf24; /* Ámbar brillante para labels */
+    color: #fbbf24;
     font-weight: bold;
     text-transform: uppercase;
     margin-bottom: 10px;
@@ -49,13 +49,14 @@
     padding: 14px; 
     background: #0b0e11 !important; 
     border: 1px solid #444;
-    color: #ffffff; /* Texto del input en blanco puro */
+    color: #ffffff;
     border-radius: 8px;
     font-size: 1rem;
     outline: none;
+    transition: border 0.3s ease;
 }
 
-/* 3. MATRIZ GLOBAL (Recuperando Legibilidad) */
+/* 3. MATRIZ GLOBAL */
 .permisos-container-master {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -64,8 +65,13 @@
     padding: 25px;
     border-radius: 10px;
     border: 1px solid #222;
-    overflow: hidden; 
+    overflow-y: auto;
+    max-height: 200px; /* Limitamos altura para no empujar la tabla */
 }
+
+/* Scrollbar para la matriz */
+.permisos-container-master::-webkit-scrollbar { width: 5px; }
+.permisos-container-master::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
 
 .permiso-label {
     display: flex;
@@ -75,18 +81,17 @@
     padding: 8px;
     border-radius: 4px;
     background: #161b22;
-    color: #e2e8f0; /* Blanco grisáceo claro para que se lea perfecto */
+    color: #e2e8f0;
     font-weight: 500;
+    cursor: pointer;
 }
 
-.permiso-label input[type="checkbox"] {
-    accent-color: #38bdf8; /* Checkboxes en celeste */
-}
+.permiso-label:hover { background: #1f2937; }
 
-/* 4. BOTONES DE ACCIÓN (Grandes y Claros) */
+/* 4. BOTONES DE ACCIÓN - ACTUALIZADOS PARA 4 BOTONES */
 .botones-accion-container {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr); /* 4 columnas para que quepan todos */
     gap: 15px;
     margin-top: 25px;
 }
@@ -102,13 +107,18 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
+    transition: transform 0.2s, filter 0.2s;
 }
 
+.btn-maestro:active { transform: scale(0.98); }
+.btn-maestro:hover { filter: brightness(1.1); }
+
 .btn-crear { background: #3b82f6; color: white; }
+.btn-activar { background: #10b981; color: white; } /* Verde Esmeralda */
 .btn-bloquear { background: #f59e0b; color: white; }
 .btn-eliminar { background: #dc2626; color: white; }
 
-/* 5. TABLA INFERIOR (Imagen 9 con colores vivos) */
+/* 5. TABLA INFERIOR */
 .gestion-card-tabla {
     background: #1a1d21;
     padding: 25px;
@@ -128,7 +138,6 @@
     background: #0b0e11;
 }
 
-/* Scrollbar Celeste MI_PACS */
 .tabla-scroll-area::-webkit-scrollbar { width: 8px; }
 .tabla-scroll-area::-webkit-scrollbar-thumb {
     background: #38bdf8;
@@ -142,30 +151,43 @@
 
 .tabla-usuarios th {
     background: #2d333b;
-    color: #fbbf24; /* Títulos en Ámbar */
+    color: #fbbf24;
     padding: 15px;
     text-align: left;
     position: sticky;
     top: 0;
     z-index: 10;
     font-weight: bold;
+    border-bottom: 2px solid #333;
 }
+
+.tabla-usuarios tr:hover { background: #161b22; }
 
 .tabla-usuarios td {
     padding: 15px;
     border-bottom: 1px solid #222;
     font-size: 0.9rem;
-    color: #ffffff; /* Texto de la tabla en blanco puro */
+    color: #ffffff;
 }
 
-/* Botón Editar Blanco (Imagen 9) */
-.btn-editar-blanco {
+.rol-badge {
+    background: #333;
+    color: #fbbf24;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    border: 1px solid #444;
+}
+
+.btn-editar-mini {
     background: #ffffff;
     color: #000000;
     border: none;
-    padding: 8px 20px;
+    padding: 6px 15px;
     border-radius: 4px;
     font-weight: bold;
     cursor: pointer;
     text-transform: uppercase;
+    font-size: 0.75rem;
 }
