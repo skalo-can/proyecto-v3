@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { RecepcionForm } from "../components/RecepcionForm";
 import WorklistTable from "../components/WorklistTable";
 import axios from "axios";
@@ -9,9 +9,11 @@ export default function RecepcionPage() {
   const [orderToEdit, setOrderToEdit] = useState(null);
   const [dynamicFields, setDynamicFields] = useState([]);
 
-  const fetchData = async () => {
+  // 1. Envolvemos fetchData en useCallback para evitar ciclos infinitos con el interval
+  const fetchData = useCallback(async () => {
     try {
-      const resWorklist = await axios.get("http://127.0.0.1:8000/api/ris/worklist");
+      // Agregamos t=${Date.now()} para romper el caché y asegurar que la secretaria vea datos reales
+      const resWorklist = await axios.get(`http://127.0.0.1:8000/api/ris/worklist?all_active=true&t=${Date.now()}`);
       setOrders(resWorklist.data);
 
       const resFields = await axios.get("http://127.0.0.1:8000/api/dicom/campos-activos");
@@ -19,11 +21,18 @@ export default function RecepcionPage() {
     } catch (error) {
       console.error("Error cargando datos:", error);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
   }, []);
+
+  // 2. EFECTO DE AUTO-REFRESCO: Se ejecuta cada 5 segundos
+  useEffect(() => {
+    fetchData(); // Carga inicial
+
+    const intervalId = setInterval(() => {
+      fetchData();
+    }, 5000); // 5 segundos es ideal para Recepción
+
+    return () => clearInterval(intervalId); // Limpieza al cerrar la página
+  }, [fetchData]);
 
   const handleRegisterOrder = async (orderData) => {
     try {
@@ -33,7 +42,7 @@ export default function RecepcionPage() {
       } else {
         await axios.post("http://127.0.0.1:8000/api/ris/order", orderData);
       }
-      fetchData();
+      fetchData(); // Refresco instantáneo tras registrar
     } catch (error) {
       console.error("Error en la operación:", error);
       alert("Error al procesar la solicitud.");
@@ -68,15 +77,10 @@ export default function RecepcionPage() {
     }
   };
 
-  // 🔥 NUEVA FUNCIÓN: FINALIZAR/ATENDER ORDEN EN WORKLIST
   const handleAtenderOrder = async (orderId) => {
     try {
-      // Llamada al backend para cambiar estado a 'Atendido'
       await axios.put(`http://127.0.0.1:8000/api/ris/order/atender/${orderId}`);
-      
-      // Actualizamos la lista local inmediatamente
       await fetchData();
-      
       console.log(`✅ Orden ${orderId} marcada como atendida.`);
     } catch (error) {
       console.error("Error al atender la orden:", error);
@@ -113,7 +117,7 @@ export default function RecepcionPage() {
             onDelete={handleDelete}
             onEdit={handleEditRequest}
             onStart={handleStartOrder} 
-            onAtender={handleAtenderOrder} // 👈 CONEXIÓN FINALIZADA
+            onAtender={handleAtenderOrder}
           />
         </div>
       </div>

@@ -1,131 +1,103 @@
-"""
-reset_api.py — MI_PACS (Versión Blindada SKALO)
-----------------------------------------------------------
-Control de mantenimiento: Reset clínico, reinicio de servicios
-y limpieza selectiva de carpetas físicas.
-"""
-
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pathlib import Path
 import shutil
-from threading import Event, Thread
+import logging
 
 from app.core.database import Base, engine, get_db
 from app.models.usuario import Usuario
 from app.core.security import get_password_hash
-from app.services.dicom_service import reiniciar_servidor_dicom
-from app.crud.dicom_config_crud import get_config
 
-# Intentar importar el procesador de dicom_utils
-try:
-    from app.dicom_utils.dicom_preprocessor import iniciar_procesador
-except ImportError:
-    def iniciar_procesador(*args, **kwargs):
-        print("⚠️ No se encontró la función iniciar_procesador en dicom_utils.")
+# Configuración de logs para ver errores en la terminal negra
+logger = logging.getLogger(__name__)
 
-# Configuración del Router con prefijo /reset
 router = APIRouter(prefix="/reset", tags=["Reset del Sistema"])
 
-# Definimos la ruta raíz del proyecto para localizar carpetas de forma segura
+# Ubicación base del proyecto
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-# ---------------------------------------------------------
-# 1. REINICIAR SERVICIOS (Botón Rojo)
-# ---------------------------------------------------------
-@router.post("/restart-services")
-def reiniciar_servicios_sistema(db: Session = Depends(get_db)):
-    """Reinicia el servidor DICOM físico usando la config de la DB."""
-    try:
-        config = get_config(db)
-        ae_title = config.ae_title if config else "MIPACS"
-        port = config.port if config else 11112
-        
-        reiniciar_servidor_dicom(ae_title, port)
-        
-        return {
-            "success": True, 
-            "message": f"Servidor DICOM ({ae_title}:{port}) reiniciado correctamente."
-        }
-    except Exception as e:
-        print(f"❌ Error al reiniciar servicios: {e}")
-        return {"success": False, "message": str(e)}
+# --- 1. MATRIZ MAESTRA DE PERMISOS (Poder Total para SKALO) ---
+PERMISOS_FULL = {
+    "atender_pacientes": True, "reprocesar_dicom": True, "notificar_critico": True,
+    "importar_medios": True, "modificar_estudio": True, "quemar_cd_dvd": True,
+    "subir_adjuntos": True, "ver_worklist": True, "escribir_informe": True,
+    "firma_electronica": True, "solicitar_retoma": True, "acceso_ia": True,
+    "validar_previo": True, "exportar_key_images": True, "consultar_historial": True,
+    "ver_pacientes": True, "correccion_ortografica": True, "envio_multicanal": True,
+    "gestionar_plantillas": True, "escuchar_audio": True, "crear_orden": True,
+    "validar_datos": True, "gestionar_agenda": True, "recaudo_pagos": True,
+    "entregar_resultados": True, "estado_nodos_dicom": True, "logs_sistema": True
+}
 
-# ---------------------------------------------------------
-# 2. LIMPIAR THUMBNAILS
-# ---------------------------------------------------------
-@router.post("/thumbnails")
-def limpiar_thumbnails():
-    """Vacia la carpeta de previsualizaciones (thumbnails)"""
-    try:
-        folder = BASE_DIR / "static" / "thumbnails"
-        if folder.exists():
-            shutil.rmtree(folder)
-        folder.mkdir(parents=True, exist_ok=True)
-        return {"success": True, "message": "Miniaturas eliminadas correctamente."}
-    except Exception as e:
-        print(f"❌ Error al limpiar thumbnails: {e}")
-        return {"success": False, "message": str(e)}
-
-# ---------------------------------------------------------
-# 3. LIMPIAR INBOX DICOM
-# ---------------------------------------------------------
-@router.post("/inbox")
-def limpiar_inbox_dicom():
-    """Vacia la carpeta temporal de recepción (dicom_inbox)"""
-    try:
-        folder = BASE_DIR / "dicom_inbox"
-        if folder.exists():
-            shutil.rmtree(folder)
-        folder.mkdir(parents=True, exist_ok=True)
-        return {"success": True, "message": "Bandeja de entrada DICOM vaciada."}
-    except Exception as e:
-        print(f"❌ Error al limpiar inbox: {e}")
-        return {"success": False, "message": str(e)}
-
-# ---------------------------------------------------------
-# 4. RESET CLÍNICO TOTAL
-# ---------------------------------------------------------
 @router.post("/clinico")
 def resetear_sistema_clinico(request: Request, db: Session = Depends(get_db)):
-    """Borrado total de DB y carpetas físicas (Preparación producción)"""
-    app = request.app
+    """
+    PURIFICACIÓN TOTAL: 
+    1. Borra y recrea la base de datos.
+    2. Crea al Superusuario SKALO y Admin.
+    3. Limpia carpetas de imágenes y archivos temporales.
+    """
+    try:
+        # --- PASO 1: RECONSTRUCCIÓN DE BASE DE DATOS ---
+        logger.info("Iniciando purificación de base de datos...")
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
 
-    # Detener hilos DICOM
-    stop_event = getattr(app.state, "dicom_stop_event", None)
-    hilo = getattr(app.state, "dicom_thread", None)
-    if stop_event and hilo:
-        stop_event.set()
-        hilo.join(timeout=2)
+        # --- PASO 2: CREACIÓN DE USUARIOS MAESTROS ---
+        usuarios_maestros = [
+            {
+                "nombre": "SKALO Soporte Maestro",
+                "username": "SKALO",
+                "email": "soporte@mipacs.com",
+                "pass": "Soportehc#3104",
+                "rol": "superadmin" # Rol de máximo nivel
+            },
+            {
+                "nombre": "Administrador Local",
+                "username": "admin",
+                "email": "admin@mipacs.com",
+                "pass": "admin123",
+                "rol": "admin"
+            }
+        ]
 
-    # Recrear Tablas
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+        for u in usuarios_maestros:
+            nuevo_usuario = Usuario(
+                nombre=u["nombre"],
+                username=u["username"],
+                email=u["email"],
+                password=get_password_hash(u["pass"]), # Hash de seguridad
+                rol=u["rol"],
+                is_active=True,                        # Campo sincronizado
+                permisos=PERMISOS_FULL                 # Inyección de matriz total
+            )
+            db.add(nuevo_usuario)
+        
+        db.commit()
+        logger.info("Usuarios maestros creados exitosamente.")
 
-    # Usuarios Maestros
-    usuarios = [
-        {"nombre": "Admin MI_PACS", "email": "admin@mipacs.com", "pass": "admin123", "rol": "admin"},
-        {"nombre": "SKALO Soporte", "email": "SKALO", "pass": "Soportehc#3104", "rol": "superadmin"}
-    ]
-    for u in usuarios:
-        db.add(Usuario(
-            nombre=u["nombre"], email=u["email"],
-            password_hash=get_password_hash(u["pass"]),
-            rol=u["rol"], activo=True
-        ))
-    db.commit()
+        # --- PASO 3: LIMPIEZA DE ARCHIVOS FÍSICOS ---
+        carpetas = ["static/dicoms", "static/thumbnails", "dicom_inbox", "dicom_archivados"]
+        
+        for carpeta in carpetas:
+            ruta = BASE_DIR / carpeta
+            if ruta.exists():
+                shutil.rmtree(ruta, ignore_errors=True)
+            # Creamos la carpeta de nuevo, limpia y lista
+            ruta.mkdir(parents=True, exist_ok=True)
+            
+        logger.info("Carpetas de almacenamiento purificadas.")
 
-    # Limpieza masiva de carpetas
-    for c in ["static/dicoms", "static/thumbnails", "dicom_inbox", "dicom_archivados"]:
-        p = BASE_DIR / c
-        if p.exists(): shutil.rmtree(p)
-        p.mkdir(parents=True, exist_ok=True)
+        return {
+            "success": True, 
+            "message": "✨ Sistema MI_PACS purificado. SKALO ha retomado el control total."
+        }
 
-    # Reiniciar procesador
-    nuevo_stop = Event()
-    app.state.dicom_stop_event = nuevo_stop
-    nuevo_hilo = Thread(target=iniciar_procesador, args=(nuevo_stop,), daemon=True)
-    app.state.dicom_thread = nuevo_hilo
-    nuevo_hilo.start()
-
-    return {"success": True, "message": "✨ Sistema reseteado a valores de fábrica."}
+    except Exception as e:
+        db.rollback()
+        error_msg = f"Fallo crítico en Reset: {str(e)}"
+        logger.error(error_msg)
+        return {"success": False, "message": error_msg}
+    
+    finally:
+        db.close()

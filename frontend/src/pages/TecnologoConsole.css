@@ -1,48 +1,113 @@
-/* Estilos para el Modal de Selección */
-.modal-overlay {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.85);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.modal-content {
-    width: 90%;
-    max-width: 400px;
-    padding: 30px;
-    text-align: center;
-    border: 1px solid #fbbf24;
-}
-
-.tecnologos-list {
+/* RESET TOTAL PARA LA CONSOLA */
+.tecnologo-container {
+    background-color: #0f172a !important;
+    min-height: 100vh;
+    width: 100%;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin: 20px 0;
+    font-family: sans-serif;
 }
 
-.btn-user-select {
-    background: #1e293b;
-    color: white;
+/* Evitar que el Header flote sobre el contenido */
+.tecnologo-main {
+    flex: 1;
+    padding: 20px;
+    margin-top: 10px; /* Espacio bajo el Header */
+}
+
+/* Barra de Modo y Modalidad */
+.tecnologo-header-bar {
+    background-color: #1e293b;
     border: 1px solid #334155;
-    padding: 15px;
+    padding: 15px 25px;
     border-radius: 10px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tecnologo-header-bar h1 {
+    color: #38bdf8;
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+/* CUADRÍCULA DE TARJETAS */
+.pacientes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+/* LA TARJETA (CARD) */
+.paciente-card {
+    background-color: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-header {
+    background-color: rgba(0,0,0,0.3);
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #334155;
+}
+
+.card-tag-modality {
+    background: #0369a1;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.card-tag-priority {
+    color: #f87171;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.card-body {
+    padding: 20px;
+    color: #f1f5f9;
+}
+
+.card-name {
+    margin: 0 0 10px 0;
     font-size: 1.1rem;
-    cursor: pointer;
+    color: #ffffff;
 }
 
-.btn-user-select:hover {
-    border-color: #fbbf24;
-    background: #0f172a;
+.card-details p {
+    margin: 5px 0;
+    font-size: 0.9rem;
+    color: #94a3b8;
 }
 
-.btn-cancelar {
-    background: transparent;
-    color: #ef4444;
+.card-details strong {
+    color: #e2e8f0;
+}
+
+/* BOTÓN MARCAR ATENDIDO */
+.btn-marcar-atendido {
+    background-color: #0d9488 !important;
+    color: white !important;
     border: none;
-    margin-top: 10px;
+    padding: 12px;
+    font-weight: bold;
     cursor: pointer;
+    text-transform: uppercase;
+    transition: background 0.3s;
+}
+
+.btn-marcar-atendido:hover {
+    background-color: #0f766e !important;
 }

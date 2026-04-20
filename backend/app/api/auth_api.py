@@ -1,101 +1,56 @@
-"""
-auth_api.py — MI_PACS
----------------------------------------------------------
-Endpoints clínicos de autenticación actualizados para SKALO.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.core.database import get_db
-from app.core.auth import autenticar_usuario, crear_token
-from app.core.security import get_password_hash, verify_password
-
+from app.core.auth import crear_token
+from app.core.security import verify_password
 from app.models.usuario import Usuario
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
-
-# ---------------------------------------------------------
-# LOGIN USUARIO CLÍNICO (Soporta Email o Nombre de Usuario)
-# ---------------------------------------------------------
 @router.post("/login")
-def login_endpoint(
-    credenciales: dict,
-    db: Session = Depends(get_db)
-):
+def login_endpoint(credenciales: dict, db: Session = Depends(get_db)):
     """
-    Autenticación clínica general.
-    Permite entrar con 'admin@mipacs.com' o con 'SKALO'.
+    Autenticación MI_PACS.
+    Soporta entrar con Email o con Username (para SKALO).
     """
-
-    identifier = credenciales.get("email") # El frontend suele enviar el campo como "email"
+    # El frontend puede enviar 'email' o 'username', capturamos el valor
+    identifier = credenciales.get("email") or credenciales.get("username")
     password = credenciales.get("password")
 
-    # 1. Buscamos al usuario por Email o por Nombre (para soportar a SKALO)
+    if not identifier or not password:
+        raise HTTPException(status_code=400, detail="Faltan credenciales")
+
+    # 1. Buscamos al usuario por Email O por Username (CRÍTICO para SKALO)
     usuario = db.query(Usuario).filter(
-        (Usuario.email == identifier) | (Usuario.nombre == identifier)
+        or_(Usuario.email == identifier, Usuario.username == identifier)
     ).first()
 
-    # 2. Verificamos contraseña usando la lógica de seguridad del core
-    if not usuario or not verify_password(password, usuario.password_hash):
+    # 2. Verificamos contraseña (Cambiado password_hash por password)
+    if not usuario or not verify_password(password, usuario.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
             detail="Credenciales inválidas."
         )
 
-    if not usuario.activo:
-        raise HTTPException(status_code=403, detail="Usuario inactivo.")
+    # 3. Verificamos estado (Cambiado activo por is_active)
+    if not usuario.is_active:
+        raise HTTPException(status_code=403, detail="Usuario inactivo o bloqueado.")
 
-    # 3. Generamos el token JWT
+    # 4. Generamos el token JWT
     token_str = crear_token(usuario)
 
-    # 4. Estructura de respuesta plana para sincronizar con AuthContext.jsx
+    # 5. Respuesta sincronizada con el LocalStorage y AuthContext
     return {
         "access_token": token_str,
         "token_type": "bearer",
         "user": {
             "id": usuario.id,
-            "username": usuario.email if "@" in usuario.email else usuario.nombre,
+            "username": usuario.username,
             "nombre": usuario.nombre,
-            "rol": usuario.rol, # Aquí viajará 'superadmin' o 'admin'
-            "activo": usuario.activo
+            "rol": usuario.rol,
+            "is_active": usuario.is_active,
+            "permisos": usuario.permisos # Enviamos la matriz de 25 botones
         }
-    }
-
-
-# ---------------------------------------------------------
-# REGISTRO DE USUARIOS (Solo Admin o Superadmin)
-# ---------------------------------------------------------
-@router.post("/registrar")
-def registrar_usuario_endpoint(
-    data: dict,
-    db: Session = Depends(get_db)
-):
-    """
-    Registro clínico de usuarios.
-    """
-
-    existente = db.query(Usuario).filter(Usuario.email == data["email"]).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="El email ya está registrado.")
-
-    nuevo = Usuario(
-        nombre=data["nombre"],
-        email=data["email"],
-        password_hash=get_password_hash(data["password"]),
-        rol=data["rol"],
-        activo=True,
-    )
-
-    db.add(nuevo)
-    db.commit()
-    db.refresh(nuevo)
-
-    return {
-        "id": nuevo.id,
-        "nombre": nuevo.nombre,
-        "email": nuevo.email,
-        "rol": nuevo.rol,
-        "activo": nuevo.activo
     }
