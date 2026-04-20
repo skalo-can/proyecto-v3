@@ -1,98 +1,71 @@
 """
 usuario.py
 ----------
-Modelo SQLAlchemy para usuarios del sistema MI_PACS.
+Modelo SQLAlchemy consolidado para usuarios del sistema MI_PACS.
+Corregido para compatibilidad con esquemas de FastAPI y matriz de permisos JSON.
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON, func
 from sqlalchemy.orm import relationship
-
 from app.core.database import Base
-
 
 class Usuario(Base):
     """
     Modelo de usuario clínico del sistema MI_PACS.
-    Representa a médicos, administradores y técnicos que acceden
-    al sistema con credenciales seguras y roles definidos.
+    Representa a médicos, administradores y técnicos con permisos granulares.
     """
 
     __tablename__ = "usuarios"
 
     # ---------------------------------------------------------
-    # Identificador principal
+    # Identificadores y Autenticación
     # ---------------------------------------------------------
-    id = Column(
-        Integer,
-        primary_key=True,
-        index=True,
-        doc="ID interno del usuario"
-    )
+    id = Column(Integer, primary_key=True, index=True, doc="ID interno del usuario")
+    
+    nombre = Column(String(150), nullable=False, doc="Nombre completo del colaborador")
+    
+    username = Column(String(50), unique=True, nullable=False, index=True, doc="Nombre de usuario para login")
+    
+    email = Column(String(150), unique=True, nullable=True, index=True, doc="Correo electrónico opcional")
+
+    # Aumentado a 255 para soportar hashes seguros (bcrypt/argon2)
+    password = Column(String(255), nullable=False, doc="Contraseña encriptada (Hash)")
 
     # ---------------------------------------------------------
-    # Datos personales
+    # Rol y Matriz de Permisos
     # ---------------------------------------------------------
-    nombre = Column(
-        String(150),
-        nullable=False,
-        doc="Nombre completo del usuario"
-    )
+    # Lo dejamos flexible para aceptar: superadmin, admin, tecnologo, radiologo, etc.
+    rol = Column(String(50), nullable=False, doc="Rol institucional del usuario")
 
-    email = Column(
-        String(150),
-        unique=True,
-        nullable=False,
-        index=True,
-        doc="Correo electrónico único del usuario"
-    )
+    # Almacena la matriz de booleanos de permisos enviada desde el Frontend
+    permisos = Column(JSON, default={}, doc="Matriz de permisos específicos por usuario")
 
     # ---------------------------------------------------------
-    # Rol y autenticación
+    # Estado y Auditoría (Sincronizado con esquemas Pydantic)
     # ---------------------------------------------------------
-    rol = Column(
-        String(50),
-        nullable=False,
-        doc="Rol del usuario: medico | admin | tecnico | superadmin" # Agregado superadmin
-    )
+    # IMPORTANTE: Mantener 'is_active' para evitar ResponseValidationError
+    is_active = Column(Boolean, default=True, nullable=False, doc="Estado de acceso al sistema")
 
-    password_hash = Column(
-        String(255),
-        nullable=False,
-        doc="Contraseña almacenada en formato hash seguro"
-    )
-
-    # ---------------------------------------------------------
-    # Estado clínico del usuario
-    # ---------------------------------------------------------
-    activo = Column(
-        Boolean,
-        default=True,
-        nullable=False,
-        doc="Indica si el usuario está activo en el sistema"
-    )
-
-    # ---------------------------------------------------------
-    # Timestamps clínicos
-    # ---------------------------------------------------------
     creado_en = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        doc="Fecha de creación del registro"
+        DateTime(timezone=True), 
+        server_default=func.now(), 
+        doc="Fecha de registro inicial"
     )
 
     actualizado_en = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        doc="Fecha de última actualización del registro"
+        DateTime(timezone=True), 
+        server_default=func.now(), 
+        onupdate=func.now(), 
+        doc="Fecha de último cambio automático"
     )
 
     # ---------------------------------------------------------
-    # Relación con médico (si aplica)
+    # Relaciones
     # ---------------------------------------------------------
+    # Asegúrate de que el modelo 'Medico' tenga el back_populates correspondiente
     medico = relationship(
-        "Medico",
-        back_populates="usuario",
-        uselist=False,
-        doc="Relación uno a uno con el médico asociado"
+        "Medico", 
+        back_populates="usuario", 
+        uselist=False, 
+        doc="Relación opcional con perfil de especialidad médica"
     )

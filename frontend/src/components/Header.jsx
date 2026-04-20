@@ -7,14 +7,23 @@ export const Header = ({ onOpenDicom, onResetDB }) => {
   const { user } = useAuth();
   const menuRef = useRef(null);
 
+  // --- LÓGICA DE PERMISOS ---
+  // Superusuario (Skalo)
   const isSkalo = user && user.rol === "superadmin";
+  
+  // Usuarios permitidos para ver Configuración (Admin y Superadmin)
+  // El tecnólogo NO entra en este grupo, por lo que no verá el botón.
+  const canSeeConfig = user && (user.rol === "superadmin" || user.rol === "admin");
 
-  // Función unificada para abrir la configuración con datos cargados
+  // Función unificada para abrir la configuración
   const handleOpenConfig = () => {
-    onOpenDicom?.(); // Ejecuta la misma lógica que el botón del menú
-    setMenuOpen(false); // Cierra el menú si estaba abierto
+    if (canSeeConfig) {
+      onOpenDicom?.(); 
+      setMenuOpen(false); 
+    }
   };
 
+  // Cerrar menú al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuOpen && menuRef.current && !menuRef.current.contains(event.target)) {
@@ -27,10 +36,10 @@ export const Header = ({ onOpenDicom, onResetDB }) => {
 
   return (
     <header className="header">
-      {/* SECCIÓN IZQUIERDA: Ahora usa la función handleOpenConfig para cargar todo */}
+      {/* SECCIÓN IZQUIERDA: Solo es clickeable si tiene permisos de configuración */}
       <div 
-        className="header-left clickable-title" 
-        onClick={handleOpenConfig} 
+        className={`header-left ${canSeeConfig ? 'clickable-title' : ''}`} 
+        onClick={canSeeConfig ? handleOpenConfig : undefined} 
       >
         <div className="header-title">MI_PACS</div>
       </div>
@@ -43,11 +52,15 @@ export const Header = ({ onOpenDicom, onResetDB }) => {
 
           {menuOpen && (
             <div className="menu-dropdown fade-in">
-              {/* Usamos la misma función aquí también */}
-              <button className="dropdown-item" onClick={handleOpenConfig}>
-                Configuración
-              </button>
+              
+              {/* 🔐 Filtro de seguridad para Configuración */}
+              {canSeeConfig && (
+                <button className="dropdown-item" onClick={handleOpenConfig}>
+                  Configuración
+                </button>
+              )}
 
+              {/* Filtro de seguridad para Resetear Sistema (Solo Skalo) */}
               {isSkalo && onResetDB && (
                 <button 
                   className="dropdown-item" 
@@ -58,7 +71,9 @@ export const Header = ({ onOpenDicom, onResetDB }) => {
                 </button>
               )}
 
-              <div className="dropdown-divider"></div>
+              {/* Divisor visual: Solo si el usuario vio opciones de admin antes */}
+              {canSeeConfig && <div className="dropdown-divider"></div>}
+
               <Link to="/logout" className="dropdown-item" onClick={() => setMenuOpen(false)}>
                 Cerrar sesión
               </Link>
@@ -69,3 +84,5 @@ export const Header = ({ onOpenDicom, onResetDB }) => {
     </header>
   );
 };
+
+export default Header;

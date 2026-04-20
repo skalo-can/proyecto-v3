@@ -1,125 +1,83 @@
-"""
-usuario_api.py
---------------
-Endpoints clínicos para la gestión de usuarios dentro del sistema MI_PACS.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-
+from typing import List, Optional
 from app.core.database import get_db
-from app.core.auth import obtener_usuario_actual
-from app.core.roles import requiere_rol
-
-from app.schemas.usuario import (
-    UsuarioCreate,
-    UsuarioResponse,
-    UsuarioUpdate,
-    UsuarioListItem
-)
 from app.models.usuario import Usuario
-
-from app.services.usuario_service import (
-    crear_usuario,
-    listar_usuarios,
-    obtener_usuario,
-    actualizar_usuario,
-    cambiar_estado_usuario,
-)
-
+from app.core.security import get_password_hash # ¡IMPORTANTE!
+from app.schemas.usuario import UsuarioResponse, UsuarioListItem
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
-
-# ---------------------------------------------------------
-# CREAR USUARIO CLÍNICO (solo admin)
-# ---------------------------------------------------------
-@router.post("/", response_model=UsuarioResponse)
-def crear_usuario_endpoint(
-    data: UsuarioCreate,
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    requiere_rol(usuario, ["admin"])
-
-    existente = db.query(Usuario).filter(Usuario.email == data.email).first()
+@router.post("/crear-perfil")
+async def crear_perfil(data: dict, db: Session = Depends(get_db)):
+    # 1. Verificación de duplicados
+    existente = db.query(Usuario).filter(Usuario.username == data.get('username')).first()
     if existente:
-        raise HTTPException(
-            status_code=400,
-            detail="Ya existe un usuario con este email."
-        )
+        raise HTTPException(status_code=400, detail="El nombre de usuario ya existe.")
 
-    return crear_usuario(db, data)
+    # 2. Encriptación de contraseña (Vital para que el Login funcione)
+    raw_password = data.get('password', "123456")
+    hashed_password = get_password_hash(raw_password)
 
+    nuevo_usuario = Usuario(
+        nombre=data.get('nombre'),
+        username=data.get('username'),
+        email=data.get('email'), # Agregamos email que faltaba
+        rol=data.get('rol'),
+        permisos=data.get('permisos', {}),
+        password=hashed_password, # Guardamos el Hash, no el texto plano
+        is_active=True
+    )
+    
+    try:
+        db.add(nuevo_usuario)
+        db.commit()
+        return {"status": "success", "id": nuevo_usuario.id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ---------------------------------------------------------
-# LISTAR USUARIOS (solo admin)
-# ---------------------------------------------------------
-@router.get("/", response_model=list[UsuarioListItem])
-def listar_usuarios_endpoint(
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200)
-):
-    requiere_rol(usuario, ["admin"])
-    return listar_usuarios(db, skip, limit)
+@router.get("/", response_model=List[UsuarioListItem])
+def listar_usuarios_endpoint(db: Session = Depends(get_db)):
+    # Traemos todos los usuarios para la tabla administrativa
+    return db.query(Usuario).all()
 
+# --- NUEVO: ENDPOINT PARA EDITAR Y RECUPERAR CONTRASEÑAS ---
+@router.put("/{usuario_id}")
+async def actualizar_usuario(usuario_id: int, data: dict, db: Session = Depends(get_db)):
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Impedir que se bloquee accidentalmente a SKALO (Seguridad Maestro)
+    if usuario.username == "SKALO" and data.get("is_active") is False:
+        raise HTTPException(status_code=400, detail="No puedes desactivar al usuario Maestro.")
 
-# ---------------------------------------------------------
-# OBTENER USUARIO POR ID (admin o el propio usuario)
-# ---------------------------------------------------------
-@router.get("/{usuario_id}", response_model=UsuarioResponse)
-def obtener_usuario_endpoint(
-    usuario_id: int,
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    user = obtener_usuario(db, usuario_id)
+    # Actualizar campos básicos
+    usuario.nombre = data.get('nombre', usuario.nombre)
+    usuario.username = data.get('username', usuario.username)
+    usuario.email = data.get('email', usuario.email)
+    usuario.rol = data.get('rol', usuario.rol)
+    usuario.is_active = data.get('is_active', usuario.is_active)
+    usuario.permisos = data.get('permisos', usuario.permisos)
 
+    # Si el administrador (SKALO) envía una nueva contraseña
+    if data.get('password'):
+        usuario.password = get_password_hash(data.get('password'))
+
+    db.commit()
+    return {"status": "success", "message": "Usuario actualizado correctamente"}
+
+@router.patch("/{usuario_id}/estado")
+def cambiar_estado_usuario(usuario_id: int, activo: bool, db: Session = Depends(get_db)):
+    user = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Protección para SKALO
+    if user.username == "SKALO":
+         raise HTTPException(status_code=400, detail="El estado de SKALO no puede ser alterado.")
 
-    # Pacientes no deberían estar aquí, pero por seguridad:
-    if usuario.rol != "admin" and usuario.id != usuario_id:
-        raise HTTPException(status_code=403, detail="Acceso denegado.")
-
-    return user
-
-
-# ---------------------------------------------------------
-# ACTUALIZAR USUARIO (solo admin)
-# ---------------------------------------------------------
-@router.put("/{usuario_id}", response_model=UsuarioResponse)
-def actualizar_usuario_endpoint(
-    usuario_id: int,
-    data: UsuarioUpdate,
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    requiere_rol(usuario, ["admin"])
-
-    user = actualizar_usuario(db, usuario_id, data)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-
-    return user
-
-
-# ---------------------------------------------------------
-# ACTIVAR / DESACTIVAR USUARIO (solo admin)
-# ---------------------------------------------------------
-@router.patch("/{usuario_id}/estado", response_model=UsuarioResponse)
-def cambiar_estado_usuario_endpoint(
-    usuario_id: int,
-    activo: bool,
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    requiere_rol(usuario, ["admin"])
-
-    user = cambiar_estado_usuario(db, usuario_id, activo)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-
-    return user
+    user.is_active = activo
+    db.commit()
+    return {"status": "success", "activo": activo}

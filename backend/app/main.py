@@ -16,8 +16,7 @@ from app.core.database import Base, engine, SessionLocal
 # ---------------------------------------------------------
 # 1. IMPORTACIÓN CRÍTICA DE MODELOS (Orden corregido)
 # ---------------------------------------------------------
-# Importamos todos los modelos ANTES de crear las tablas para evitar el error 'Medico'
-from app.models.medico import Medico  # <--- Importante que este sea de los primeros
+from app.models.medico import Medico 
 from app.models.usuario import Usuario
 from app.models.paciente import Paciente
 from app.models.estudio import Estudio
@@ -59,8 +58,8 @@ from app.api.filtros.busqueda_global_api import router as busqueda_global_router
 from app.api.ris import router as ris_router
 from app.api import dicom_config_api
 from app.api.dicom_modalities_api import router as dicom_modalities_router
-
 from app.api.ris_tecnologo_api import router as tecnologo_api
+from app.api.usuario_api import router as usuario_api
 
 # Servidor DICOM dinámico
 from app.services.dicom_service import reiniciar_servidor_dicom
@@ -98,18 +97,16 @@ app = FastAPI(
     version=settings.API_VERSION,
 )
 
-# CORS
-ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
-
+# 🔥 AJUSTE DE CORS: Cambiado a "*" para permitir acceso total desde tabletas y red local
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 2. CREACIÓN DE TABLAS (Ahora con todos los modelos cargados)
+# 2. CREACIÓN DE TABLAS
 Base.metadata.create_all(bind=engine)
 
 # ---------------------------------------------------------
@@ -128,6 +125,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # REGISTRO DE ROUTERS
 # ---------------------------------------------------------
 app.include_router(auth_router, prefix="/api")
+app.include_router(usuario_api, prefix="/api")
 app.include_router(paciente_router, prefix="/api")
 app.include_router(estudio_router, prefix="/api")
 app.include_router(dicom_store_router, prefix="/api")
@@ -157,7 +155,6 @@ app.include_router(estudios_filtros_router, prefix="/filtros")
 app.include_router(busqueda_global_router, prefix="/filtros")
 app.include_router(dicom_config_api.router, prefix="/api/dicom", tags=["Configuración DICOM"])
 app.include_router(dicom_modalities_router)
-
 app.include_router(tecnologo_api, prefix="/api")
 
 @app.post("/api/notify-new-study")

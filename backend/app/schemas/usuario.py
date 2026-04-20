@@ -2,21 +2,12 @@
 schemas/usuario.py
 ------------------
 Esquemas Pydantic para usuarios clínicos del sistema MI_PACS.
+Sincronizado con el modelo SQLAlchemy para evitar errores de validación.
 """
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
-from typing import Optional
-from enum import Enum
-
-
-# ---------------------------------------------------------
-# ENUM CLÍNICO PARA ROLES
-# ---------------------------------------------------------
-class RolUsuario(str, Enum):
-    medico = "medico"
-    admin = "admin"
-    tecnico = "tecnico"
+from typing import Optional, Dict
 
 
 # ---------------------------------------------------------
@@ -26,13 +17,11 @@ class UsuarioBase(BaseModel):
     """
     Campos clínicos comunes para representar a un usuario del sistema MI_PACS.
     """
-
     nombre: str = Field(..., example="Dr. Juan Pérez")
-    email: EmailStr = Field(..., example="usuario@mipacs.com")
-    rol: RolUsuario = Field(
-        ...,
-        description="Rol del usuario: medico | admin | tecnico"
-    )
+    # Email como Opcional y str para evitar fallos si el reset crea correos simples
+    email: Optional[str] = Field(None, example="usuario@mipacs.com")
+    username: str = Field(..., example="skalo_maestro")
+    rol: str = Field(..., description="Rol del usuario: superadmin | medico | admin | tecnico")
 
 
 # ---------------------------------------------------------
@@ -41,14 +30,9 @@ class UsuarioBase(BaseModel):
 class UsuarioCreate(UsuarioBase):
     """
     Datos necesarios para registrar un usuario clínico.
-    La contraseña se recibe en texto plano y se hashea en el servicio.
     """
-
-    password: str = Field(
-        ...,
-        example="clave_segura_123",
-        description="Contraseña en texto plano (se hashea en el servicio)"
-    )
+    password: str = Field(..., example="clave_segura_123")
+    permisos: Optional[Dict[str, bool]] = {}
 
 
 # ---------------------------------------------------------
@@ -58,30 +42,26 @@ class UsuarioUpdate(BaseModel):
     """
     Datos opcionales para actualizar un usuario clínico.
     """
-
-    nombre: Optional[str]
-    email: Optional[EmailStr]
-    rol: Optional[RolUsuario]
+    nombre: Optional[str] = None
+    email: Optional[str] = None
+    rol: Optional[str] = None
+    password: Optional[str] = None
+    is_active: Optional[bool] = None
+    permisos: Optional[Dict[str, bool]] = None
 
 
 # ---------------------------------------------------------
-# RESPONSE
+# RESPONSE (Para el perfil individual)
 # ---------------------------------------------------------
 class UsuarioResponse(UsuarioBase):
     """
-    Representación clínica del usuario enviada al frontend.
-    No incluye contraseña por razones de seguridad.
+    Representación clínica completa enviada al frontend.
     """
-
     id: int
-    activo: bool
-    creado_en: datetime
-    actualizado_en: datetime
-
-    medico_id: Optional[int] = Field(
-        default=None,
-        description="ID del médico asociado (si aplica)"
-    )
+    is_active: bool  # Sincronizado con el modelo SQLAlchemy
+    permisos: Optional[Dict[str, bool]] = {}
+    creado_en: Optional[datetime] = None
+    actualizado_en: Optional[datetime] = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -90,17 +70,19 @@ class UsuarioResponse(UsuarioBase):
 
 
 # ---------------------------------------------------------
-# LIST ITEM (para tablas)
+# LIST ITEM (Para la tabla de Gestión de Usuarios)
 # ---------------------------------------------------------
 class UsuarioListItem(BaseModel):
     """
-    Representación resumida del usuario para listados.
+    Representación resumida del usuario para listados administrativos.
+    Soluciona el error de validación al usar 'is_active'.
     """
-
     id: int
     nombre: str
-    email: EmailStr
-    rol: RolUsuario
-    activo: bool
+    username: str
+    email: Optional[str] = None
+    rol: str
+    is_active: bool  # <--- CRÍTICO: Debe ser is_active para que la tabla cargue
+    permisos: Optional[Dict[str, bool]] = {}
 
     model_config = ConfigDict(from_attributes=True)
