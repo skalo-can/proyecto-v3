@@ -1,24 +1,41 @@
 .recepcion-page-wrapper {
+  height: 100vh;
+  overflow: hidden; 
+  display: flex;
+  flex-direction: column;
   padding: 20px;
   color: white;
+  /* Eliminamos márgenes extra que puedan mover el layout */
+  box-sizing: border-box;
 }
 
 .recepcion-layout-split {
+  flex: 1;
   display: flex;
   flex-direction: row;
   gap: 30px;
   align-items: flex-start;
-  margin-top: 20px;
+  margin-top: 10px; /* Reducido para acercar al header */
+  min-height: 0; 
+  overflow: hidden;
 }
 
 /* El formulario ocupa el 40% */
 .layout-section-form {
   flex: 0 0 40%;
+  /* No tocamos el margin-top aquí, el formulario es nuestra base */
 }
 
-/* La tabla ocupa el 60% restante */
+/* 🚀 LA TABLA SE AJUSTA PARA ALINEARSE CON EL FORMULARIO */
 .layout-section-list {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  
+  /* ✅ AJUSTE MAESTRO: Bajamos la lista para nivelar con la izquierda */
+  margin-top: 35px; 
+  
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border-radius: 15px;
@@ -51,37 +68,14 @@
   color: #000;
 }
 
-/* Responsivo: Si la pantalla es pequeña, se ponen uno abajo del otro */
+/* Responsivo */
 @media (max-width: 1200px) {
   .recepcion-layout-split {
     flex-direction: column;
+    overflow-y: auto; /* Permitimos scroll general en móviles */
   }
   .layout-section-form, .layout-section-list {
     width: 100%;
+    margin-top: 10px; /* Reset para móviles */
   }
-}
-
-/* Esto evita que la página entera genere scroll */
-.recepcion-page-wrapper {
-  height: 100vh; /* Altura exacta de la ventana */
-  overflow: hidden; /* Prohibido el scroll exterior */
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-}
-
-/* Ajuste del layout para que ocupe el resto del espacio */
-.recepcion-layout-split {
-  flex: 1;
-  display: flex;
-  gap: 20px;
-  overflow: hidden; /* Evita que los hijos estiren el contenedor */
-  min-height: 0; /* Truco de Flexbox para permitir scroll interno */
-}
-
-.layout-section-list {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
 }

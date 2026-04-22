@@ -9,7 +9,7 @@ from app.models.dicom_config import DicomMapeoCampos
 
 router = APIRouter(tags=["Configuración DICOM"])
 
-# --- SCHEMA PARA EL CRUD ---
+# --- SCHEMAS ---
 class ConfigUpdate(BaseModel):
     ae_title: str
     ip_address: Optional[str] = None
@@ -18,16 +18,17 @@ class ConfigUpdate(BaseModel):
     client_ae: Optional[str] = "WEASIS" 
     weasis_ae_title: Optional[str] = "WEASIS"
 
-# --- ENDPOINTS DE ESTADO Y CONFIGURACIÓN ---
+# Schema para recibir los datos del formulario de mapeo
+class MapeoCreate(BaseModel):
+    nombre_mostrar: str
+    tag_dicom: str
+
+# --- ENDPOINTS DE ESTADO Y CONFIGURACIÓN (Se mantienen igual) ---
 
 @router.get("/status")
 def get_pacs_status():
-    """
-    CORRECCIÓN PARA FRONTEND: 
-    React evalúa 'res.data.running' para activar el color verde.
-    """
     return {
-        "running": True,            # <--- LA LLAVE PARA EL COLOR VERDE
+        "running": True,
         "status": "LISTENING", 
         "last_event": "Servidor DICOM en línea",
         "ae_title": "MIPACS",
@@ -49,46 +50,56 @@ def obtener_configuracion_pacs(db: Session = Depends(get_db)):
 @router.put("/config")
 def actualizar_configuracion_pacs(data: ConfigUpdate, db: Session = Depends(get_db)):
     try:
-        # Normalización de nombres para el CRUD
         if data.ip and not data.ip_address:
             data.ip_address = data.ip
         if not data.client_ae:
             data.client_ae = data.weasis_ae_title
 
         update_config(db, data)
-        
-        # Reinicio clínico del servicio
         from app.services.dicom_service import reiniciar_servidor_dicom
         reiniciar_servidor_dicom(data.ae_title, data.port)
-        
         return {"success": True, "message": "Guardado correctamente"}
     except Exception as e:
-        print(f"❌ Error crítico al guardar: {e}")
         return {"success": False, "message": str(e)}
 
-@router.get("/logs")
-def obtener_logs_dicom():
-    """
-    CORRECCIÓN DE ESTRUCTURA:
-    React hace map sobre 'res.data.logs'.
-    """
-    return {
-        "logs": [
-            "🟢 Servidor DICOM Universal iniciado",
-            "📡 Escuchando peticiones en puerto 11112",
-            "✅ Base de datos sincronizada"
-        ]
-    }
-
-@router.post("/test-connection")
-def probar_conexion_pacs():
-    return {"success": True, "message": "Conexión exitosa con el servicio"}
-
-# --- ENDPOINTS DE MAPEO (FRONTEND /api/dicom/mapeo) ---
+# --- ENDPOINTS DE MAPEO (SOLUCIÓN AL ERROR 405) ---
 
 @router.get("/mapeo")
 def listar_mapeos(db: Session = Depends(get_db)):
     return db.query(DicomMapeoCampos).all()
+
+# ✅ ESTE ES EL QUE FALTABA: Para recibir el POST del formulario
+@router.post("/mapeo")
+def crear_mapeo(data: MapeoCreate, db: Session = Depends(get_db)):
+    try:
+        # Creamos la nueva instancia del modelo
+        nuevo_mapeo = DicomMapeoCampos(
+            nombre_mostrar=data.nombre_mostrar,
+            tag_dicom=data.tag_dicom,
+            activo=True
+        )
+        db.add(nuevo_mapeo)
+        db.commit()
+        db.refresh(nuevo_mapeo)
+        return nuevo_mapeo
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al crear mapeo: {str(e)}")
+
+# ✅ ESTE TAMBIÉN FALTABA: Para que el botón de ELIMINAR funcione
+@router.delete("/mapeo/{id}")
+def eliminar_mapeo(id: int, db: Session = Depends(get_db)):
+    mapeo = db.query(DicomMapeoCampos).filter(DicomMapeoCampos.id == id).first()
+    if not mapeo:
+        raise HTTPException(status_code=404, detail="Mapeo no encontrado")
+    
+    try:
+        db.delete(mapeo)
+        db.commit()
+        return {"message": "Mapeo eliminado correctamente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/campos-activos")
 def get_campos_para_recepcion(db: Session = Depends(get_db)):

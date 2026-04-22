@@ -9,7 +9,6 @@ import "./ConfigMapeoPage.css";
 
 const { Title, Text } = Typography;
 
-// 📚 DICCIONARIO DICOM PROFESIONAL
 const dicomFullDictionary = [
   { value: 'PatientBirthDate', label: '(0010,0030) PatientBirthDate - Fecha de Nacimiento', code: '0010,0030' },
   { value: 'PatientWeight', label: '(0010,1030) PatientWeight - Peso del Paciente', code: '0010,1030' },
@@ -31,21 +30,17 @@ const ConfigMapeoPage = () => {
   const [mapeos, setMapeos] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
-  
-  // 🔥 ESTADO PARA SELECCIÓN DE FILAS
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
-  const API_URL = 'http://127.0.0.1:8000/api/dicom/mapeo';
+  const API_URL = 'http://127.0.0.1:8000/api/dicom/mapeo/';
 
   const fetchMapeos = async () => {
     setLoading(true);
     try {
       const res = await axios.get(API_URL);
       setMapeos(Array.isArray(res.data) ? res.data : []);
-      setSelectedRowKeys([]); // Limpiar selección al recargar
     } catch (err) {
       console.error("Error al cargar:", err);
-      setMapeos([]);
     } finally {
       setLoading(false);
     }
@@ -53,170 +48,129 @@ const ConfigMapeoPage = () => {
 
   useEffect(() => { fetchMapeos(); }, []);
 
+  // ✅ NUEVA LÓGICA DE GUARDADO: Limpia el Tag antes de enviarlo
   const onFinish = async (values) => {
+    setLoading(true);
     try {
-      await axios.post(API_URL, values);
+      // Buscamos el Keyword original (value) para que el Backend lo guarde bien
+      const seleccion = dicomFullDictionary.find(d => d.label === values.tag_dicom || d.value === values.tag_dicom);
+      
+      const payload = {
+        nombre_mostrar: values.nombre_mostrar,
+        tag_dicom: seleccion ? seleccion.value : values.tag_dicom 
+      };
+
+      await axios.post(API_URL, payload);
       message.success("Campo vinculado al estándar DICOM");
       form.resetFields();
       fetchMapeos();
     } catch (err) {
       console.error("Error al guardar:", err);
-      message.error("Error al guardar: Verifique la conexión");
-    }
-  };
-
-  // 🔥 FUNCIÓN PARA ELIMINAR SELECCIONADOS
-  const eliminarMapeosSeleccionados = async () => {
-    setLoading(true);
-    try {
-      // Usamos Promise.all para eliminar todos los IDs seleccionados en paralelo
-      await Promise.all(selectedRowKeys.map(id => axios.delete(`${API_URL}/${id}`)));
-      message.success(`${selectedRowKeys.length} campo(s) eliminado(s) correctamente`);
-      fetchMapeos(); // Recargar tabla y limpiar selección
-    } catch (err) {
-      console.error("Error al eliminar seleccionados:", err);
-      message.error("Error al eliminar algunos campos");
+      message.error("Error al guardar: Verifique la conexión o el método (405)");
+    } finally {
       setLoading(false);
     }
   };
 
-  // 🔥 CONFIGURACIÓN DE SELECCIÓN DE FILAS
-  const onSelectChange = (newSelectedRowKeys) => {
-    console.log('Filas seleccionadas (IDs): ', newSelectedRowKeys);
-    setSelectedRowKeys(newSelectedRowKeys);
+  const eliminarMapeosSeleccionados = async () => {
+    try {
+      await Promise.all(selectedRowKeys.map(id => axios.delete(`${API_URL}/${id}`)));
+      message.success("Mapeos eliminados correctamente");
+      setSelectedRowKeys([]);
+      fetchMapeos();
+    } catch (err) {
+      message.error("Error al eliminar");
+    }
   };
-
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: onSelectChange,
-    selections: [
-      Table.SELECTION_ALL,
-      Table.SELECTION_INVERT,
-      Table.SELECTION_NONE,
-    ],
-  };
-  
-  const hasSelected = selectedRowKeys.length > 0;
 
   const columns = [
     {
       title: 'Nombre en Formulario',
       dataIndex: 'nombre_mostrar',
       key: 'nombre_mostrar',
-      render: (text) => <strong style={{ color: '#1890ff' }}>{text}</strong>,
+      render: (text) => <strong style={{ color: '#fbbf24' }}>{text}</strong>,
     },
     {
-      title: 'Tag DICOM (Código / Keyword)',
+      title: 'Tag DICOM (Keyword)',
       dataIndex: 'tag_dicom',
       key: 'tag_dicom',
       render: (tag) => {
         const info = dicomFullDictionary.find(d => d.value === tag);
         return (
           <Space>
-            {info && <Tag color="blue" style={{ fontWeight: 'bold' }}>{info.code}</Tag>}
-            <Tag color="cyan" style={{ fontSize: '13px' }}>{tag}</Tag>
+            {info && <Tag color="orange" style={{background: '#333', color: '#fbbf24', border: '1px solid #fbbf24'}}>{info.code}</Tag>}
+            <Tag color="cyan">{tag}</Tag>
           </Space>
         );
       },
     },
-    // Quitamos la columna de acciones individual para usar la eliminación masiva arriba
   ];
 
   return (
     <div className="mapeo-page-container">
-      <style>{`
-        .ant-select-dropdown { background-color: #141c27 !important; border: 1px solid #303030; }
-        .ant-select-item-option-content { color: #ccc !important; }
-        .ant-select-item-option-active { background-color: #1890ff !important; }
-        
-        /* Estilos para asegurar visibilidad de checkboxes en modo oscuro */
-        .ant-checkbox-inner { background-color: transparent; border-color: #555; }
-        .ant-checkbox-checked .ant-checkbox-inner { background-color: #1890ff; border-color: #1890ff; }
-        .ant-table-tbody > tr.ant-table-row-selected > td { background: #1a2736 !important; }
-      `}</style>
-
-      <div style={{ marginBottom: '20px' }}>
+      <div className="mapeo-header">
         <Title level={3} style={{ color: 'white', margin: 0 }}>
-          <SettingOutlined /> Configuración de Tags DICOM (Worklist)
+          <SettingOutlined /> Configuración de Tags DICOM
         </Title>
         <Text style={{ color: '#8c8c8c' }}>Vincule campos del formulario con el estándar internacional DICOM.</Text>
-        <Divider style={{ borderColor: '#303030', margin: '15px 0' }} />
+        <Divider style={{ borderColor: '#333', margin: '15px 0' }} />
       </div>
 
-      <div style={{ display: 'flex', gap: '24px', flex: 1, overflow: 'hidden' }}>
-        <div style={{ width: '420px' }}>
-          <Card 
-            title={<span style={{color: '#eee'}}><PlusOutlined /> Nuevo Mapeo</span>} 
-            style={{ background: '#141c27', border: '1px solid #303030' }}
-            headStyle={{ borderBottom: '1px solid #303030' }}
-          >
+      <div className="mapeo-content-layout">
+        <div className="mapeo-form-side">
+          <Card title={<span style={{color: '#eee'}}><PlusOutlined /> Nuevo Mapeo</span>} className="mapeo-card-dark">
             <Form form={form} layout="vertical" onFinish={onFinish}>
-              <Form.Item name="nombre_mostrar" label={<span style={{color: '#aaa'}}>Etiqueta en Recepción (Ej: Peso)</span>} rules={[{ required: true }]}>
-                <Input placeholder="Ej: Fecha Nacimiento" />
+              <Form.Item name="nombre_mostrar" label="ETIQUETA EN RECEPCIÓN" rules={[{ required: true }]}>
+                <Input placeholder="Ej: Fecha Nacimiento" className="mapeo-input" />
               </Form.Item>
               
-              <Form.Item name="tag_dicom" label={<span style={{color: '#aaa'}}>Tag DICOM (Keyword)</span>} rules={[{ required: true }]}>
+              <Form.Item name="tag_dicom" label="TAG DICOM (KEYWORD)" rules={[{ required: true }]}>
                 <AutoComplete
-                  options={dicomFullDictionary}
-                  placeholder="Busque por nombre o número..."
+                  placeholder="Busque por nombre o código DICOM..."
+                  className="mapeo-input"
+                  // ✅ Manejo de opciones optimizado para evitar Warnings
+                  onSelect={(value, option) => form.setFieldsValue({ tag_dicom: option.label })}
                   filterOption={(inputValue, option) =>
                     option.label.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
                   }
-                />
+                >
+                  {dicomFullDictionary.map((item) => (
+                    <AutoComplete.Option key={item.value} value={item.label} label={item.label}>
+                      {item.label}
+                    </AutoComplete.Option>
+                  ))}
+                </AutoComplete>
               </Form.Item>
 
-              <Button type="primary" htmlType="submit" block icon={<DatabaseOutlined />} style={{marginTop: '10px'}}>
+              <Button type="primary" htmlType="submit" block icon={<DatabaseOutlined />} className="btn-vincular" loading={loading}>
                 Vincular y Limpiar Casillas
               </Button>
             </Form>
           </Card>
         </div>
 
-        <Card 
-          title={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{color: '#eee'}}>Tags Activos en MI_PACS</span>
-              
-              {/* 🔥 BOTÓN DE ELIMINACIÓN MASIVA (Solo visible si hay selección) */}
-              <Space style={{ visibility: hasSelected ? 'visible' : 'hidden' }}>
-                <Text style={{ color: '#aaa', fontSize: '12px' }}>
-                  {hasSelected ? `${selectedRowKeys.length} seleccionados` : ''}
-                </Text>
-                <Popconfirm 
-                  title={`¿Eliminar los ${selectedRowKeys.length} campos seleccionados?`}
-                  onConfirm={eliminarMapeosSeleccionados}
-                  okText="Sí, eliminar"
-                  cancelText="No"
-                  icon={<AlertOutlined style={{ color: 'red' }} />}
-                >
-                  <Button 
-                    type="primary" 
-                    danger 
-                    size="small" 
-                    icon={<DeleteOutlined />}
-                    loading={loading}
-                  >
-                    Eliminar Selección
-                  </Button>
-                </Popconfirm>
-              </Space>
-            </div>
-          } 
-          style={{ flex: 1, background: '#141c27', border: '1px solid #303030', overflow: 'hidden' }}
-          headStyle={{ borderBottom: '1px solid #303030', padding: '0 15px' }}
-          bodyStyle={{ padding: '0 10px' }}
-        >
-          <Table 
-            rowSelection={rowSelection} // 🔥 ACTIVAMOS LOS CUADRADOS DE SELECCIÓN
-            dataSource={mapeos} 
-            columns={columns} 
-            rowKey="id" // Importante: usar el ID de la base de datos
-            loading={loading}
-            pagination={{ pageSize: 8 }}
-            size="small"
-            locale={{ emptyText: <span style={{color: '#555'}}>No hay mapeos</span> }}
-          />
-        </Card>
+        <div className="mapeo-table-side">
+          <Card 
+            title={<span style={{color: '#eee'}}>Tags Activos en MI_PACS</span>} 
+            className="mapeo-card-dark"
+            extra={selectedRowKeys.length > 0 && (
+              <Popconfirm title="¿Eliminar seleccionados?" onConfirm={eliminarMapeosSeleccionados}>
+                <Button type="primary" danger size="small" icon={<DeleteOutlined />}>ELIMINAR</Button>
+              </Popconfirm>
+            )}
+          >
+            <Table 
+              rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
+              dataSource={mapeos} 
+              columns={columns} 
+              rowKey="id" 
+              loading={loading}
+              pagination={{ pageSize: 8 }}
+              size="small"
+              className="mapeo-table-custom"
+            />
+          </Card>
+        </div>
       </div>
     </div>
   );
