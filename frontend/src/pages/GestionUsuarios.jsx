@@ -10,9 +10,15 @@ const PERMISOS_POR_DEFECTO = {
     medico: { ver_pacientes: true, consultar_historial: true, entregar_resultados: true, acceso_ia: true },
     transcriptor: { ver_pacientes: true, correccion_ortografica: true, envio_multicanal: true, gestionar_plantillas: true, escuchar_audio: true },
     recepcion: { crear_orden: true, validar_datos: true, gestionar_agenda: true, recaudo_pagos: true, entregar_resultados: true },
-    it_biomedica: { estado_nodos_dicom: true, logs_sistema: true, configurar_aetitles: true, limpieza_cache: true }
+    it_biomedica: { estado_nodos_dicom: true, logs_sistema: true, configurar_aetitles: true, limpieza_cache: true },
+    
+    /* 🔥 NUEVOS ROLES MAESTROS AGREGADOS */
+    auxiliar: { ver_pacientes: true, consultar_historial: true, entregar_resultados: true, auditar_cuentas: true, ver_tarifas: true },
+    invitado: { ver_pacientes: true, consultar_historial: true, ver_worklist: true },
+    paciente: { ver_pacientes: true, entregar_resultados: true } 
 };
 
+// Generamos la lista de todos los permisos únicos para la matriz
 const TODOS_LOS_PERMISOS = Array.from(new Set(Object.values(PERMISOS_POR_DEFECTO).flatMap(obj => Object.keys(obj))));
 
 export default function GestionUsuarios() {
@@ -38,6 +44,7 @@ export default function GestionUsuarios() {
             return;
         }
         setUserForm(prev => ({ ...prev, rol: nuevoRol }));
+        // Aquí cargamos los permisos automáticos según el rol elegido
         setPermisos({ ...PERMISOS_POR_DEFECTO[nuevoRol] });
     };
 
@@ -72,7 +79,6 @@ export default function GestionUsuarios() {
         } catch (err) { alert("❌ Error al procesar la solicitud."); }
     };
 
-    // ✅ FUNCIÓN CORREGIDA PARA ACTIVAR Y BLOQUEAR
     const handleCambiarEstado = async (nuevoEstado) => {
         const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
         if (ids.length === 0) return alert("Seleccione usuarios en la tabla");
@@ -140,7 +146,7 @@ export default function GestionUsuarios() {
 
                     {userForm.rol && (
                         <>
-                            <h3 style={{color: '#fbbf24', margin: '20px 0 10px 0', fontSize: '0.9rem'}}>MATRIZ PARA: {userForm.rol.toUpperCase()}</h3>
+                            <h3 style={{color: '#fbbf24', margin: '20px 0 10px 0', fontSize: '0.9rem'}}>MATRIZ DE PERMISOS: {userForm.rol.toUpperCase()}</h3>
                             <div className="permisos-container-master">
                                 {TODOS_LOS_PERMISOS.map(key => (
                                     <label key={key} className="permiso-label" style={{ color: '#fff' }}>
@@ -156,11 +162,8 @@ export default function GestionUsuarios() {
                         <button className="btn-maestro btn-crear" onClick={handleGuardar} style={{ opacity: !userForm.rol ? 0.6 : 1 }}>
                             {userForm.id ? "💾 GUARDAR CAMBIOS" : "👤 CREAR USUARIO"}
                         </button>
-                        
-                        {/* ✅ BOTONES DE ESTADO ACTUALIZADOS */}
                         <button className="btn-maestro" style={{ background: '#10b981' }} onClick={() => handleCambiarEstado(true)}>🔓 ACTIVAR</button>
                         <button className="btn-maestro btn-bloquear" onClick={() => handleCambiarEstado(false)}>🔒 BLOQUEAR</button>
-                        
                         <button className="btn-maestro btn-eliminar" onClick={handleEliminar}>🗑️ ELIMINAR</button>
                     </div>
                 </section>

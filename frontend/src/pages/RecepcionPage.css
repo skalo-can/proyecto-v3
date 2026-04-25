@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   padding: 20px;
-  color: white;
+  color: rgb(247, 174, 5);
   /* Eliminamos márgenes extra que puedan mover el layout */
   box-sizing: border-box;
 }
