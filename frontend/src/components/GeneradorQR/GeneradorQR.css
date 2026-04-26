@@ -1,0 +1,232 @@
+.qr-container-luxury {
+    background: #000;
+    padding: 20px;
+    border-radius: 20px;
+    display: inline-block;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    text-align: center;
+}
+
+.qr-card {
+    background: linear-gradient(145deg, #1a1a1a, #000);
+    padding: 30px;
+    border-radius: 15px;
+}
+
+.qr-wrapper {
+    background: #fff; /* Fondo blanco interno para que el escáner lea mejor el dorado */
+    padding: 10px;
+    border-radius: 12px;
+    display: inline-block;
+    margin: 15px 0;
+    border: 2px solid #fbbf24;
+}
+
+.qr-patient-name {
+    color: #fff;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 5px;
+}
+
+.qr-instruction {
+    color: #888;
+    font-size: 0.75rem;
+    margin-bottom: 10px;
+}
+
+.accession-badge {
+    background: rgba(251, 191, 36, 0.1);
+    color: #fbbf24;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.modal-overlay-luxury {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.modal-content-luxury {
+    background: #000;
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 30px;
+    padding: 40px;
+    max-width: 450px;
+    width: 90%;
+    position: relative;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(251, 191, 36, 0.15);
+}
+
+.btn-close-modal {
+    position: absolute;
+    top: 20px; right: 20px;
+    background: transparent;
+    border: none;
+    color: #fbbf24;
+    font-size: 2rem;
+    cursor: pointer;
+}
+
+.opciones-envio-luxury {
+    display: flex;
+    gap: 15px;
+    margin-top: 25px;
+    justify-content: center;
+}
+
+.btn-action-luxury {
+    background: transparent;
+    border: 1px solid #444;
+    color: #fff;
+    padding: 12px 15px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: 0.3s;
+    font-weight: bold;
+}
+
+.btn-action-luxury:hover {
+    border-color: #fbbf24;
+    color: #fbbf24;
+}
+
+.btn-action-luxury.whatsapp:hover {
+    background: #25d366;
+    color: #fff;
+    border-color: #25d366;
+}
+
+.modal-footer-luxury {
+    margin-top: 25px;
+    font-size: 0.7rem;
+    color: #555;
+    border-top: 1px solid #222;
+    padding-top: 15px;
+}
+
+/* 🚀 EFECTO DE ILUMINACIÓN AZUL PARA EL BOTÓN DE IMPRESIÓN */
+.btn-print-blue {
+    transition: all 0.3s ease !important;
+    border: 1px solid rgba(0, 210, 255, 0.3) !important;
+}
+
+.btn-print-blue:hover {
+    background: #00d2ff !important; /* Azul Cian MI_PACS */
+    color: #000 !important; /* Texto negro para contraste */
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.6) !important; /* Brillo azul */
+    transform: scale(1.05);
+}
+
+/* Opcional: Asegurar que el botón de WhatsApp se vea bien */
+.btn-action-luxury.whatsapp:hover {
+    background: #25d366 !important;
+    color: white !important;
+    box-shadow: 0 0 20px rgba(37, 211, 102, 0.5) !important;
+}
+
+@media print {
+  /* 1. Escondemos TODO el software (menús, botones, fondos) */
+  body * {
+    visibility: hidden;
+  }
+
+  /* 2. Solo hacemos visible el área del QR */
+  .qr-card, .qr-card * {
+    visibility: visible;
+  }
+
+  /* 3. Posicionamos el QR en la esquina superior de la hoja */
+  .qr-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 300px; /* Tamaño ideal para ticketera */
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* 4. Escondemos específicamente los botones de acción dentro del modal */
+  .opciones-envio-luxury, .btn-close-modal, .modal-footer-luxury {
+    display: none !important;
+  }
+}
+
+@media print {
+  /* 1. Escondemos el fondo, el sidebar y los botones */
+  body * {
+    visibility: hidden;
+  }
+
+  /* 2. Hacemos que SOLO el ticket y su contenido sean visibles */
+  .modal-overlay-luxury, 
+  .modal-content-luxury, 
+  .qr-card, 
+  .qr-card * {
+    visibility: visible;
+  }
+
+  /* 3. Posicionamos el ticket para que no flote en medio de la nada */
+  .modal-overlay-luxury {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: white !important; /* Ahorra tinta y es más legible en papel */
+  }
+
+  .modal-content-luxury {
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    color: black !important;
+  }
+  
+  .gold-text { color: #000 !important; font-weight: bold; }
+
+  /* 4. Escondemos los botones de acción para que no salgan en el papel */
+  .opciones-envio-luxury, .btn-close-modal {
+    display: none !important;
+  }
+}
+
+.qr-info-tecnica {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+  padding-bottom: 5px;
+}
+
+.info-item strong {
+  color: #fbbf24;
+  margin-right: 4px;
+}
+
+@media print {
+  /* Aseguramos que la info técnica sea visible en papel */
+  .qr-info-tecnica {
+    color: black !important;
+    border-bottom: 1px solid #ccc !important;
+  }
+  .info-item strong {
+    color: black !important;
+  }
+}

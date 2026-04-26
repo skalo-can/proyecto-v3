@@ -92,20 +92,18 @@
   font-weight: bold;
 }
 
-.btn-action {
-  background: white;
-  color: black;
-  border: none;
-  padding: 6px 15px;
-  border-radius: 6px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: transform 0.2s;
+/* 🚀 AJUSTE PARA EL BOTÓN DE QR DORADO (INTEGRADO EN TUS ESTILOS) */
+.btn-icon.qr-gold {
+  color: #fbbf24 !important; /* Dorado MI_PACS */
+  background: rgba(251, 191, 36, 0.1) !important;
+  border: 1px solid rgba(251, 191, 36, 0.2) !important;
 }
 
-.btn-action:hover {
-  transform: scale(1.05);
-  background: #f0f0f0;
+.btn-icon.qr-gold:hover {
+  background: #fbbf24 !important;
+  color: #000 !important;
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.4);
+  transform: scale(1.1);
 }
 
 .actions-cell {
@@ -133,10 +131,16 @@
   border-color: #00d2ff;
 }
 
+.btn-icon.delete {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+  border: 1px solid rgba(255, 77, 77, 0.2);
+}
+
 .btn-icon.delete:hover {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
-  border-color: #e74c3c;
+  background: #ff4d4d;
+  color: white;
+  box-shadow: 0 0 10px rgba(255, 77, 77, 0.4);
 }
 
 .btn-action-start {
@@ -150,65 +154,29 @@
   margin-left: 5px;
 }
 
-.btn-icon.delete {
-  color: #ff4d4d;
-  background: rgba(255, 77, 77, 0.1);
-  border: 1px solid rgba(255, 77, 77, 0.2);
-}
-
-.btn-icon.delete:hover {
-  background: #ff4d4d;
-  color: white;
-  box-shadow: 0 0 10px rgba(255, 77, 77, 0.4);
-}
-
-/* El contenedor de la tabla ahora tiene altura máxima y scroll */
+/* ============================================================
+   CONTENEDOR CON SCROLL PREMIUM
+   ============================================================ */
 .worklist-table-container {
-  flex: 1;
-  overflow-y: auto; /* Solo scroll vertical si es necesario */
+  max-height: 500px;
+  overflow-y: auto;
   margin-top: 10px;
   border-radius: 8px;
-  padding-right: 5px; /* Espacio para la barrita */
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding-right: 5px;
 }
 
-/* Personalización del Scrollbar para que se vea premium (Cian) */
-.worklist-table-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.worklist-table-container::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 10px;
-}
-
-.worklist-table-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 210, 255, 0.3); /* Color cian transparente */
-  border-radius: 10px;
-}
-
-.worklist-table-container::-webkit-scrollbar-thumb:hover {
-  background: #00d2ff; /* Color cian sólido al pasar el mouse */
-}
-
-/* Contenedor principal de la tabla */
-.worklist-table-container {
-    max-height: 500px; /* 👈 Ajusta esta altura según prefieras */
-    overflow-y: auto;  /* 👈 Activa el scroll vertical */
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Hacer que el encabezado se quede fijo mientras haces scroll */
+/* Encabezado Fijo */
 .worklist-table thead th {
     position: sticky;
     top: 0;
-    background-color: #1a1a1a; /* Color sólido para que no se transparente al bajar */
+    background-color: #1a1a1a;
     z-index: 10;
     box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.4);
 }
 
-/* Personalización de la barra de scroll para que combine con MI_PACS */
+/* Scrollbar Personalizado */
 .worklist-table-container::-webkit-scrollbar {
     width: 8px;
 }

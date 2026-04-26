@@ -4,15 +4,20 @@ import WorklistTable from "../components/WorklistTable";
 import axios from "axios";
 import "./RecepcionPage.css";
 
+// 🚀 IMPORTAMOS EL MODAL DE ENTREGA QR
+import { ModalEntregaQR } from "../components/GeneradorQR/ModalEntregaQR";
+
 export default function RecepcionPage() {
   const [orders, setOrders] = useState([]);
   const [orderToEdit, setOrderToEdit] = useState(null);
   const [dynamicFields, setDynamicFields] = useState([]);
 
-  // 1. Envolvemos fetchData en useCallback para evitar ciclos infinitos con el interval
+  // 🚀 ESTADO CORREGIDO (Sin la 'l' extra para evitar errores)
+  const [modalQRAbierto, setModalQRAbierto] = useState(false);
+  const [pacienteSeleccionado, setPacienteSeleccionado] = useState(null);
+
   const fetchData = useCallback(async () => {
     try {
-      // Agregamos t=${Date.now()} para romper el caché y asegurar que la secretaria vea datos reales
       const resWorklist = await axios.get(`http://127.0.0.1:8000/api/ris/worklist?all_active=true&t=${Date.now()}`);
       setOrders(resWorklist.data);
 
@@ -23,15 +28,12 @@ export default function RecepcionPage() {
     }
   }, []);
 
-  // 2. EFECTO DE AUTO-REFRESCO: Se ejecuta cada 5 segundos
   useEffect(() => {
-    fetchData(); // Carga inicial
-
+    fetchData();
     const intervalId = setInterval(() => {
       fetchData();
-    }, 5000); // 5 segundos es ideal para Recepción
-
-    return () => clearInterval(intervalId); // Limpieza al cerrar la página
+    }, 5000); 
+    return () => clearInterval(intervalId); 
   }, [fetchData]);
 
   const handleRegisterOrder = async (orderData) => {
@@ -42,7 +44,7 @@ export default function RecepcionPage() {
       } else {
         await axios.post("http://127.0.0.1:8000/api/ris/order", orderData);
       }
-      fetchData(); // Refresco instantáneo tras registrar
+      fetchData(); 
     } catch (error) {
       console.error("Error en la operación:", error);
       alert("Error al procesar la solicitud.");
@@ -81,18 +83,40 @@ export default function RecepcionPage() {
     try {
       await axios.put(`http://127.0.0.1:8000/api/ris/order/atender/${orderId}`);
       await fetchData();
-      console.log(`✅ Orden ${orderId} marcada como atendida.`);
     } catch (error) {
       console.error("Error al atender la orden:", error);
-      alert("No se pudo marcar como atendido.");
     }
+  };
+
+  const handleMostrarQR = (order) => {
+    setPacienteSeleccionado({
+      nombre: order.nombre,
+      accession: order.accession_number || order.id_orden 
+    });
+    setModalQRAbierto(true);
+  };
+
+  const handleResetVista = () => {
+    setOrderToEdit(null);
+    setModalQRAbierto(false);
+    fetchData();
   };
 
   return (
     <div className="recepcion-page-wrapper">
       <div className="recepcion-header-info">
-        <h1>Centro de Admisión y Worklist RIS</h1>
-        <p>Gestión modular: {orders.length} órdenes activas</p>
+        <div className="header-flex-container">
+            <div>
+                <h1>Centro de Admisión y Worklist RIS</h1>
+                <p>Gestión modular: {orders.length} órdenes activas</p>
+            </div>
+            {/* 🚀 BOTÓN CON CONDICIÓN CORREGIDA */}
+            {(orderToEdit || modalQRAbierto) && (
+                <button onClick={handleResetVista} className="btn-back-to-list-v2">
+                    <i className="fas fa-undo"></i> VOLVER A LA LISTA
+                </button>
+            )}
+        </div>
       </div>
 
       <div className="recepcion-layout-split">
@@ -118,9 +142,17 @@ export default function RecepcionPage() {
             onEdit={handleEditRequest}
             onStart={handleStartOrder} 
             onAtender={handleAtenderOrder}
+            onShowQR={handleMostrarQR} 
           />
         </div>
       </div>
+
+      {/* 🚀 PROP CORREGIDA AQUÍ TAMBIÉN */}
+      <ModalEntregaQR 
+        isOpen={modalQRAbierto} 
+        onClose={() => setModalQRAbierto(false)} 
+        paciente={pacienteSeleccionado} 
+      />
     </div>
   );
 }

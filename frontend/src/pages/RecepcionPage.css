@@ -5,8 +5,17 @@
   flex-direction: column;
   padding: 20px;
   color: rgb(247, 174, 5);
-  /* Eliminamos márgenes extra que puedan mover el layout */
   box-sizing: border-box;
+}
+
+/* 🚀 NUEVO: Ajuste para que el encabezado permita el botón al lado del título */
+.recepcion-header-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-right: 10px;
+  min-height: 60px; /* Asegura espacio para el botón */
 }
 
 .recepcion-layout-split {
@@ -15,7 +24,7 @@
   flex-direction: row;
   gap: 30px;
   align-items: flex-start;
-  margin-top: 10px; /* Reducido para acercar al header */
+  margin-top: 10px; 
   min-height: 0; 
   overflow: hidden;
 }
@@ -23,19 +32,15 @@
 /* El formulario ocupa el 40% */
 .layout-section-form {
   flex: 0 0 40%;
-  /* No tocamos el margin-top aquí, el formulario es nuestra base */
 }
 
-/* 🚀 LA TABLA SE AJUSTA PARA ALINEARSE CON EL FORMULARIO */
+/* LA TABLA SE AJUSTA PARA ALINEARSE CON EL FORMULARIO */
 .layout-section-list {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  
-  /* ✅ AJUSTE MAESTRO: Bajamos la lista para nivelar con la izquierda */
   margin-top: 35px; 
-  
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border-radius: 15px;
@@ -72,10 +77,43 @@
 @media (max-width: 1200px) {
   .recepcion-layout-split {
     flex-direction: column;
-    overflow-y: auto; /* Permitimos scroll general en móviles */
+    overflow-y: auto;
   }
   .layout-section-form, .layout-section-list {
     width: 100%;
-    margin-top: 10px; /* Reset para móviles */
+    margin-top: 10px;
   }
+}
+
+/* --- AJUSTES PARA EL BOTÓN DE RETORNO RÁPIDO --- */
+.header-flex-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+/* ✅ REFUERZO: Usamos v2 para asegurar que no haya conflictos con nombres anteriores */
+.btn-back-to-list, .btn-back-to-list-v2 {
+    background: #fbbf24 !important; /* Dorado sólido para visibilidad inmediata */
+    color: #000 !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 12px !important;
+    font-weight: 900 !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    text-transform: uppercase !important;
+    font-size: 0.85rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    z-index: 11000 !important; /* Por encima de cualquier modal o sombra */
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.5) !important;
+}
+
+.btn-back-to-list:hover, .btn-back-to-list-v2:hover {
+    background: #fff !important;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(251, 191, 36, 0.7) !important;
 }

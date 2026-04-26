@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host ",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -28,6 +28,7 @@
     "gl-matrix": "^3.4.3",
     "hammerjs": "^2.0.8",
     "lodash": "^4.17.23",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",
