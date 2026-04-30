@@ -73,3 +73,25 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Brillo para el botón azul de Importar */
+.btn-importar-pacs:hover {
+    background-color: #3b82f6 !important; /* Un azul más claro */
+    box-shadow: 0 0 15px rgba(37, 99, 235, 0.6); /* Resplandor azul */
+    transform: translateY(-1px); /* Pequeño levante */
+    transition: all 0.2s ease;
+}
+
+/* Brillo para el botón verde de Exportar */
+.btn-exportar-pacs:hover {
+    background-color: #10b981 !important; /* Un verde más brillante */
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.6); /* Resplandor verde */
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+}
+
+/* Efecto cuando se hace clic */
+.btn-importar-pacs:active, .btn-exportar-pacs:active {
+    transform: translateY(0);
+    box-shadow: none;
+}

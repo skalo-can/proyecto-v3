@@ -32,7 +32,8 @@ const ConfigMapeoPage = () => {
   const [form] = Form.useForm();
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
-  const API_URL = 'http://127.0.0.1:8000/api/dicom/mapeo/';
+  // ✅ CORREGIDO: Se eliminó la barra final '/' para evitar el error 307 de redirección
+  const API_URL = 'http://127.0.0.1:8000/api/dicom/mapeo';
 
   const fetchMapeos = async () => {
     setLoading(true);

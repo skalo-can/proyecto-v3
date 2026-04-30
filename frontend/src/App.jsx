@@ -8,7 +8,7 @@ import { Header } from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import DicomConfigModal from "./components/DicomConfigModal";
 import Dashboard from "./components/Dashboard";
-import Pacientes from "./Pacientes";
+import Pacientes from "./pages/pacientes";
 import Login from "./Login";
 import Logout from "./Logout";
 import Estudios from "./Estudios";
