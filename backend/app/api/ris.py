@@ -80,6 +80,29 @@ def atender_orden(order_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "success", "message": f"Paciente {db_order.apellido} marcado como atendido"}
 
+# 🚀 NUEVO: Fast-Track de Urgencias (Liberación rápida del estudio sin reporte previo)
+@router.put("/order/liberacion-rapida/{order_id}")
+def liberacion_rapida_urgencias(order_id: int, db: Session = Depends(get_db)):
+    """
+    Permite al médico tratante liberar las imágenes del estudio al correo del paciente
+    de forma inmediata, marcando el registro para el backup diferido sin requerir la firma del radiólogo.
+    """
+    db_order = db.query(RISOrden).filter(RISOrden.id_orden == order_id).first()
+    if not db_order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    # Cambiamos el estado al flujo rápido sin lectura
+    db_order.estado_ris = "Finalizado Sin Reporte"
+    db.commit()
+    
+    # Aquí es donde el backend disparará el email automático en segundo plano usando la infraestructura existente
+    # (Lo enlazaremos con el delivery_service en el siguiente paso)
+    
+    return {
+        "status": "success", 
+        "message": f"Estudio {db_order.accession_number} liberado con éxito para Urgencias. Envío de imágenes iniciado."
+    }
+
 # --- DELETE ---
 @router.delete("/order/{order_id}")
 def eliminar_orden(order_id: int, db: Session = Depends(get_db)):

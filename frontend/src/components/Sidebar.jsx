@@ -126,6 +126,13 @@ export default function Sidebar({ isOpen, onClose }) {
                     </Link>
                   )}
 
+                  {/* 🚀 NUEVO: Acceso al panel de control del ciclo de vida de los datos */}
+                  {isSkalo && (
+                    <Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#10b981', fontWeight: 'bold' }} onClick={onClose}>
+                      📦 Ciclo de Vida / Backups
+                    </Link>
+                  )}
+
                   {isSkalo && (
                     <Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} onClick={onClose} style={{ color: '#1890ff', fontWeight: '500' }}>
                       🏷️ Configurar Tags DICOM
@@ -140,9 +147,9 @@ export default function Sidebar({ isOpen, onClose }) {
                   {/* Auditoría y Logs: Solo Admin/Superadmin */}
                   {isAdmin && (
                     <>
-                      <Link to="/auditoria" className="submenu-link" onClick={onClose}>📊 Auditoría</Link>
-                      <Link to="/email-logs" className="submenu-link" onClick={onClose}>✉️ Logs Email</Link>
-                      <Link to="/whatsapp-logs" className="submenu-link" onClick={onClose}>📱 Logs WhatsApp</Link>
+                      <Link to="/auditoria" className={`submenu-link ${isActive("/auditoria") ? "active" : ""}`} onClick={onClose}>📊 Auditoría</Link>
+                      <Link to="/email-logs" className={`submenu-link ${isActive("/email-logs") ? "active" : ""}`} onClick={onClose}>✉️ Logs Email</Link>
+                      <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`} onClick={onClose}>📱 Logs WhatsApp</Link>
                     </>
                   )}
                   

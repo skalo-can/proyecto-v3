@@ -4,6 +4,13 @@ import { useAuth } from "../AuthContext";
 
 const COLORS = ["#fbbf24", "#3b82f6", "#10b981", "#ef4444", "#8b5cf6"];
 
+// 🚀 NUEVO: Selector de color dinámico basado en estándares predictivos de hardware
+const obtenerColorBarra = (porcentaje) => {
+  if (porcentaje >= 80) return "#ef4444"; // 🔴 Rojo Crítico: Momento de Purga
+  if (porcentaje >= 60) return "#fbbf24"; // 🟡 Amarillo: Advertencia de espacio
+  return "#10b981";                        // 🟢 Verde: Estado Óptimo
+};
+
 export default function DashboardStats() {
   const { token } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
@@ -14,13 +21,16 @@ export default function DashboardStats() {
     imagenesTotal: 0,
     almacenamientoGB: "0.00",
     porcentajeNAS: 0,
+    discoTotalGB: 0,
+    discoUsadoGB: 0,
+    discoLibreGB: 0,
+    limitePurga: 80,
     crecimiento: [],
     modalidades: [] 
   });
 
   const [filtros, setFiltros] = useState({ inicio: "", fin: "" });
   
-  // ✅ CORREGIDO: Ahora los datos filtrados inician en 0
   const [datosFiltrados, setDatosFiltrados] = useState({
     estudiosEnRango: 0,
     gbConsumidos: 0,
@@ -45,10 +55,7 @@ export default function DashboardStats() {
     } catch (error) { console.error("Error stats:", error); }
   };
 
-  // ✅ CORREGIDO: Esta función ya no tiene el 45.8 GB "a mano"
   const aplicarFiltro = () => {
-    // Aquí podrías hacer otra llamada al API pasando los filtros.inicio y filtros.fin
-    // Por ahora, lo dejamos en 0 para que no te dé información falsa.
     setDatosFiltrados({
       estudiosEnRango: 0,
       gbConsumidos: 0,
@@ -66,16 +73,52 @@ export default function DashboardStats() {
       </h2>
 
       {/* TARJETAS GLOBALES */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginBottom: '20px' }}>
         <div style={cardStyle}><span style={labelStyle}>Total Pacientes</span><div style={valueStyle}>{stats.pacientesTotal}</div></div>
         <div style={cardStyle}><span style={labelStyle}>Total Estudios</span><div style={{ ...valueStyle, color: '#fbbf24' }}>{stats.estudiosTotal}</div></div>
         <div style={cardStyle}><span style={labelStyle}>Imágenes</span><div style={valueStyle}>{stats.imagenesTotal}</div></div>
+        
+        {/* 🚀 TARJETA OPTIMIZADA: Medición Dinámica de Almacenamiento y Barra Gradual */}
         <div style={cardStyle}>
-          <span style={labelStyle}>Capacidad NAS</span>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{stats.almacenamientoGB} GB</div>
-          <div style={progressBg}><div style={{ ...progressFill, width: `${stats.porcentajeNAS}%`, backgroundColor: '#10b981' }}></div></div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={labelStyle}>Capacidad Almacenamiento</span>
+            <span style={{ fontSize: "0.85rem", fontWeight: "bold", color: obtenerColorBarra(stats.porcentajeNAS) }}>
+              {stats.porcentajeNAS}%
+            </span>
+          </div>
+          
+          <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginTop: '2px' }}>
+            {stats.almacenamientoGB} GB <span style={{ fontSize: "0.75rem", color: "#666", fontWeight: "normal" }}>local PACS</span>
+          </div>
+          
+          {/* Barra Inteligente Estilizada */}
+          <div style={{ ...progressBg, height: '8px', background: '#11141a', border: '1px solid #2a303c' }}>
+            <div style={{ 
+              ...progressFill, 
+              width: `${stats.porcentajeNAS}%`, 
+              backgroundColor: obtenerColorBarra(stats.porcentajeNAS) 
+            }}></div>
+          </div>
+
+          {/* Desglose de Hardware Adicional */}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: "#888", marginTop: "8px" }}>
+            <span>Usado: <strong style={{ color: "#eee" }}>{stats.discoUsadoGB ? Math.round(stats.discoUsadoGB) : 0} GB</strong></span>
+            <span>Libre: <strong style={{ color: obtenerColorBarra(stats.porcentajeNAS) }}>{stats.discoLibreGB ? Math.round(stats.discoLibreGB) : 0} GB</strong></span>
+            <span>Total: {stats.discoTotalGB ? Math.round(stats.discoTotalGB) : 0} GB</span>
+          </div>
         </div>
       </div>
+
+      {/* ALERTAS PREDICTIVAS DE HARDWARE */}
+      {stats.porcentajeNAS >= stats.limitePurga && (
+        <div style={{
+          padding: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444',
+          borderWidth: '1px', borderStyle: 'solid', borderRadius: '8px', color: '#ef4444',
+          fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '20px', textAlign: 'center'
+        }}>
+          ⚠️ ADVERTENCIA DE INFRAESTRUCTURA: Disco del PACS superior al {stats.limitePurga}%. Ciclo de depuración y purga hacia el NAS externo activo.
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
         <div style={cardStyle}>
@@ -86,7 +129,6 @@ export default function DashboardStats() {
             <button onClick={aplicarFiltro} style={btnStyle}>Calcular</button>
           </div>
           <div style={{ padding: '10px', background: '#000', borderRadius: '8px' }}>
-            {/* ✅ Ahora mostrará la realidad: 0.0 GB si no hay datos */}
             <span style={labelStyle}>Ocupado en rango: {datosFiltrados.gbConsumidos} GB</span>
           </div>
         </div>

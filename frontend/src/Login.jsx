@@ -15,14 +15,13 @@ function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-const handleLogin = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
 
     try {
-      // const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
-      // A ESTO (La IP de su PC):
-      const response = await fetch("http://10.0.0.97:8000/api/auth/login", {
+      // ✅ CORREGIDO: Se cambió la IP fija del router viejo por 127.0.0.1 (Localhost permanente)
+      const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: identifier, password }), 

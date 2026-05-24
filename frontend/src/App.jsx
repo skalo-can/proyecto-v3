@@ -25,6 +25,7 @@ import ConfigMapeoPage from './pages/ConfigMapeoPage';
 import Productividad from "./pages/Productividad";
 import TecnologoConsole from "./pages/TecnologoConsole";
 import GestionUsuarios from "./pages/GestionUsuarios";
+import BackupConfigPage from "./pages/BackupConfigPage";
 
 // 🚀 IMPORTAMOS SU NUEVO PORTAL
 import { PortalPaciente } from "./components/PortalPaciente/PortalPaciente";
@@ -73,7 +74,7 @@ function Layout({ children, onOpenDicom }) {
 
   return (
     <div className="layout-container">
-      <Header 
+      <Header  
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
         onOpenDicom={onOpenDicom} 
       />
@@ -143,6 +144,15 @@ export default function App() {
         <Route path="/auditoria" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><AuditoriaPage /></ProtectedRoute></Layout>} />
         <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'recepcion']}><RecepcionPage /></ProtectedRoute></Layout>} />
         
+        {/* 🚀 NUEVA RUTA: Gestión del ciclo de vida y políticas de backup */}
+        <Route path="/gestion-backups" element={
+          <Layout onOpenDicom={openDicom}>
+            <ProtectedRoute allowedRoles={['superadmin']}>
+              <BackupConfigPage />
+            </ProtectedRoute>
+          </Layout>
+        } />
+
         {/* 🔐 PORTAL PACIENTE */}
         <Route path="/portal-paciente" element={
           <Layout>
