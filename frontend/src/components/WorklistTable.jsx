@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { FaEdit, FaTrash, FaCheckCircle } from "react-icons/fa";
+import { FaEdit, FaTrash, FaCheckCircle, FaQrcode } from "react-icons/fa"; // 🚀 Importamos el icono de QR
 import "./WorklistTable.css";
 
-const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender }) => {
+// 🚀 Añadimos onShowQR a las props recibidas
+const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrders, setSelectedOrders] = useState([]);
 
@@ -87,6 +88,16 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender }) => {
                       </span>
                     </td>
                     <td className="actions-cell">
+                      {/* 🚀 BOTÓN DE QR (ESTILO DORADO) */}
+                      <button 
+                        className="btn-icon qr-gold" 
+                        onClick={() => onShowQR(order)} 
+                        title="Generar QR de Acceso"
+                        style={{ color: '#fbbf24', fontSize: '1.1rem', marginRight: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                      >
+                        <FaQrcode />
+                      </button>
+
                       <button className="btn-icon edit" onClick={() => onEdit(order)} title="Editar"><FaEdit /></button>
                       <button className="btn-icon delete" onClick={() => onDelete(order.id_orden)} title="Eliminar"><FaTrash /></button>
 

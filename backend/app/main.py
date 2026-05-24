@@ -37,7 +37,7 @@ from app.api.paciente_portal_api import router as paciente_portal_router
 from app.api.paciente_link_api import router as paciente_link_router
 from app.api.paciente_email_api import router as paciente_email_router
 from app.api.reset_api import router as reset_router
-from app.api.dicom_import import router as dicom_import_router
+from app.api.dicom_import import router as dicom_import_router # Asegurado formato consistente
 from app.api.dicom_tools_api import router as dicom_tools_router
 from app.api.dicom_import_new_api import router as dicom_import_new_router
 from app.api.dicom_stream_api import router as dicom_stream_router
@@ -53,6 +53,10 @@ from app.api.secure_links_api import router as secure_links_router
 from app.api.filtros.pacientes_filtros_api import router as pacientes_filtros_router
 from app.api.filtros.estudios_filtros_api import router as estudios_filtros_router
 from app.api.filtros.busqueda_global_api import router as busqueda_global_router
+from app.api.admin_config import router as admin_config_router
+
+# 🚀 NUEVO: Importación del router del Panel de Configuración de Backups
+from app.api.backup_api import router as backup_router
 
 # Router del RIS y Conectividad
 from app.api.ris import router as ris_router
@@ -61,9 +65,12 @@ from app.api.dicom_modalities_api import router as dicom_modalities_router
 from app.api.ris_tecnologo_api import router as tecnologo_api
 from app.api.usuario_api import router as usuario_api
 
-# Servidor DICOM dinámico
+# Servidor DICOM dinámico y Scheduler
 from app.services.dicom_service import reiniciar_servidor_dicom
 from app.crud.dicom_config_crud import get_config, create_default_config
+
+# 🚀 NUEVO: Importación del servicio encargado de planificar las tareas automáticas
+from app.services.scheduler_service import inicializar_scheduler
 
 # ---------------------------------------------------------
 # GESTOR DE CONEXIONES EN TIEMPO REAL (WEBSOCKETS)
@@ -156,6 +163,10 @@ app.include_router(busqueda_global_router, prefix="/filtros")
 app.include_router(dicom_config_api.router, prefix="/api/dicom", tags=["Configuración DICOM"])
 app.include_router(dicom_modalities_router)
 app.include_router(tecnologo_api, prefix="/api")
+app.include_router(admin_config_router)
+
+# 🚀 NUEVO: Registro del router encargado de administrar las copias de seguridad selectivas
+app.include_router(backup_router, prefix="/api", tags=["Gestión de Backups"])
 
 @app.post("/api/notify-new-study")
 async def trigger_notification():
@@ -181,6 +192,10 @@ def startup_event():
         os.environ["SERVER_STARTED"] = "true"
         print(f"🔵 Iniciando Servidor DICOM → AE={config.ae_title}, Puerto={config.port}")
         reiniciar_servidor_dicom(config.ae_title, config.port)
+        
+        # 🚀 NUEVO: Arrancar el planificador automático a la 1:00 AM para NAS y envíos diferidos
+        print("⏰ Iniciando Planificador Automático (Rutina: 01:00 AM)")
+        inicializar_scheduler()
 
 @app.get("/status")
 def status():

@@ -342,3 +342,12 @@
   margin: 10px 15px 5px;
 }
 
+/* Layout especial para el Portal del Paciente */
+.portal-fullscreen-layout {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    background-color: #000; /* Fondo base para evitar destellos blancos */
+}

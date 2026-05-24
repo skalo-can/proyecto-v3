@@ -8,7 +8,7 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
     apellido: "",
     fecha_nacimiento: "", 
     sexo: "",              
-    modalidad: "",         
+    modalidad: "",          
     medico_referente: "",
     area_solicitante: "",  
     prioridad: "Rutina",
@@ -35,23 +35,19 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
     }
   }, [initialData]);
 
-  // 🔥 SOLUCIÓN DEFINITIVA: ID Único basado en tiempo (Evita duplicados al borrar)
+  const handleExtraChange = (e) => {
+    const { name, value } = e.target;
+    setExtraValues(prev => ({ ...prev, [name]: value }));
+  };
+
   const handleAutoNN = () => {
     const ahora = new Date();
-    
-    // 1. Formato Fecha: YYYYMMDD (ej: 20260411)
     const fechaStr = ahora.toISOString().split('T')[0].replace(/-/g, ""); 
-    
-    // 2. Formato Tiempo: HHMMSS (ej: 125030)
     const horas = ahora.getHours().toString().padStart(2, '0');
     const minutos = ahora.getMinutes().toString().padStart(2, '0');
     const segundos = ahora.getSeconds().toString().padStart(2, '0');
     const tiempoStr = `${horas}${minutos}${segundos}`;
-    
-    // 3. ID Final: NN-20260411-125030
     const idGenerado = `NN-${fechaStr}-${tiempoStr}`;
-
-    // 4. Sufijo visual para el nombre (usamos los últimos 4 dígitos del tiempo)
     const sufijoVisual = tiempoStr.slice(-4);
 
     setFormData({
@@ -64,7 +60,6 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
       area_solicitante: "URGENCIAS",
       medico_referente: "MEDICO TURNO"
     });
-    
     setExtraValues({ PatientAge: "030Y" }); 
   };
 
@@ -99,7 +94,6 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
     const camposCriticos = ['id_institucional', 'nombre', 'apellido', 'sexo', 'modalidad', 'area_solicitante', 'medico_referente'];
     const incompletos = camposCriticos.filter(campo => !formData[campo]);
     
@@ -125,101 +119,130 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
   return (
     <div className="recepcion-container fade-in">
       <form className="glass-form" onSubmit={handleSubmit} onKeyDown={handleKeyDown} autoComplete="off">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        
+        {/* 1. ENCABEZADO FIJO */}
+        <div className="form-header-fixed" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h2 className="form-title" style={{ margin: 0 }}>
             {initialData ? "✏️ Modificar Orden (RIS)" : "Admisión de Paciente (RIS)"}
           </h2>
           {!initialData && (
-            <button 
-              type="button" 
-              onClick={handleAutoNN}
-              className="btn-nn-emergency"
-              style={{ 
-                background: '#ff4d4f', 
-                color: 'white', 
-                border: 'none', 
-                padding: '10px 18px', 
-                borderRadius: '6px', 
-                cursor: 'pointer', 
-                fontWeight: 'bold',
-                boxShadow: '0 4px 14px 0 rgba(255, 77, 79, 0.39)'
-              }}
-            >
+            <button type="button" onClick={handleAutoNN} className="btn-nn-emergency">
               🚨 INGRESO NN (EMERGENCIA)
             </button>
           )}
         </div>
 
-        <div className="form-section">
-          <h3><i className="fas fa-user"></i> Identificación del Paciente</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>ID Institucional *</label>
-              <input type="text" name="id_institucional" value={formData.id_institucional} onChange={handleChange} required placeholder="Cédula/NHC o ID-NN" />
+        {/* 2. ÁREA CON SCROLL INTERNO */}
+        <div className="form-scrollable-content">
+          <div className="form-section">
+            <h3><i className="fas fa-user"></i> Identificación del Paciente</h3>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>ID Institucional *</label>
+                <input type="text" name="id_institucional" value={formData.id_institucional} onChange={handleChange} required placeholder="Cédula/NHC o ID-NN" />
+              </div>
+              <div className="form-group">
+                <label>Nombres *</label>
+                <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} required />
+              </div>
+              <div className="form-group">
+                <label>Apellidos *</label>
+                <input type="text" name="apellido" value={formData.apellido} onChange={handleChange} required />
+              </div>
+              <div className="form-group">
+                <label>Fecha de Nacimiento</label>
+                <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleChange} />
+              </div>
+              <div className="form-group">
+                <label>Edad (DICOM) *</label>
+                <input 
+                  type="text" 
+                  value={extraValues.PatientAge || ""} 
+                  onChange={(e) => setExtraValues({...extraValues, PatientAge: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Sexo *</label>
+                <select name="sexo" value={formData.sexo} onChange={handleChange} required>
+                  <option value="">Seleccione...</option>
+                  <option value="M">Masculino</option>
+                  <option value="F">Femenino</option>
+                  <option value="O">Otro / NN</option>
+                </select>
+              </div>
             </div>
-            <div className="form-group">
-              <label>Nombres *</label>
-              <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} required />
-            </div>
-            <div className="form-group">
-              <label>Apellidos *</label>
-              <input type="text" name="apellido" value={formData.apellido} onChange={handleChange} required />
-            </div>
-            <div className="form-group">
-              <label>Fecha de Nacimiento</label>
-              <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleChange} />
-            </div>
-            <div className="form-group">
-              <label>Edad (DICOM) *</label>
-              <input 
-                type="text" 
-                value={extraValues.PatientAge || ""} 
-                onChange={(e) => setExtraValues({...extraValues, PatientAge: e.target.value})}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Sexo *</label>
-              <select name="sexo" value={formData.sexo} onChange={handleChange} required>
-                <option value="">Seleccione...</option>
-                <option value="M">Masculino</option>
-                <option value="F">Femenino</option>
-                <option value="O">Otro / NN</option>
-              </select>
+          </div>
+
+          <div className="form-section">
+            <h3><i className="fas fa-file-medical"></i> Detalles del Estudio</h3>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Modalidad *</label>
+                <select name="modalidad" value={formData.modalidad} onChange={handleChange} required>
+                  <option value="">Seleccione...</option>
+                  <option value="CR">Radiología Convencional (CR)</option>
+                  <option value="DR">Radiología Digital (DR)</option>
+                  <option value="CT">Tomografía (CT)</option>
+                  <option value="MR">Resonancia (MR)</option>
+                  <option value="US">Ecografía (US)</option>
+                  <option value="MG">Mamografía (MG)</option>
+                  <option value="FL">Fluoroscopia (FL)</option>
+                  <option value="MN">Medicina Nuclear (MN)</option>
+                  <option value="Angiografía">Angiografía</option>
+                  <option value="DXA">Densitometría (DXA)</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Área Solicitante *</label>
+                <input type="text" name="area_solicitante" value={formData.area_solicitante} onChange={handleChange} required />
+              </div>
+              <div className="form-group">
+                <label>Médico Referente *</label>
+                <input type="text" name="medico_referente" value={formData.medico_referente} onChange={handleChange} required />
+              </div>
+
+              {/* 🔥 RENDERIZADO DINÁMICO DE CAMPOS DICOM (MOTIVO Y NOTAS ANCHOS) */}
+              {dynamicFields && [...dynamicFields]
+                .sort((a, b) => {
+                    // Ponemos 'Motivo' arriba de 'Notas'
+                    if (a.nombre_mostrar.toLowerCase().includes("motivo")) return -1;
+                    if (b.nombre_mostrar.toLowerCase().includes("motivo")) return 1;
+                    return 0;
+                })
+                .map((campo) => {
+                  const esCampoExtenso = 
+                    campo.nombre_mostrar.toLowerCase().includes("nota") || 
+                    campo.nombre_mostrar.toLowerCase().includes("motivo");
+
+                  return (
+                    <div 
+                      className="form-group" 
+                      key={campo.id} 
+                      style={{ 
+                        gridColumn: esCampoExtenso ? '1 / -1' : 'span 1', 
+                        marginTop: '10px' 
+                      }}
+                    >
+                      <label style={{ color: '#fbbf24', fontWeight: 'bold' }}>
+                        {campo.nombre_mostrar.toUpperCase()}
+                      </label>
+                      <textarea 
+                        name={campo.tag_dicom}
+                        value={extraValues[campo.tag_dicom] || ""}
+                        onChange={handleExtraChange}
+                        placeholder={`Ingrese ${campo.nombre_mostrar}...`}
+                        rows={campo.nombre_mostrar.toLowerCase().includes("nota") ? 5 : 3}
+                        className="mapeo-textarea-recepcion"
+                      />
+                    </div>
+                  );
+              })}
             </div>
           </div>
         </div>
 
-        <div className="form-section">
-          <h3><i className="fas fa-file-medical"></i> Detalles del Estudio</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Modalidad *</label>
-              <select name="modalidad" value={formData.modalidad} onChange={handleChange} required>
-                <option value="">Seleccione...</option>
-                <option value="CR">Radiología Convencional (CR)</option>
-                <option value="DR">Radiología Digital (DR)</option>
-                <option value="CT">Tomografía (CT)</option>
-                <option value="MR">Resonancia (MR)</option>
-                <option value="US">Ecografía (US)</option>
-                <option value="MG">Mamografía (MG)</option>
-                <option value="FL">Fluoroscopia (FL)</option>
-                <option value="MN">Medicina Nuclear (MN)</option>
-                <option value="Angiografía">Angiografía</option>
-                <option value="DXA">Densitometría (DXA)</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Área Solicitante *</label>
-              <input type="text" name="area_solicitante" value={formData.area_solicitante} onChange={handleChange} required />
-            </div>
-            <div className="form-group">
-              <label>Médico Referente *</label>
-              <input type="text" name="medico_referente" value={formData.medico_referente} onChange={handleChange} required />
-            </div>
-          </div>
-        </div>
-
+        {/* 3. BOTÓN CONFIRMAR SIEMPRE VISIBLE */}
         <div className="form-actions">
           <button type="submit" className="btn-confirmar">
             {initialData ? "💾 Guardar Cambios" : "Confirmar Ingreso y Notificar"}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./DicomConfigModal.css";
 
@@ -19,7 +19,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
   const [lastSender, setLastSender] = useState(null);
   const [logs, setLogs] = useState([]);
 
-  // Esta función recupera los datos exactamente como lo hacías antes
+  // Carga de datos desde el servidor
   const loadData = () => {
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
@@ -48,19 +48,19 @@ export default function DicomConfigModal({ isOpen, onClose }) {
 
     // 3. Cargar Logs
     axios.get("http://127.0.0.1:8000/api/dicom/logs", { headers })
-      .then((res) => setLogs(res.data.logs || []))
-      .catch(() => setLogs(["No hay logs disponibles."]))
+      .then((res) => {
+        setLogs(res.data.logs || []);
+      })
+      .catch(() => setLogs([{ fecha: "-", mensaje: "No hay logs disponibles." }]))
       .finally(() => setLoading(false));
   };
 
-  // EFECTO PRINCIPAL: Se dispara cada vez que isOpen cambia a TRUE
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
   }, [isOpen]);
 
-  // Manejo de limpieza de mensajes
   useEffect(() => {
     if (message || error) {
       const timer = setTimeout(() => {
@@ -79,10 +79,10 @@ export default function DicomConfigModal({ isOpen, onClose }) {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
     .then(() => {
-      setMessage("Guardado con éxito.");
-      loadData(); // Refrescar
+      setMessage("✅ Guardado con éxito.");
+      loadData();
     })
-    .catch(() => setError("Error al guardar."))
+    .catch(() => setError("❌ Error al guardar."))
     .finally(() => setLoading(false));
   };
 
@@ -92,10 +92,10 @@ export default function DicomConfigModal({ isOpen, onClose }) {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
     .then((res) => {
-      setMessage(res.data.message || "Prueba exitosa.");
-      loadData(); // Refrescar para ver los nuevos logs
+      setMessage(res.data.message || "✅ Prueba exitosa.");
+      loadData();
     })
-    .catch(() => setError("Error en la prueba."))
+    .catch(() => setError("❌ Error en la prueba."))
     .finally(() => setTesting(false));
   };
 
@@ -118,17 +118,19 @@ export default function DicomConfigModal({ isOpen, onClose }) {
           <span className="dicom-status-value">{lastSender || "Sin registros"}</span>
         </div>
 
-        <label className="dicom-label">AE Title del servidor PACS</label>
-        <input type="text" name="ae_title" value={form.ae_title} onChange={handleChange} className="dicom-input" />
+        <div className="dicom-form-body">
+          <label className="dicom-label">AE Title del servidor PACS</label>
+          <input type="text" name="ae_title" value={form.ae_title} onChange={handleChange} className="dicom-input" />
 
-        <label className="dicom-label">IP del servidor PACS</label>
-        <input type="text" name="ip" value={form.ip} onChange={handleChange} className="dicom-input" />
+          <label className="dicom-label">IP del servidor PACS</label>
+          <input type="text" name="ip" value={form.ip} onChange={handleChange} className="dicom-input" />
 
-        <label className="dicom-label">Puerto DICOM</label>
-        <input type="number" name="port" value={form.port} onChange={handleChange} className="dicom-input" />
+          <label className="dicom-label">Puerto DICOM</label>
+          <input type="number" name="port" value={form.port} onChange={handleChange} className="dicom-input" />
 
-        <label className="dicom-label">AE Title del cliente (WEASIS)</label>
-        <input type="text" name="client_ae" value={form.client_ae} onChange={handleChange} className="dicom-input" />
+          <label className="dicom-label">AE Title del cliente (WEASIS)</label>
+          <input type="text" name="client_ae" value={form.client_ae} onChange={handleChange} className="dicom-input" />
+        </div>
 
         {message && <p className="dicom-success">{message}</p>}
         {error && <p className="dicom-error">{error}</p>}
@@ -136,9 +138,14 @@ export default function DicomConfigModal({ isOpen, onClose }) {
         <div className="dicom-logs-container">
           <div className="dicom-logs-header">Logs DICOM recientes</div>
           <div className="dicom-logs-body">
-            {logs.map((line, idx) => (
-              <div key={idx} className="dicom-log-line">{line}</div>
-            ))}
+            {logs.length > 0 ? logs.map((line, idx) => (
+              <div key={idx} className="dicom-log-line">
+                <span style={{ color: '#fbbf24', marginRight: '8px', fontSize: '0.75rem' }}>
+                   [{line.fecha || '00:00'}]
+                </span>
+                <span style={{ fontSize: '0.8rem' }}>{line.mensaje || line}</span>
+              </div>
+            )) : <div className="dicom-log-line">No hay logs disponibles</div>}
           </div>
         </div>
 

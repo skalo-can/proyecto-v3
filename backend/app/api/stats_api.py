@@ -1,4 +1,5 @@
 import os
+import shutil
 import traceback
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -16,22 +17,52 @@ router = APIRouter(tags=["Estadísticas y Productividad"])
 
 # --- FUNCIONES AUXILIARES ---
 
-def get_pacs_size_gb():
-    """Calcula el tamaño real en disco de la carpeta de imágenes DICOM."""
-    ruta_pacs = r"D:\proyecto v3\storage\dicom" 
-    total_size = 0
+def get_pacs_disk_metrics():
+    """
+    Calcula el espacio físico real del disco donde opera el almacenamiento principal,
+    entregando el consumo exacto y el porcentaje para la barra de colores.
+    """
+    # Analizamos la ruta del almacenamiento o la raíz del disco donde opera el PACS
+    ruta_pacs = r"D:\proyecto v3\storage\dicom"
+    ruta_disco = "D:\\" if os.path.exists("D:\\") else "."
+    
     try:
+        # 1. Medir el peso específico de la carpeta DICOM local
+        total_folder_size = 0
         if os.path.exists(ruta_pacs):
             for dirpath, dirnames, filenames in os.walk(ruta_pacs):
                 for f in filenames:
                     fp = os.path.join(dirpath, f)
                     if os.path.isfile(fp):
-                        total_size += os.path.getsize(fp)
-        size_gb = total_size / (1024**3)
-        return round(size_gb, 2)
+                        total_folder_size += os.path.getsize(fp)
+        folder_gb = round(total_folder_size / (1024**3), 2)
+        
+        # 2. Medir las métricas de hardware del disco completo (Capacidad y Ocupación Real)
+        total_disk, used_disk, free_disk = shutil.disk_usage(ruta_disco)
+        
+        total_disk_gb = round(total_disk / (1024**3), 2)
+        used_disk_gb = round(used_disk / (1024**3), 2)
+        free_disk_gb = round(free_disk / (1024**3), 2)
+        porcentaje_uso_disco = round((used_disk / total_disk) * 100, 2)
+        
+        return {
+            "carpeta_dicom_gb": folder_gb,
+            "total_disco_gb": total_disk_gb,
+            "usado_disco_gb": used_disk_gb,
+            "libre_disco_gb": free_disk_gb,
+            "porcentaje_uso_real": porcentaje_uso_disco,
+            "limite_purga_porcentaje": 80.0
+        }
     except Exception as e:
-        print(f"⚠️ Error calculando tamaño de disco: {e}")
-        return 0.00
+        print(f"⚠️ Error calculando métricas de hardware de almacenamiento: {e}")
+        return {
+            "carpeta_dicom_gb": 0.00,
+            "total_disco_gb": 1000.00,
+            "usado_disco_gb": 0.00,
+            "libre_disco_gb": 1000.00,
+            "porcentaje_uso_real": 0.00,
+            "limite_purga_porcentaje": 80.0
+        }
 
 # --- ENDPOINTS DE DASHBOARD ---
 
@@ -41,10 +72,9 @@ def get_stats_dashboard(db: Session = Depends(get_db)):
         p_count = db.query(Paciente).count()
         e_count = db.query(Estudio).count()
         i_count = db.query(EstudioImagen).count()
-        espacio_gb = get_pacs_size_gb()
         
-        capacidad_maxima_gb = 1000 
-        uso_nas = round((espacio_gb / capacidad_maxima_gb) * 100, 2) if capacidad_maxima_gb > 0 else 0
+        # 🚀 NUEVO: Inyección de métricas de almacenamiento físico real
+        metricas_disco = get_pacs_disk_metrics()
 
         modalidades_query = db.query(
             Estudio.tipo_estudio, 
@@ -60,8 +90,15 @@ def get_stats_dashboard(db: Session = Depends(get_db)):
             "pacientesTotal": p_count,
             "estudiosTotal": e_count,
             "imagenesTotal": i_count,
-            "almacenamientoGB": f"{espacio_gb:.2f}",
-            "porcentajeNAS": uso_nas,
+            
+            # 🚀 ENLACES DINÁMICOS PARA LA TARJETA Y LA BARRA INTELIGENTE DEL FRONTEND
+            "almacenamientoGB": f"{metricas_disco['carpeta_dicom_gb']:.2f}",
+            "porcentajeNAS": metricas_disco['porcentaje_uso_real'],
+            "discoTotalGB": metricas_disco['total_disco_gb'],
+            "discoUsadoGB": metricas_disco['usado_disco_gb'],
+            "discoLibreGB": metricas_disco['libre_disco_gb'],
+            "limitePurga": metricas_disco['limite_purga_porcentaje'],
+            
             "crecimiento": [{"fecha": c.fecha, "cantidad": c.cantidad} for c in crecimiento_query],
             "modalidades": [{"name": str(m.tipo_estudio).upper(), "value": m.total} for m in modalidades_query if m.tipo_estudio],
             "success": True

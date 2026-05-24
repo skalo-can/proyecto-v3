@@ -1,14 +1,32 @@
 .recepcion-page-wrapper {
+  height: 100vh;
+  overflow: hidden; 
+  display: flex;
+  flex-direction: column;
   padding: 20px;
-  color: white;
+  color: rgb(247, 174, 5);
+  box-sizing: border-box;
+}
+
+/* 🚀 NUEVO: Ajuste para que el encabezado permita el botón al lado del título */
+.recepcion-header-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-right: 10px;
+  min-height: 60px; /* Asegura espacio para el botón */
 }
 
 .recepcion-layout-split {
+  flex: 1;
   display: flex;
   flex-direction: row;
   gap: 30px;
   align-items: flex-start;
-  margin-top: 20px;
+  margin-top: 10px; 
+  min-height: 0; 
+  overflow: hidden;
 }
 
 /* El formulario ocupa el 40% */
@@ -16,9 +34,13 @@
   flex: 0 0 40%;
 }
 
-/* La tabla ocupa el 60% restante */
+/* LA TABLA SE AJUSTA PARA ALINEARSE CON EL FORMULARIO */
 .layout-section-list {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 35px; 
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border-radius: 15px;
@@ -51,37 +73,47 @@
   color: #000;
 }
 
-/* Responsivo: Si la pantalla es pequeña, se ponen uno abajo del otro */
+/* Responsivo */
 @media (max-width: 1200px) {
   .recepcion-layout-split {
     flex-direction: column;
+    overflow-y: auto;
   }
   .layout-section-form, .layout-section-list {
     width: 100%;
+    margin-top: 10px;
   }
 }
 
-/* Esto evita que la página entera genere scroll */
-.recepcion-page-wrapper {
-  height: 100vh; /* Altura exacta de la ventana */
-  overflow: hidden; /* Prohibido el scroll exterior */
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
+/* --- AJUSTES PARA EL BOTÓN DE RETORNO RÁPIDO --- */
+.header-flex-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
 }
 
-/* Ajuste del layout para que ocupe el resto del espacio */
-.recepcion-layout-split {
-  flex: 1;
-  display: flex;
-  gap: 20px;
-  overflow: hidden; /* Evita que los hijos estiren el contenedor */
-  min-height: 0; /* Truco de Flexbox para permitir scroll interno */
+/* ✅ REFUERZO: Usamos v2 para asegurar que no haya conflictos con nombres anteriores */
+.btn-back-to-list, .btn-back-to-list-v2 {
+    background: #fbbf24 !important; /* Dorado sólido para visibilidad inmediata */
+    color: #000 !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 12px !important;
+    font-weight: 900 !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    text-transform: uppercase !important;
+    font-size: 0.85rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    z-index: 11000 !important; /* Por encima de cualquier modal o sombra */
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.5) !important;
 }
 
-.layout-section-list {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+.btn-back-to-list:hover, .btn-back-to-list-v2:hover {
+    background: #fff !important;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(251, 191, 36, 0.7) !important;
 }

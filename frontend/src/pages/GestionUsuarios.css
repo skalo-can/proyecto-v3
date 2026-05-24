@@ -4,7 +4,7 @@
     display: flex;
     flex-direction: column;
     background: #0b0e11;
-    color: #ffffff; /* Texto general en blanco */
+    color: #ffffff;
     font-family: 'Inter', sans-serif;
     overflow: hidden;
 }
@@ -13,16 +13,16 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 25px 40px;
-    gap: 20px;
+    padding: 15px 30px; /* Reducido para ganar espacio */
+    gap: 15px;
     overflow: hidden;
     min-height: 0;
 }
 
-/* 2. REGISTRO SUPERIOR (Estilo Imagen 8) */
+/* 2. REGISTRO SUPERIOR */
 .gestion-card-registro {
     background: #1a1d21;
-    padding: 30px;
+    padding: 20px 25px; /* Más compacto */
     border-radius: 12px;
     border: 1px solid #333;
     flex-shrink: 0;
@@ -31,68 +31,72 @@
 .form-grid-maestro {
     display: grid;
     grid-template-columns: 2fr 1fr 1.5fr 1fr 1.2fr; 
-    gap: 20px;
-    margin-bottom: 25px;
+    gap: 15px;
+    margin-bottom: 15px;
 }
 
 .field-group label {
-    font-size: 0.75rem;
-    color: #fbbf24; /* Ámbar brillante para labels */
+    font-size: 0.7rem;
+    color: #fbbf24;
     font-weight: bold;
     text-transform: uppercase;
-    margin-bottom: 10px;
+    margin-bottom: 6px;
     display: block;
 }
 
 .field-group input, .field-group select {
     width: 100%;
-    padding: 14px; 
+    padding: 10px 12px; 
     background: #0b0e11 !important; 
     border: 1px solid #444;
-    color: #ffffff; /* Texto del input en blanco puro */
-    border-radius: 8px;
-    font-size: 1rem;
+    color: #ffffff;
+    border-radius: 6px;
+    font-size: 0.9rem;
     outline: none;
 }
 
-/* 3. MATRIZ GLOBAL (Recuperando Legibilidad) */
+/* 3. MATRIZ GLOBAL (CORREGIDA PARA VISIBILIDAD TOTAL) */
 .permisos-container-master {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
+    /* Ajuste fino de columnas para evitar scroll */
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px; /* Espacio mínimo necesario */
     background: #0b0e11;
-    padding: 25px;
+    padding: 15px;
     border-radius: 10px;
     border: 1px solid #222;
+    /* Eliminamos el scroll lateral y vertical */
     overflow: hidden; 
 }
 
 .permiso-label {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 0.75rem;
-    padding: 8px;
+    gap: 8px;
+    font-size: 0.65rem; /* Letra un poco más pequeña para ganar espacio */
+    padding: 5px 8px;
     border-radius: 4px;
     background: #161b22;
-    color: #e2e8f0; /* Blanco grisáceo claro para que se lea perfecto */
+    color: #e2e8f0;
     font-weight: 500;
+    white-space: nowrap; /* Evita que el texto salte de línea */
 }
 
 .permiso-label input[type="checkbox"] {
-    accent-color: #38bdf8; /* Checkboxes en celeste */
+    accent-color: #38bdf8;
+    transform: scale(0.9); /* Checkbox ligeramente más pequeño */
 }
 
-/* 4. BOTONES DE ACCIÓN (Grandes y Claros) */
+/* 4. BOTONES DE ACCIÓN (Alineación Perfecta) */
 .botones-accion-container {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 15px;
-    margin-top: 25px;
+    grid-template-columns: repeat(4, 1fr); 
+    gap: 12px;
+    margin-top: 15px;
 }
 
 .btn-maestro {
-    padding: 16px;
+    padding: 12px; /* Reducido para no empujar la tabla */
     border: none;
     border-radius: 8px;
     font-weight: 800;
@@ -101,17 +105,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
+    font-size: 0.85rem;
 }
 
 .btn-crear { background: #3b82f6; color: white; }
+.btn-activar { background: #10b981; color: white; } 
 .btn-bloquear { background: #f59e0b; color: white; }
 .btn-eliminar { background: #dc2626; color: white; }
 
-/* 5. TABLA INFERIOR (Imagen 9 con colores vivos) */
+/* 5. TABLA INFERIOR */
 .gestion-card-tabla {
     background: #1a1d21;
-    padding: 25px;
+    padding: 20px;
     border-radius: 12px;
     border: 1px solid #333;
     flex: 1; 
@@ -128,8 +134,7 @@
     background: #0b0e11;
 }
 
-/* Scrollbar Celeste MI_PACS */
-.tabla-scroll-area::-webkit-scrollbar { width: 8px; }
+.tabla-scroll-area::-webkit-scrollbar { width: 6px; }
 .tabla-scroll-area::-webkit-scrollbar-thumb {
     background: #38bdf8;
     border-radius: 10px;
@@ -142,30 +147,40 @@
 
 .tabla-usuarios th {
     background: #2d333b;
-    color: #fbbf24; /* Títulos en Ámbar */
-    padding: 15px;
+    color: #fbbf24;
+    padding: 12px;
     text-align: left;
     position: sticky;
     top: 0;
     z-index: 10;
     font-weight: bold;
+    font-size: 0.8rem;
 }
 
 .tabla-usuarios td {
-    padding: 15px;
+    padding: 10px 12px;
     border-bottom: 1px solid #222;
-    font-size: 0.9rem;
-    color: #ffffff; /* Texto de la tabla en blanco puro */
+    font-size: 0.85rem;
+    color: #ffffff;
 }
 
-/* Botón Editar Blanco (Imagen 9) */
-.btn-editar-blanco {
+.rol-badge {
+    background: #333;
+    color: #fbbf24;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.btn-editar-mini {
     background: #ffffff;
     color: #000000;
     border: none;
-    padding: 8px 20px;
+    padding: 5px 12px;
     border-radius: 4px;
     font-weight: bold;
     cursor: pointer;
     text-transform: uppercase;
+    font-size: 0.7rem;
 }

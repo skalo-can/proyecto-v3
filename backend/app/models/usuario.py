@@ -68,4 +68,4 @@ class Usuario(Base):
         back_populates="usuario", 
         uselist=False, 
         doc="Relación opcional con perfil de especialidad médica"
-    )
+    )  

@@ -6,7 +6,7 @@ import "./Sidebar.css";
 
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
-  const { user } = useAuth(); // Asumimos que AuthContext entrega el token
+  const { user } = useAuth(); 
   const [openAdmin, setOpenAdmin] = useState(false);
 
   const isActive = (path) => location.pathname === path;
@@ -15,8 +15,12 @@ export default function Sidebar({ isOpen, onClose }) {
   const currentUsername = user?.username?.trim().toUpperCase() || "";
   const isSkalo = currentUsername.includes("SKALO") || user?.rol === "superadmin";
   const isAdmin = user?.rol === "admin" || isSkalo;
+  
+  // Definición de Roles Nuevos
+  const isAuxiliar = user?.rol === "auxiliar";
+  const isInvitado = user?.rol === "invitado";
+  const isRecepcion = user?.rol === "recepcion";
 
-  // 🔥 LÓGICA DE RESETEO CORREGIDA
   const handleResetSystem = async () => {
     if (!isSkalo) {
       alert(`Acceso denegado. Solo el usuario Maestro SKALO tiene permisos.`);
@@ -40,21 +44,19 @@ export default function Sidebar({ isOpen, onClose }) {
         if (!passwordConfirm) return;
 
         try {
-          // CAMBIADO: URL exacta del endpoint que definimos en el Backend
           const response = await fetch("http://127.0.0.1:8000/api/reset/clinico", {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${user?.token}` 
             },
-            // Enviamos el password para que el backend lo valide
             body: JSON.stringify({ password: passwordConfirm }) 
           });
 
           if (response.ok) {
             alert("✅ SISTEMA RESETEADO EXITOSAMENTE. La página se recargará.");
-            localStorage.clear(); // Limpiamos sesión vieja
-            window.location.href = "/login"; // Redirección total
+            localStorage.clear(); 
+            window.location.href = "/login"; 
           } else {
             const errorData = await response.json();
             alert(`❌ ERROR: ${errorData.detail || 'Fallo de autorización'}`);
@@ -81,15 +83,20 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         <nav className="sidebar-nav">
+          {/* Pacientes: Visible para todos los roles autorizados */}
           <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`} onClick={onClose}>
             <span className="icon">👥</span> Pacientes
           </Link>
 
-          <Link to="/recepcion" className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`} onClick={onClose}>
-            <span className="icon"><FaUserPlus /></span> Recepción / RIS
-          </Link>
+          {/* Recepción: Solo Admin, Superadmin y Recepción */}
+          {(isAdmin || isRecepcion) && (
+            <Link to="/recepcion" className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`} onClick={onClose}>
+              <span className="icon"><FaUserPlus /></span> Recepción / RIS
+            </Link>
+          )}
 
-          {isAdmin && (
+          {/* Estadísticas: Admin, Superadmin e Invitado (Gerente) */}
+          {(isAdmin || isInvitado) && (
             <Link to="/estadisticas" className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`} onClick={onClose}>
               <span className="icon">📊</span> Estadísticas
             </Link>
@@ -97,7 +104,8 @@ export default function Sidebar({ isOpen, onClose }) {
 
           <div className="sidebar-divider"></div>
 
-          {isAdmin && (
+          {/* Administración: Solo Admin, Superadmin e hilos para Auxiliar */}
+          {(isAdmin || isAuxiliar) && (
             <div className="sidebar-section">
               <button className="sidebar-link dropdown-toggle" onClick={() => setOpenAdmin(!openAdmin)}>
                 <span className="icon">⚙️</span> Administración {openAdmin ? "▴" : "▾"}
@@ -105,9 +113,12 @@ export default function Sidebar({ isOpen, onClose }) {
               
               {openAdmin && (
                 <div className="sidebar-submenu">
-                  <Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} onClick={onClose} style={{ color: '#6366f1', fontWeight: 'bold' }}>
-                    <span className="icon"><FaUsersCog /></span> Gestión Usuarios
-                  </Link>
+                  {/* Gestión Usuarios: Solo Superadmin */}
+                  {isSkalo && (
+                    <Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} onClick={onClose} style={{ color: '#6366f1', fontWeight: 'bold' }}>
+                      <span className="icon"><FaUsersCog /></span> Gestión Usuarios
+                    </Link>
+                  )}
 
                   {isSkalo && (
                     <Link to="/configuracion" className="submenu-link" style={{ color: '#fbbf24', fontWeight: 'bold' }} onClick={onClose}>
@@ -115,17 +126,32 @@ export default function Sidebar({ isOpen, onClose }) {
                     </Link>
                   )}
 
-                  <Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} onClick={onClose} style={{ color: '#1890ff', fontWeight: '500' }}>
-                    🏷️ Configurar Tags DICOM
-                  </Link>
+                  {/* 🚀 NUEVO: Acceso al panel de control del ciclo de vida de los datos */}
+                  {isSkalo && (
+                    <Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#10b981', fontWeight: 'bold' }} onClick={onClose}>
+                      📦 Ciclo de Vida / Backups
+                    </Link>
+                  )}
 
+                  {isSkalo && (
+                    <Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} onClick={onClose} style={{ color: '#1890ff', fontWeight: '500' }}>
+                      🏷️ Configurar Tags DICOM
+                    </Link>
+                  )}
+
+                  {/* Reporte Cobros: Admin, Superadmin y Auxiliar (para Glosas) */}
                   <Link to="/reporte-cobros" className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`} onClick={onClose}>
-                    📈 Reporte Cobros
+                    📈 Reporte Cobros / Glosas
                   </Link>
 
-                  <Link to="/auditoria" className="submenu-link" onClick={onClose}>📊 Auditoría</Link>
-                  <Link to="/email-logs" className="submenu-link" onClick={onClose}>✉️ Logs Email</Link>
-                  <Link to="/whatsapp-logs" className="submenu-link" onClick={onClose}>📱 Logs WhatsApp</Link>
+                  {/* Auditoría y Logs: Solo Admin/Superadmin */}
+                  {isAdmin && (
+                    <>
+                      <Link to="/auditoria" className={`submenu-link ${isActive("/auditoria") ? "active" : ""}`} onClick={onClose}>📊 Auditoría</Link>
+                      <Link to="/email-logs" className={`submenu-link ${isActive("/email-logs") ? "active" : ""}`} onClick={onClose}>✉️ Logs Email</Link>
+                      <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`} onClick={onClose}>📱 Logs WhatsApp</Link>
+                    </>
+                  )}
                   
                   {isSkalo && (
                     <button className="submenu-link reset-link" onClick={handleResetSystem} 

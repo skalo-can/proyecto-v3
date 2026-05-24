@@ -1,46 +1,115 @@
-/* Bloqueo total del scroll exterior */
-:global(body), :global(html) {
-    overflow: hidden !important;
-    height: 100% !important;
+/* 1. ESTRUCTURA Y ELIMINACIÓN DE SCROLL DORADO */
+html, body, .mapeo-page-container {
+    overflow: hidden !important; /* Adiós a todo scroll exterior */
+    height: 100vh !important;
+    width: 100% !important;
+    background: #0b0e11;
 }
 
 .mapeo-page-container {
-    padding: 24px;
-    background: #0b131e;
-    /* Usamos fixed para que se pegue a los bordes sin empujar el scroll */
-    position: fixed; 
-    top: 64px; /* Ajusta esto al alto exacto de tu Header */
-    left: 250px; /* Ajusta esto al ancho exacto de tu Sidebar */
-    right: 0;
-    bottom: 0;
-    z-index: 10;
-    
-    /* Ocultar scroll interno por si acaso */
-    overflow: hidden;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    padding: 20px 30px;
+    display: flex;
+    flex-direction: column;
 }
 
-.mapeo-page-container::-webkit-scrollbar {
-    display: none;
+/* Ocultar barras de scroll del navegador */
+::-webkit-scrollbar {
+    width: 0px !important;
+    display: none !important;
 }
 
-/* Estética de las tarjetas */
-.mapeo-page-container .ant-card {
-    border-radius: 8px;
-    background: #141c27 !important;
-    border: 1px solid #303030 !important;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+/* 2. CARDS Y ENCABEZADOS */
+.mapeo-card-dark {
+    background: #1a1d21 !important;
+    border: 1px solid #333 !important;
+    border-radius: 8px !important;
 }
 
-.mapeo-page-container .ant-card-head {
-    border-bottom: 1px solid #303030 !important;
+.mapeo-card-dark .ant-card-head-title {
+    color: #fbbf24 !important; 
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.85rem;
 }
 
-.mapeo-page-container .ant-table {
-    background: transparent !important;
+/* 3. LABELS Y ASTERISCOS (RESCATADOS) */
+.ant-form-item-label > label {
+    color: #fbbf24 !important;
+    font-weight: bold !important;
+    font-size: 0.75rem !important;
 }
 
-.ant-table-tbody > tr:hover > td {
-  background-color: #1d2939 !important;
+.ant-form-item-required::before {
+    color: #ff4d4f !important; /* Rojo neón */
+    font-size: 1.1rem !important;
+    margin-right: 4px !important;
 }
+
+/* 4. INPUTS Y TAG DICOM (BLANCO CON LETRAS NEGRAS) */
+.mapeo-input, 
+.ant-select-selector, 
+.ant-input {
+    background-color: #ffffff !important; /* Fondo Blanco sólido */
+    border: 2px solid #fbbf24 !important; /* Borde Ámbar */
+    color: #000000 !important; /* Letras Negras */
+    height: 40px !important;
+    border-radius: 6px !important;
+    font-weight: bold !important;
+}
+
+/* Forzar letras negras en el texto que se escribe y el seleccionado */
+.ant-select-selection-item, 
+.ant-select-selection-search-input,
+.ant-select-selection-placeholder {
+    color: #000000 !important;
+    font-weight: bold !important;
+}
+
+/* Evitar que el texto DICOM largo se corte */
+.ant-select-single .ant-select-selector .ant-select-selection-item {
+    white-space: normal !important; 
+    line-height: 1.2 !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+/* 5. TABLA Y ESTADO VACÍO (RESCATE DE LA CAJITA) */
+.mapeo-table-custom .ant-table-thead > tr > th {
+    background: #2d333b !important;
+    color: #fbbf24 !important; 
+    border-bottom: 1px solid #444 !important;
+}
+
+.mapeo-table-custom .ant-table-tbody > tr > td {
+    background: #1a1d21 !important;
+    color: #ffffff !important; 
+    border-bottom: 1px solid #222 !important;
+}
+
+/* ✅ ESTO ACLARA LA CAJITA VACÍA */
+.ant-empty-img-simple-path,
+.ant-empty-img-simple-ellipse,
+.ant-empty-image svg {
+    filter: invert(1) brightness(7.5) opacity(0.9) !important;
+}
+
+/* ✅ ESTO RESCATA EL TEXTO 'NO DATA' */
+.ant-empty-description {
+    color: #ffffff !important;
+    font-weight: bold !important;
+    font-size: 0.9rem !important;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+}
+
+/* 6. BOTÓN VINCULAR */
+.btn-vincular {
+    height: 45px !important;
+    background: #3b82f6 !important;
+    border: none !important;
+    font-weight: bold !important;
+    text-transform: uppercase;
+}
+
+/* 7. SPIN / CARGANDO */
+.ant-spin-dot-item { background-color: #fbbf24 !important; }
+.ant-spin-text { color: #fbbf24 !important; font-weight: bold; }
