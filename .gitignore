@@ -29,3 +29,15 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Excluir carpetas pesadas por completo
+backend/tools/**
+backend/tools/
+uploads/**
+uploads/
+seed_files/**
+
+# Excluir cualquier archivo DICOM o base de datos en cualquier lado
+*.dcm
+*.db
+**/1.2.840.*

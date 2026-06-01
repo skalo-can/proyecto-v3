@@ -2,6 +2,7 @@
 dicom_stream_api.py — MI_PACS
 ---------------------------------------------------------
 Entrega archivos DICOM al visor web MI_PACS (Cornerstone3D).
+Soporta archivos nativos de eFilm sin extensión de sufijo rígida.
 """
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -64,35 +65,33 @@ def stream_dicom(
     requiere_rol(usuario, ["admin", "medico", "tecnico", "paciente"])
 
     # -----------------------------------------------------
-    # 3. Validar existencia del archivo
+    # 3. Validar existencia física del archivo en storage
     # -----------------------------------------------------
     file_path = Path(imagen.ruta_archivo).resolve()
 
     if not file_path.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Archivo DICOM no encontrado:\n{file_path}"
+            detail=f"Archivo físico DICOM no encontrado en el servidor:\n{file_path}"
         )
 
-    if file_path.suffix.lower() != ".dcm":
-        raise HTTPException(
-            status_code=400,
-            detail="El archivo solicitado no es un DICOM válido."
-        )
+    # 🚀 CORREGIDO: Se elimina la restricción estricta de la extensión ".dcm".
+    # Los visores eFilm Lite y PACS antiguos graban imágenes binarias válidas sin sufijo.
+    # Cornerstone3D parseará el binario directamente gracias al Media Type correcto.
 
     # -----------------------------------------------------
-    # 4. Leer archivo y enviarlo como DICOM
+    # 4. Leer archivo y enviarlo como flujo de bytes
     # -----------------------------------------------------
     try:
         dicom_bytes = file_path.read_bytes()
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"No se pudo leer el archivo DICOM:\n{str(e)}"
+            detail=f"No se pudo leer el archivo binario DICOM:\n{str(e)}"
         )
 
     # -----------------------------------------------------
-    # 5. Respuesta clínica compatible con Cornerstone3D
+    # 5. Respuesta clínica compatible con Cornerstone3D / CornerstoneJS
     # -----------------------------------------------------
     return Response(
         content=dicom_bytes,
@@ -100,5 +99,7 @@ def stream_dicom(
         headers={
             "Content-Length": str(len(dicom_bytes)),
             "Accept-Ranges": "bytes",
+            # Habilitar CORS explícito para transferencia de imágenes pesadas en red local
+            "Access-Control-Allow-Origin": "*",
         },
     )

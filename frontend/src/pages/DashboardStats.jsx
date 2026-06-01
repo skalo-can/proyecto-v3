@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAuth } from "../AuthContext";
 
+// 🎨 Paleta de colores estándar unificada para la dona y la tabla
 const COLORS = ["#fbbf24", "#3b82f6", "#10b981", "#ef4444", "#8b5cf6"];
 
-// 🚀 NUEVO: Selector de color dinámico basado en estándares predictivos de hardware
+// Selector de color dinámico basado en estándares predictivos de hardware
 const obtenerColorBarra = (porcentaje) => {
   if (porcentaje >= 80) return "#ef4444"; // 🔴 Rojo Crítico: Momento de Purga
   if (porcentaje >= 60) return "#fbbf24"; // 🟡 Amarillo: Advertencia de espacio
@@ -63,6 +64,15 @@ export default function DashboardStats() {
     });
   };
 
+  // 🧮 Cálculo del gran total de estudios almacenados en el PACS
+  const totalEstudiosDona = stats.modalidades.reduce((acc, curr) => acc + (curr.value || 0), 0);
+
+  // 🟢 Formateador dinámico para el Tooltip de la Dona (Mouse Hover)
+  const renderTooltipFormatter = (value, name) => {
+    const porcentaje = totalEstudiosDona > 0 ? ((value / totalEstudiosDona) * 100).toFixed(1) : 0;
+    return [`${value} (${porcentaje}%)`, name];
+  };
+
   return (
     <div style={{ 
       padding: '20px', color: 'white', backgroundColor: '#0f1114', 
@@ -78,7 +88,7 @@ export default function DashboardStats() {
         <div style={cardStyle}><span style={labelStyle}>Total Estudios</span><div style={{ ...valueStyle, color: '#fbbf24' }}>{stats.estudiosTotal}</div></div>
         <div style={cardStyle}><span style={labelStyle}>Imágenes</span><div style={valueStyle}>{stats.imagenesTotal}</div></div>
         
-        {/* 🚀 TARJETA OPTIMIZADA: Medición Dinámica de Almacenamiento y Barra Gradual */}
+        {/* Capacidad Almacenamiento */}
         <div style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={labelStyle}>Capacidad Almacenamiento</span>
@@ -91,7 +101,6 @@ export default function DashboardStats() {
             {stats.almacenamientoGB} GB <span style={{ fontSize: "0.75rem", color: "#666", fontWeight: "normal" }}>local PACS</span>
           </div>
           
-          {/* Barra Inteligente Estilizada */}
           <div style={{ ...progressBg, height: '8px', background: '#11141a', border: '1px solid #2a303c' }}>
             <div style={{ 
               ...progressFill, 
@@ -100,7 +109,6 @@ export default function DashboardStats() {
             }}></div>
           </div>
 
-          {/* Desglose de Hardware Adicional */}
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: "#888", marginTop: "8px" }}>
             <span>Usado: <strong style={{ color: "#eee" }}>{stats.discoUsadoGB ? Math.round(stats.discoUsadoGB) : 0} GB</strong></span>
             <span>Libre: <strong style={{ color: obtenerColorBarra(stats.porcentajeNAS) }}>{stats.discoLibreGB ? Math.round(stats.discoLibreGB) : 0} GB</strong></span>
@@ -133,7 +141,7 @@ export default function DashboardStats() {
           </div>
         </div>
 
-        {/* GRÁFICO 1 */}
+        {/* GRÁFICO Crecimiento */}
         <div style={cardStyle}>
           <h3 style={labelStyle}>Crecimiento de Red</h3>
           <div style={{ textAlign: 'center' }}>
@@ -150,7 +158,7 @@ export default function DashboardStats() {
         </div>
       </div>
 
-      {/* SECCIÓN INFERIOR */}
+      {/* SECCIÓN INFERIOR DE DETALLE */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', paddingBottom: '30px' }}>
         <div style={cardStyle}>
           <h3 style={labelStyle}>Distribución (%)</h3>
@@ -162,7 +170,10 @@ export default function DashboardStats() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip 
+                  contentStyle={{ background: '#1a1d21', border: '1px solid #444', borderRadius: '6px' }}
+                  formatter={renderTooltipFormatter} 
+                />
                 <Legend verticalAlign="bottom" height={36}/>
               </PieChart>
             )}
@@ -176,15 +187,30 @@ export default function DashboardStats() {
               <tr style={{ borderBottom: '1px solid #333', color: '#888' }}>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Mod.</th>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Cant.</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>Porcentaje (%)</th> 
               </tr>
             </thead>
             <tbody>
-              {stats.modalidades.map((mod, index) => (
-                <tr key={index} style={{ borderBottom: '1px solid #222' }}>
-                  <td style={{ padding: '8px' }}>{mod.name}</td>
-                  <td style={{ padding: '8px' }}>{mod.value}</td>
-                </tr>
-              ))}
+              {stats.modalidades.map((mod, index) => {
+                const pctFila = totalEstudiosDona > 0 ? ((mod.value / totalEstudiosDona) * 100).toFixed(1) : "0.0";
+                // 🎨 Asignamos de forma exacta el mismo color indexado de la gráfica de torta
+                const colorDeLaModalidad = COLORS[index % COLORS.length];
+
+                return (
+                  <tr key={index} style={{ borderBottom: '1px solid #222' }}>
+                    {/* 🟢 MODIFICADO: Ahora el nombre, cantidad y porcentaje se tiñen con su color corporativo correspondiente */}
+                    <td style={{ padding: '8px', color: colorDeLaModalidad, fontWeight: 'bold' }}>
+                      {mod.name}
+                    </td>
+                    <td style={{ padding: '8px', color: colorDeLaModalidad, fontWeight: 'bold' }}>
+                      {mod.value}
+                    </td>
+                    <td style={{ padding: '8px', color: colorDeLaModalidad, fontFamily: 'monospace', fontWeight: 'bold' }}>
+                      {pctFila}%
+                    </td> 
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -193,7 +219,7 @@ export default function DashboardStats() {
   );
 }
 
-// ESTILOS (Respetados de tu base)
+// ESTILOS 
 const cardStyle = { background: '#1a1d21', padding: '15px', borderRadius: '12px', border: '1px solid #333' };
 const labelStyle = { color: '#aaa', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '8px', display: 'block' };
 const valueStyle = { fontSize: '1.8rem', fontWeight: 'bold', color: '#fff' };

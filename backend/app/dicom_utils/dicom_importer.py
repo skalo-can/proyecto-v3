@@ -1,47 +1,3 @@
-"""
-dicom_importer.py — MI_PACS
----------------------------------------------------------
-Módulo clínico responsable del procesamiento completo de archivos DICOM
-provenientes de la bandeja de entrada (dicom_inbox).
-
-Rol dentro del ecosistema MI_PACS:
-----------------------------------
-Este módulo es el corazón del flujo PACS. Actúa como puente entre:
-
-✔ Motor DICOM (pydicom)
-✔ Base de datos clínica (Paciente, Estudio, EstudioImagen)
-✔ Sistema de archivos clínico (static/dicoms)
-✔ Visor DICOM del frontend
-
-Responsabilidades clínicas:
----------------------------
-1. Leer archivos DICOM desde dicom_inbox
-2. Extraer metadata clínica relevante
-3. Crear o actualizar:
-   - Paciente
-   - Estudio
-   - EstudioImagen
-4. Construir estructura clínica en disco:
-   static/dicoms/<Paciente>/<StudyUID>/<SeriesUID>/
-5. Mover el archivo DICOM a su ubicación definitiva
-6. Registrar la imagen en la base de datos
-7. Mantener trazabilidad completa del flujo PACS
-
-Garantías clínicas:
--------------------
-✔ Nunca crea carpetas fuera de static/dicoms  
-✔ Nunca usa rutas relativas  
-✔ Nunca interrumpe el flujo PACS por un archivo corrupto  
-✔ Mantiene compatibilidad con visores DICOM estándar  
-
-Este módulo NO:
----------------
-✘ Genera miniaturas  
-✘ Expone rutas públicas  
-✘ Interactúa con FastAPI directamente  
-✘ Modifica configuraciones DICOM  
-"""
-
 import os
 import shutil
 from datetime import datetime, date
@@ -56,25 +12,20 @@ from app.models.estudio_imagen import EstudioImagen
 
 
 # ---------------------------------------------------------
-# Rutas clínicas absolutas
+# 🚀 RUTAS CLÍNICAS UNIFICADAS CON EL SISTEMA DE ARCHIVOS DEL PACS
 # ---------------------------------------------------------
 DICOM_INBOX = r"D:\proyecto v3\backend\dicom_inbox"
-DICOM_STORAGE_ROOT = r"D:\proyecto v3\backend\static\dicoms"
+# Cambiado a dicom_archivados para que coincida con scheduler_service y las estadísticas
+DICOM_STORAGE_ROOT = r"D:\proyecto v3\backend\app\dicom_archivados"
 
 
-# ---------------------------------------------------------
-# Utilidades internas
-# ---------------------------------------------------------
 def _safe_get(ds, tag, default=None):
     """Obtiene un atributo DICOM de forma segura."""
     return getattr(ds, tag, default)
 
 
 def _parse_patient_name(patient_name):
-    """
-    Convierte PatientName DICOM (ej. 'GARCIA^JUAN^CARLOS') en:
-    primer_nombre, segundo_nombre, primer_apellido, segundo_apellido
-    """
+    """Convierte PatientName DICOM (ej. 'GARCIA^JUAN^CARLOS') en fragmentos limpios."""
     if not patient_name:
         return "DESCONOCIDO", None, "PACIENTE", None
 
@@ -105,29 +56,21 @@ def _parse_date(dicom_date):
 # ---------------------------------------------------------
 def process_single_dicom_file(db: Session, file_path: str):
     """
-    Procesa un único archivo DICOM y lo integra al sistema clínico MI_PACS.
-
-    Flujo clínico:
-    --------------
-    1. Leer encabezado DICOM
-    2. Extraer metadata
-    3. Crear/actualizar Paciente
-    4. Crear/actualizar Estudio
-    5. Registrar EstudioImagen
-    6. Mover archivo a static/dicoms/<Paciente>/<StudyUID>/<SeriesUID>/
+    Procesa un único archivo DICOM (Soporta eFilm sin extensión).
     """
-
-    print(f"MI_PACS → Procesando archivo DICOM: {file_path}")
-
-    try:
-        ds = pydicom.dcmread(file_path, force=True)
-    except Exception as e:
-        print(f"MI_PACS → Error leyendo DICOM: {file_path} → {e}")
+    # 🚀 NUEVO: Ignorar archivos de índice o metadatos del visor Lite de eFilm
+    nombre_archivo = os.path.basename(file_path).upper()
+    if nombre_archivo in ["DICOMDIR", "VIEWER.EXE", "AUTORUN.INF", "THUMBNAILS.DB"] or nombre_archivo.endswith((".EXE", ".TXT", ".XML", ".PDF")):
         return
 
-    # -----------------------------
+    try:
+        # force=True es vital para los archivos crudos renombrados de eFilm
+        ds = pydicom.dcmread(file_path, force=True)
+    except Exception as e:
+        # Silenciamos errores comunes si intentó leer un binario corrupto o ejecutable
+        return
+
     # 1. Extraer metadata clínica
-    # -----------------------------
     patient_id = _safe_get(ds, "PatientID", "SIN_ID")
     patient_name = _safe_get(ds, "PatientName", "PACIENTE^DESCONOCIDO")
     birth_date = _safe_get(ds, "PatientBirthDate", None)
@@ -139,22 +82,16 @@ def process_single_dicom_file(db: Session, file_path: str):
     study_date = _safe_get(ds, "StudyDate", None)
     modality = _safe_get(ds, "Modality", "OT")
     study_description = _safe_get(ds, "StudyDescription", "Estudio sin descripción")
+    accession_number = _safe_get(ds, "AccessionNumber", study_uid)  # Fallback a StudyUID si no tiene orden RIS
 
     if not study_uid or not sop_uid:
-        print("MI_PACS → DICOM sin StudyInstanceUID o SOPInstanceUID. Se omite.")
         return
 
-    # -----------------------------
-    # 2. Paciente
-    # -----------------------------
+    # 2. Registrar/Actualizar Paciente
     primer_nombre, segundo_nombre, primer_apellido, segundo_apellido = _parse_patient_name(patient_name)
     fecha_nacimiento = _parse_date(birth_date) if birth_date else date(1970, 1, 1)
 
-    paciente = (
-        db.query(Paciente)
-        .filter(Paciente.identificacion == patient_id)
-        .first()
-    )
+    paciente = db.query(Paciente).filter(Paciente.identificacion == patient_id).first()
 
     if not paciente:
         paciente = Paciente(
@@ -163,29 +100,14 @@ def process_single_dicom_file(db: Session, file_path: str):
             segundo_nombre=segundo_nombre,
             primer_apellido=primer_apellido,
             segundo_apellido=segundo_apellido,
-            fecha_nacimiento=fecha_nacimiento,
-            email=None,
-            password_hash=None,
+            fecha_nacimiento=fecha_nacimiento
         )
         db.add(paciente)
         db.flush()
-        print(f"MI_PACS → Paciente creado: {paciente.identificacion}")
-    else:
-        print(f"MI_PACS → Paciente existente: {paciente.identificacion}")
 
-    # -----------------------------
-    # 3. Estudio
-    # -----------------------------
+    # 3. Registrar/Actualizar Estudio
     fecha_estudio = _parse_date(study_date) if study_date else date.today()
-
-    estudio = (
-        db.query(Estudio)
-        .filter(
-            Estudio.paciente_id == paciente.id,
-            Estudio.descripcion == study_description,
-        )
-        .first()
-    )
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente.id, Estudio.descripcion == study_description).first()
 
     if not estudio:
         estudio = Estudio(
@@ -198,31 +120,28 @@ def process_single_dicom_file(db: Session, file_path: str):
         )
         db.add(estudio)
         db.flush()
-        print(f"MI_PACS → Estudio creado: ID={estudio.id}, tipo={modality}")
-    else:
-        print(f"MI_PACS → Estudio existente: ID={estudio.id}")
 
-    # -----------------------------
-    # 4. Construir ruta final
-    # -----------------------------
-    patient_folder = os.path.join(DICOM_STORAGE_ROOT, str(patient_id))
-    study_folder = os.path.join(patient_folder, study_uid)
-    series_folder = os.path.join(study_folder, series_uid or "SERIE_DESCONOCIDA")
-
+    # 4. Construir ruta estructurada basada en AccessionNumber (Sincronizado con Purga)
+    # Ruta: backend/app/dicom_archivados/<accession_number>/<series_uid>/
+    estudio_folder = os.path.join(DICOM_STORAGE_ROOT, str(accession_number))
+    series_folder = os.path.join(estudio_folder, series_uid or "SERIE_DESCONOCIDA")
     os.makedirs(series_folder, exist_ok=True)
 
     final_filename = f"{sop_uid}.dcm"
     final_path = os.path.join(series_folder, final_filename)
 
+    # 5. Mover o copiar archivo a su destino
     try:
-        shutil.move(file_path, final_path)
+        # Si viene de inbox se mueve, si viene de importación externa se copia para no romper tu disco
+        if DICOM_INBOX in file_path:
+            shutil.move(file_path, final_path)
+        else:
+            shutil.copy2(file_path, final_path)
     except Exception as e:
-        print(f"MI_PACS → Error moviendo archivo a storage final: {e}")
+        print(f"MI_PACS → Error guardando archivo físico DICOM: {e}")
         return
 
-    # -----------------------------
-    # 5. Registrar imagen
-    # -----------------------------
+    # 6. Registrar Imagen en Base de Datos con metadatos indexados
     metadata_dict = {
         "PatientID": patient_id,
         "PatientName": str(patient_name),
@@ -232,58 +151,74 @@ def process_single_dicom_file(db: Session, file_path: str):
         "StudyDate": study_date,
         "Modality": modality,
         "StudyDescription": study_description,
+        "AccessionNumber": accession_number
     }
 
-    imagen = EstudioImagen(
-        estudio_id=estudio.id,
-        ruta_archivo=final_path,
-        dicom_metadata=metadata_dict,
-        thumbnail=None,
-        fecha_subida=datetime.utcnow(),
-    )
-    db.add(imagen)
+    # Verificar si la imagen exacta ya fue mapeada
+    imagen_existente = db.query(EstudioImagen).filter(EstudioImagen.ruta_archivo == final_path).first()
+    if not imagen_existente:
+        imagen = EstudioImagen(
+            estudio_id=estudio.id,
+            ruta_archivo=final_path,
+            dicom_metadata=metadata_dict,
+            thumbnail=None,
+            fecha_subida=datetime.utcnow(),
+        )
+        db.add(imagen)
 
     if not estudio.archivo:
         estudio.archivo = final_path
 
     db.commit()
-    print(f"MI_PACS → Imagen registrada en BD: {final_path}")
 
 
 # ---------------------------------------------------------
-# Procesamiento de la bandeja dicom_inbox
+# 🚀 NUEVO: Procesamiento de carpetas externas (Escaneo Recursivo)
 # ---------------------------------------------------------
+def importar_desde_directorio_externo(ruta_directorio: str):
+    """
+    Escanea de forma recursiva cualquier disco o carpeta externa de eFilm,
+    filtrando y procesando cada archivo DICOM encontrado de forma automática.
+    """
+    print(f"MI_PACS → Iniciando importación masiva desde: {ruta_directorio}")
+    if not os.path.isdir(ruta_directorio):
+        print(f"❌ Error: La ruta externa no es válida o no está conectada.")
+        return False
+
+    db = SessionLocal()
+    conteo_exito = 0
+
+    try:
+        # Recorrer todo el árbol de carpetas de eFilm (recursivo)
+        for root, dirs, files in os.walk(ruta_directorio):
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                
+                # Procesar si no tiene extensión (común en eFilm) o si termina en .dcm
+                if "." not in filename or filename.lower().endswith(".dcm"):
+                    try:
+                        process_single_dicom_file(db, file_path)
+                        conteo_exito += 1
+                    except Exception:
+                        continue
+        print(f"✅ Importación finalizada. Se procesaron {conteo_exito} archivos de imagen de forma exitosa.")
+        return True
+    finally:
+        db.close()
+
+
 def process_inbox():
-    """
-    Procesa todos los archivos DICOM presentes en dicom_inbox.
-
-    Garantías:
-    ----------
-    ✔ No interrumpe el flujo si un archivo falla  
-    ✔ Procesa solo archivos DICOM válidos  
-    ✔ Mantiene trazabilidad completa  
-    """
+    """Procesa la bandeja de entrada local habitual."""
     print("MI_PACS → Iniciando procesamiento de dicom_inbox…")
-
     if not os.path.isdir(DICOM_INBOX):
-        print(f"MI_PACS → Carpeta dicom_inbox no existe: {DICOM_INBOX}")
         return
 
     db = SessionLocal()
-
     try:
         for filename in os.listdir(DICOM_INBOX):
             file_path = os.path.join(DICOM_INBOX, filename)
-
-            if not os.path.isfile(file_path):
-                continue
-
-            if not (filename.lower().endswith(".dcm") or "." not in filename):
-                print(f"MI_PACS → Archivo no DICOM, se omite: {filename}")
-                continue
-
-            process_single_dicom_file(db, file_path)
-
+            if os.path.isfile(file_path):
+                process_single_dicom_file(db, file_path)
     finally:
         db.close()
         print("MI_PACS → Procesamiento de dicom_inbox finalizado.")
