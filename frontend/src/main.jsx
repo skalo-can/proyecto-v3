@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import React, { StrictMode } from "react"; // 👈 ¡Inyectamos React formalmente aquí!
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./App.css";   // ←🔥 IMPORTANTE: CSS GLOBAL

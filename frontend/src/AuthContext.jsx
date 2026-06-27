@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react"; // 👈 ¡Inyectado 'React,' al inicio!
 
 const AuthContext = createContext(null);
 

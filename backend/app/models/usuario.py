@@ -1,12 +1,13 @@
 """
-usuario.py
-----------
+usuario.py — MI_PACS (Versión de Producción Unificada y Segura con JWT)
+--------------------------------------------------------------------------------
 Modelo SQLAlchemy consolidado para usuarios del sistema MI_PACS.
 Corregido para compatibilidad con esquemas de FastAPI y matriz de permisos JSON.
 """
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON, func
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property  # 👈 Incorporado para compatibilidad de atributos
 from app.core.database import Base
 
 class Usuario(Base):
@@ -69,3 +70,15 @@ class Usuario(Base):
         uselist=False, 
         doc="Relación opcional con perfil de especialidad médica"
     )  
+
+    # ---------------------------------------------------------
+    # Puentes de Compatibilidad (¡La Solución al Error 500!)
+    # ---------------------------------------------------------
+    @hybrid_property
+    def activo(self) -> bool:
+        """Mapea dinámicamente 'activo' a 'is_active' sin alterar la base de datos física."""
+        return self.is_active
+
+    @activo.setter
+    def activo(self, value: bool):
+        self.is_active = value

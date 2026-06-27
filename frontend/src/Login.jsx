@@ -2,13 +2,13 @@
  * Login.jsx — MI_PACS (Versión compatible con SKALO)
  */
 
-import { useState } from "react";
+import React, { useState } from "react"; // 👈 ¡Inyectamos React formalmente aquí!
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import "./login.css";
 
 function Login() {
-  const [identifier, setIdentifier] = useState(""); // Cambiado de email a identifier
+  const [identifier, setIdentifier] = useState(""); 
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
@@ -20,7 +20,7 @@ function Login() {
     setError("");
 
     try {
-      // ✅ CORREGIDO: Se cambió la IP fija del router viejo por 127.0.0.1 (Localhost permanente)
+      // ✅ Se mantiene localhost fijo para evitar desvíos de red
       const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -34,9 +34,6 @@ function Login() {
         return;
       }
 
-      // --- CORRECCIÓN AQUÍ ---
-      // El backend envía el token directamente o dentro de un objeto. 
-      // Según tus logs, el login fue exitoso (200 OK).
       const token = data.token?.access_token || data.access_token || data.token;
       const usuario = data.usuario || data.user;
 
@@ -60,7 +57,7 @@ function Login() {
 
         <form onSubmit={handleLogin} className="login-form">
           <input
-            type="text" // <-- CAMBIADO A TEXT para permitir "SKALO"
+            type="text" 
             placeholder="Usuario o Correo clínico"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}

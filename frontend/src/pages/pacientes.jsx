@@ -11,6 +11,10 @@ export default function Pacientes() {
   const [seleccionados, setSeleccionados] = useState([]);
   const [importando, setImportando] = useState(false);
   
+  // 🧭 NUEVOS ESTADOS DE ORDENAMIENTO OPERATIVO
+  const [sortBy, setSortBy] = useState("fecha"); // Opciones: id, paciente, fecha
+  const [sortOrder, setSortOrder] = useState("desc"); // Opciones: asc, desc
+
   const hoyStr = new Date().toISOString().split('T')[0];
 
   // 📅 Estado unificado de los filtros del PACS (Predictivo en tiempo real)
@@ -27,7 +31,6 @@ export default function Pacientes() {
     "DXA - Densitometría", "PET - Medicina Nuclear"
   ];
 
-  // 🔄 Motor de carga reactivo instantáneo por tokens
   const cargarDatos = useCallback(() => {
     setLoading(true);
     
@@ -35,7 +38,9 @@ export default function Pacientes() {
       fechaDesde: filtros.fechaDesde, 
       fechaHasta: filtros.fechaHasta, 
       modalidad: filtros.modalidad || "",
-      busqueda: filtros.busqueda
+      busqueda: filtros.busqueda || "",
+      sort_by: sortBy,
+      order: sortOrder
     });
 
     fetch(`http://localhost:8000/api/pacientes?${params}`) 
@@ -48,7 +53,7 @@ export default function Pacientes() {
         console.error("Error cargando el repositorio PACS:", err);
         setLoading(false);
       });
-  }, [filtros]); 
+  }, [filtros, sortBy, sortOrder]); // 👈 ¡Cierre de useCallback completamente balanceado y reparado!
 
   useEffect(() => { 
     cargarDatos(); 
@@ -58,6 +63,22 @@ export default function Pacientes() {
     const { name, value } = e.target;
     setSeleccionados([]); 
     setFiltros(prev => ({ ...prev, [name]: value }));
+  };
+
+  // 🔄 Manejador interactivo de ordenamiento al hacer clic en las cabeceras
+  const solicitarOrdenamiento = (columna) => {
+    if (sortBy === columna) {
+      setSortOrder(prev => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(columna);
+      setSortOrder("asc");
+    }
+  };
+
+  // Renderizador de flechas indicadoras en las cabeceras
+  const renderIconoOrden = (columna) => {
+    if (sortBy !== columna) return <span style={{ color: '#475569', marginLeft: '5px' }}>↕</span>;
+    return sortOrder === "asc" ? <span style={{ color: '#fbbf24', marginLeft: '5px' }}>↑</span> : <span style={{ color: '#fbbf24', marginLeft: '5px' }}>↓</span>;
   };
 
   // Alternar la selección (Checkbox + Clic en Nombre)
@@ -126,7 +147,6 @@ export default function Pacientes() {
 
         <div style={barraMedios}>
           <div style={{ display: 'flex', gap: '10px' }}>
-            {/* 📥 BOTÓN CON CLASE DE BRILLO CSS */}
             <button 
               onClick={handleImportarDiscoExterno} 
               disabled={importando} 
@@ -136,7 +156,6 @@ export default function Pacientes() {
               {importando ? "⏳ PROCESANDO RUTA EXTERNA..." : "📥 IMPORTAR (CD/USB/PC)"}
             </button>
             
-            {/* 🟢 BOTÓN CON CLASE DE BRILLO CSS */}
             <button 
               disabled={seleccionados.length === 0} 
               onClick={handleExportarSeleccionados} 
@@ -210,9 +229,18 @@ export default function Pacientes() {
                   <input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} />
                 </th>
                 <th style={thStyle}>ESTADO</th>
-                <th style={thStyle}>ID PACIENTE</th>
-                <th style={thStyle}>PACIENTE</th>
-                <th style={thStyle}>FECHA ESTUDIO</th> 
+                
+                {/* 🎯 CABECERAS INTERACTIVAS CON EVENTO ONCLICK Y PROPIEDAD DE CURSOR */}
+                <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>
+                  ID PACIENTE {renderIconoOrden("id")}
+                </th>
+                <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("paciente")}>
+                  PACIENTE {renderIconoOrden("paciente")}
+                </th>
+                <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("fecha")}>
+                  FECHA ESTUDIO {renderIconoOrden("fecha")}
+                </th> 
+                
                 <th style={thStyle}>SEXO</th>
                 <th style={thStyle}>MODALIDAD</th>
                 <th style={thStyle}>DEPTO.</th>
@@ -235,6 +263,7 @@ export default function Pacientes() {
                   const apellidoReal = p.primer_apellido || p.apellido || "Desconocido";
                   const mReal = p.modalidad || p.tipo_estudio || "CR";
                   const fechaReal = p.fecha_estudio || p.fecha || "S/F"; 
+                  const horaReal = p.hora_estudio || "00:00";
 
                   return (
                     <tr key={p.id} style={trStyle}>
@@ -248,7 +277,6 @@ export default function Pacientes() {
                       <td style={tdStyle}><span style={{ ...badge, backgroundColor: p.activo ? "#10b981" : "#3b82f6" }}>{p.activo ? "Terminado" : "Proceso"}</span></td>
                       <td style={tdStyle}>{idReal}</td>
                       
-                      {/* 🎯 CELDA ASOCIADA A LA CLASE DE SELECCIÓN POR TEXTO */}
                       <td 
                         style={tdStyle} 
                         className="clickable-name" 
@@ -257,7 +285,13 @@ export default function Pacientes() {
                         <strong>{apellidoReal}, {nombreReal}</strong>
                       </td>
                       
-                      <td style={tdStyle}><span style={fechaBadge}>{fechaReal}</span></td> 
+                      <td style={tdStyle}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={fechaBadge}>{fechaReal}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#a8a29e', fontWeight: 'bold', fontFamily: 'monospace' }}>🕒 {horaReal}</span>
+                        </div>
+                      </td> 
+                      
                       <td style={tdStyle}>{p.sexo || "M"}</td>
                       <td style={tdStyle}><strong>{mReal}</strong></td>
                       <td style={tdStyle}>{p.departamento || "Radiología"}</td>
@@ -299,9 +333,8 @@ const btnQuick = { background: '#334155', color: '#fbbf24', border: 'none', padd
 const btnBuscar = { background: '#2563eb', color: '#fff', border: 'none', padding: '0 20px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', height: '38px', fontSize: '0.75rem' };
 const tableContainer = { flex: 1, padding: '10px 25px 25px 25px', overflow: 'hidden', display: 'flex', flexDirection: 'column' };
 
-// Forzamos los desbordes en ambos ejes
+// Forzamos los desbordes en ambos ejes (¡Duplicación de scrollWrapper eliminada limpiamente!)
 const scrollWrapper = { flex: 1, overflowY: 'scroll', overflowX: 'scroll', border: '1px solid #222', borderRadius: '6px', background: '#111418' };
-
 const tableStyle = { width: '100%', minWidth: '1100px', borderCollapse: 'collapse' };
 const theadStyle = { position: 'sticky', top: 0, background: '#16191e', zIndex: 10 }; 
 const thStyle = { padding: '12px', textAlign: 'left', color: '#fbbf24', borderBottom: '2px solid #222', fontSize: '0.7rem' };
