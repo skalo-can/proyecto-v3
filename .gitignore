@@ -41,3 +41,5 @@ seed_files/**
 *.dcm
 *.db
 **/1.2.840.*
+backend/static/thumbnails/
+backend/static/thumbnails/**
