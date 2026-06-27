@@ -8,6 +8,7 @@ Compatible con:
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import asc, desc  # 👈 Importante para el ordenamiento interactivo
 from datetime import date
 
 from app.core.database import get_db
@@ -42,6 +43,8 @@ def listar(
     fechaHasta: str = Query("2030-12-31"),
     modalidad: str = Query(None),
     busqueda: str = Query(None),
+    sort_by: str = Query("fecha"),  # 👈 Parámetro dinámico de React (id, paciente, fecha)
+    order: str = Query("desc"),     # 👈 Parámetro dinámico de React (asc, desc)
     db: Session = Depends(get_db)
 ):
     """
@@ -71,8 +74,22 @@ def listar(
             (Paciente.identificacion.like(termino))
         )
 
-    # Ordenamos de forma descendente para ver los últimos estudios subidos al principio
-    resultados = query.order_by(Paciente.id.desc()).all()
+    # 🗺️ 4. MATRIZ DE ORDENAMIENTO DINÁMICO INTERACTIVO
+    mapa_columnas = {
+        "id": Paciente.identificacion,
+        "paciente": Paciente.primer_apellido,
+        "fecha": Estudio.fecha_estudio
+    }
+    
+    # Si viene un parámetro inválido, el fallback por defecto es ordenar por fecha del estudio
+    columna_objetivo = mapa_columnas.get(sort_by, Estudio.fecha_estudio)
+    
+    if order == "asc":
+        query = query.order_by(asc(columna_objetivo))
+    else:
+        query = query.order_by(desc(columna_objetivo))
+
+    resultados = query.all()
     
     # 📦 CONSTRUCCIÓN DEL JSON HÍBRIDO (Mapeo directo compatible con pacientes.jsx)
     lista_mapeada = []
@@ -88,6 +105,17 @@ def listar(
             
         estudio_principal = estudios_validos[0]
         
+        # 🕒 Extracción segura de la hora desde la metadata del estudio
+        # Si tu base de datos tiene la columna "hora_estudio" la lee, de lo contrario devuelve el tag DICOM o "00:00"
+        hora_final = "00:00"
+        if hasattr(estudio_principal, "hora_estudio") and estudio_principal.hora_estudio:
+            hora_final = estudio_principal.hora_estudio
+        elif hasattr(estudio_principal, "dicom_metadata") and estudio_principal.dicom_metadata:
+            # Revisa si se guardó en el JSON de metadatos clínicos
+            hora_final = estudio_principal.dicom_metadata.get("StudyTime", "00:00")[:4]
+            if len(hora_final) == 4:
+                hora_final = f"{hora_final[:2]}:{hora_final[2:]}"
+        
         lista_mapeada.append({
             "id": p.id,
             "identificacion": p.identificacion,
@@ -96,64 +124,9 @@ def listar(
             "activo": p.activo,
             "sexo": getattr(p, "sexo", "M"),  # Fallback seguro si no está en la base de datos
             "departamento": getattr(p, "departamento", "Radiología"),
-            # 🟢 AQUÍ NACEN LOS DATOS QUE ALIMENTAN LA PANTALLA:
             "fecha_estudio": estudio_principal.fecha_estudio.isoformat() if estudio_principal.fecha_estudio else "S/F",
-            "tipo_estudio": estudio_principal.tipo_estudio if estudio_principal.tipo_estudio else "CR"
+            "tipo_estudio": estudio_principal.tipo_estudio if estudio_principal.tipo_estudio else "CR",
+            "hora_estudio": hora_final  # 👈 ¡INYECTADO AL FRONTEND CON TOTAL SEGURIDAD!
         })
         
     return lista_mapeada
-
-
-# ---------------------------------------------------------
-# OBTENER PACIENTE POR ID
-# ---------------------------------------------------------
-@router.get("/{paciente_id}", response_model=PacienteResponse)
-def obtener(paciente_id: int, db: Session = Depends(get_db)):
-    paciente = obtener_paciente(db, paciente_id)
-    if not paciente:
-        raise HTTPException(status_code=404, detail="Paciente no encontrado")
-    return paciente
-
-
-# ---------------------------------------------------------
-# CREAR PACIENTE MANUAL (FRONTEND)
-# ---------------------------------------------------------
-@router.post("/", response_model=PacienteResponse)
-def crear(data: PacienteCreate, db: Session = Depends(get_db)):
-    nuevo = crear_paciente(db, data)
-    return nuevo
-
-
-# ---------------------------------------------------------
-# CREAR PACIENTE DESDE DICOM (AUTOMÁTICO)
-# ---------------------------------------------------------
-@router.post("/dicom", response_model=PacienteResponse)
-def crear_dicom(identificacion: str, nombre_completo: str, db: Session = Depends(get_db)):
-    existente = obtener_paciente_por_identificacion(db, identificacion)
-    if existente:
-        return existente
-
-    nuevo = crear_paciente_desde_dicom(db, identificacion, nombre_completo)
-    return nuevo
-
-
-# ---------------------------------------------------------
-# ACTUALIZAR PACIENTE
-# ---------------------------------------------------------
-@router.put("/{paciente_id}", response_model=PacienteResponse)
-def actualizar(paciente_id: int, data: PacienteUpdate, db: Session = Depends(get_db)):
-    paciente = actualizar_paciente(db, paciente_id, data)
-    if not paciente:
-        raise HTTPException(status_code=404, detail="Paciente no encontrado")
-    return paciente
-
-
-# ---------------------------------------------------------
-# ELIMINAR PACIENTE (LÓGICO)
-# ---------------------------------------------------------
-@router.delete("/{paciente_id}")
-def eliminar(paciente_id: int, db: Session = Depends(get_db)):
-    ok = eliminar_paciente(db, paciente_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Paciente no encontrado")
-    return {"mensaje": "Paciente eliminado correctamente"}
