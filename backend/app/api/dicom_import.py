@@ -1,19 +1,26 @@
 """
-dicom_import.py — MI_PACS (versión moderna)
--------------------------------------------
-Importación automática de estudios DICOM usando el modelo moderno.
+dicom_import.py — MI_PACS (Versión de Producción Unificada y Segura con JWT)
+--------------------------------------------------------------------------------
+Importación automática de estudios DICOM locales y discos externos (eFilm).
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pathlib import Path
 from datetime import datetime, date
 import shutil
+import os
 import numpy as np
 from PIL import Image
 from pydicom import dcmread
+from pydantic import BaseModel
 
-from app.core.database import get_db
+# IMPORTACIONES PARA EL EXPLORADOR VISUAL DE WINDOWS
+import tkinter as tk
+from tkinter import filedialog
+import threading
+
+from app.core.database import get_db, SessionLocal
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
 
@@ -24,29 +31,24 @@ from app.models.estudio_imagen import EstudioImagen
 from app.services.estudio_service import crear_estudio
 from app.schemas.estudio import EstudioCreate
 
+# 🎯 PREFIJO CORE UNIFICADO: Toda ruta aquí adentro colgará de /api/import
+router = APIRouter(prefix="/api/import", tags=["Importación DICOM"])
 
-router = APIRouter(prefix="/dicom", tags=["Importación DICOM"])
+# Variable de control global para el ciclo de vida del explorador nativo
+explorador_bloqueo = False
 
-
-# ---------------------------------------------------------
-# Rutas clínicas del sistema PACS
-# ---------------------------------------------------------
+# Rutas clínicas unificadas del sistema PACS
 BASE_DIR = Path(__file__).resolve().parents[2]  # backend/
 STATIC_DIR = BASE_DIR / "static"
-DICOMS_DIR = STATIC_DIR / "dicoms"
 THUMBS_DIR = STATIC_DIR / "thumbnails"
-
 INBOX = BASE_DIR / "dicom_inbox"
-ARCHIVO = BASE_DIR / "dicom_archivados"
+ARCHIVO_ROOT = Path(r"D:\proyecto v3\backend\app\dicom_archivados")
 
-# Crear carpetas si no existen
-for carpeta in [DICOMS_DIR, THUMBS_DIR, INBOX, ARCHIVO]:
-    carpeta.mkdir(exist_ok=True)
+# Asegurar la existencia de directorios core
+for carpeta in [THUMBS_DIR, INBOX, ARCHIVO_ROOT]:
+    carpeta.mkdir(parents=True, exist_ok=True)
 
 
-# ---------------------------------------------------------
-# Convertir fecha DICOM (YYYYMMDD) a date
-# ---------------------------------------------------------
 def parse_fecha_nacimiento(dicom_birth_date: str | None) -> date:
     if not dicom_birth_date:
         return date(1900, 1, 1)
@@ -56,168 +58,230 @@ def parse_fecha_nacimiento(dicom_birth_date: str | None) -> date:
         return date(1900, 1, 1)
 
 
-# ---------------------------------------------------------
-# Generar miniatura PNG desde un archivo DICOM
-# ---------------------------------------------------------
 def generar_thumbnail(dicom_path: Path, thumbnail_path: Path):
+    """Genera una miniatura PNG de alta fidelidad desde la matriz de pixeles DICOM."""
     try:
-        ds = dcmread(dicom_path)
-
+        ds = dcmread(dicom_path, force=True)
         if "PixelData" not in ds:
             return None
 
         arr = ds.pixel_array.astype(np.float32)
-
         arr -= arr.min()
-        arr /= arr.max()
+        if arr.max() > 0:
+            arr /= arr.max()
         arr *= 255.0
 
         img = Image.fromarray(arr.astype(np.uint8))
         img.thumbnail((256, 256))
         img.save(thumbnail_path)
-
         return str(thumbnail_path)
-
     except Exception as e:
-        print("Error generando thumbnail:", e)
+        print(f"⚠️ Thumbnail Omitido: {e}")
         return None
 
 
-# ---------------------------------------------------------
-# IMPORTAR ESTUDIOS DICOM (solo admin y técnico)
-# ---------------------------------------------------------
-@router.post("/importar")
-def importar_dicom(
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    requiere_rol(usuario, ["admin", "tecnico"])
+def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | None:
+    """Procesa un único archivo binario, evita duplicados de estudios y asocia las imágenes."""
+    nombre_archivo = archivo_path.name.upper()
+    if nombre_archivo in ["DICOMDIR", "VIEWER.EXE", "AUTORUN.INF", "THUMBNAILS.DB"] or archivo_path.suffix.upper() in [".EXE", ".TXT", ".INF"]:
+        return None
 
-    archivos = list(INBOX.glob("*"))
+    try:
+        ds = dcmread(archivo_path, force=True)
+        study_uid = getattr(ds, "StudyInstanceUID", None)
+        sop_uid = getattr(ds, "SOPInstanceUID", None)
+        if not study_uid or not sop_uid:
+            return None
 
-    if not archivos:
-        return {"mensaje": "No hay archivos DICOM para importar."}
+        # 1. Datos del Paciente
+        patient_id = getattr(ds, "PatientID", "SIN_ID")
+        raw_name = str(getattr(ds, "PatientName", "PACIENTE^DESCONOCIDO"))
+        partes = raw_name.split("^")
 
-    resultados = []
+        primer_apellido = partes[0] if len(partes) > 0 else "Desconocido"
+        primer_nombre = partes[1] if len(partes) > 1 else "Paciente"
+        fecha_nacimiento = parse_fecha_nacimiento(getattr(ds, "PatientBirthDate", None))
 
-    for archivo in archivos:
-        try:
-            ds = dcmread(archivo)
+        paciente = db.query(Paciente).filter_by(identificacion=patient_id).first()
+        if not paciente:
+            paciente = Paciente(
+                identificacion=patient_id,
+                primer_nombre=primer_nombre,
+                primer_apellido=primer_apellido,
+                fecha_nacimiento=fecha_nacimiento
+            )
+            db.add(paciente)
+            db.commit()
+            db.refresh(paciente)
 
-            # ---------------------------------------------------------
-            # 1. Datos del paciente
-            # ---------------------------------------------------------
-            patient_id = getattr(ds, "PatientID", None)
-            raw_name = str(getattr(ds, "PatientName", "Desconocido"))
-            partes = raw_name.split("^")
-
-            primer_apellido = partes[0] if len(partes) > 0 else "Desconocido"
-            primer_nombre = partes[1] if len(partes) > 1 else "Paciente"
-            fecha_nacimiento = parse_fecha_nacimiento(getattr(ds, "PatientBirthDate", None))
-
-            # Buscar o crear paciente
-            paciente = db.query(Paciente).filter_by(identificacion=patient_id).first()
-
-            if not paciente:
-                paciente = Paciente(
-                    identificacion=patient_id,
-                    primer_nombre=primer_nombre,
-                    segundo_nombre=None,
-                    primer_apellido=primer_apellido,
-                    segundo_apellido=None,
-                    fecha_nacimiento=fecha_nacimiento,
-                    email=None,
-                    password_hash=None,
-                )
-                db.add(paciente)
-                db.commit()
-                db.refresh(paciente)
-
-            # ---------------------------------------------------------
-            # 2. Datos del estudio (MODERNO)
-            # ---------------------------------------------------------
-            study_desc = getattr(ds, "StudyDescription", "Sin descripción")
+        # 2. Datos del Estudio
+        estudio = db.query(Estudio).filter_by(uid=study_uid).first()
+        
+        if not estudio:
+            study_desc = getattr(ds, "StudyDescription", "Estudio sin descripción")
             study_date = getattr(ds, "StudyDate", None)
-            modality = getattr(ds, "Modality", "RX")
-            uid = getattr(ds, "StudyInstanceUID", f"generated-{datetime.now().timestamp()}")
-
-            fecha_estudio = None
+            modality = getattr(ds, "Modality", "DX")
+            
+            fecha_estudio = date.today()
             if study_date:
                 try:
                     fecha_estudio = datetime.strptime(study_date, "%Y%m%d").date()
                 except:
-                    fecha_estudio = date.today()
+                    pass
 
-            # Crear estudio moderno
             data = EstudioCreate(
                 paciente_id=paciente.id,
                 tipo_estudio=modality,
                 fecha_estudio=fecha_estudio,
                 descripcion=study_desc,
-                uid=uid
+                uid=study_uid
             )
+            estudio = crear_estudio(db, data)
 
-            nuevo_estudio = crear_estudio(db, data)
+        # 3. Guardar Estructura en Almacenamiento Unificado
+        accession_number = getattr(ds, "AccessionNumber", study_uid)
+        series_uid = getattr(ds, "SeriesInstanceUID", "SERIE_DESCONOCIDA")
+        carpeta_destino = ARCHIVO_ROOT / str(accession_number) / str(series_uid)
+        carpeta_destino.mkdir(parents=True, exist_ok=True)
 
-            # ---------------------------------------------------------
-            # 3. Registrar imagen DICOM
-            # ---------------------------------------------------------
-            sop_uid = getattr(ds, "SOPInstanceUID", f"generated-{datetime.now().timestamp()}")
-            nombre_archivo = f"{sop_uid}.dcm"
+        nombre_final_archivo = f"{sop_uid}.dcm"
+        destino_final = carpeta_destino / nombre_final_archivo
 
-            # Carpeta física del estudio
-            carpeta_estudio = DICOMS_DIR / f"estudio_{nuevo_estudio.id}"
-            carpeta_estudio.mkdir(exist_ok=True)
+        shutil.copy2(str(archivo_path), str(destino_final))
 
-            destino_static = carpeta_estudio / nombre_archivo
-            shutil.copy(str(archivo), str(destino_static))
+        thumbnail_path = THUMBS_DIR / f"{sop_uid}.png"
+        generar_thumbnail(destino_final, thumbnail_path)
 
-            # Thumbnail
-            thumbnail_path = THUMBS_DIR / f"{sop_uid}.png"
-            generar_thumbnail(destino_static, thumbnail_path)
+        metadata = {
+            "Modality": getattr(ds, "Modality", "DX"),
+            "SeriesNumber": getattr(ds, "SeriesNumber", None),
+            "SOPInstanceUID": sop_uid,
+            "AccessionNumber": accession_number,
+            "StudyInstanceUID": study_uid
+        }
 
-            metadata = {
-                "Modality": getattr(ds, "Modality", None),
-                "SeriesNumber": getattr(ds, "SeriesNumber", None),
-                "SOPInstanceUID": sop_uid,
-                "ViewPosition": getattr(ds, "ViewPosition", None),
-                "BodyPartExamined": getattr(ds, "BodyPartExamined", None),
-                "AcquisitionDate": getattr(ds, "AcquisitionDate", None),
-                "AcquisitionTime": getattr(ds, "AcquisitionTime", None),
-            }
-
+        imagen = db.query(EstudioImagen).filter_by(ruta_archivo=str(destino_final)).first()
+        if not imagen:
             imagen = EstudioImagen(
-                estudio_id=nuevo_estudio.id,
-                ruta_archivo=f"/static/dicoms/estudio_{nuevo_estudio.id}/{nombre_archivo}",
+                estudio_id=estudio.id,
+                ruta_archivo=str(destino_final),
                 dicom_metadata=metadata,
-                thumbnail=f"/static/thumbnails/{sop_uid}.png"
+                thumbnail=f"/static/thumbnails/{sop_uid}.png",
+                fecha_subida=datetime.utcnow()
             )
-
             db.add(imagen)
             db.commit()
 
-            # ---------------------------------------------------------
-            # 4. Mover archivo original a dicom_archivados
-            # ---------------------------------------------------------
-            destino_archivo = ARCHIVO / archivo.name
-            shutil.move(str(archivo), str(destino_archivo))
+        return {"archivo": archivo_path.name, "paciente": f"{primer_apellido}, {primer_nombre}", "status": "success"}
 
-            resultados.append({
-                "archivo": archivo.name,
-                "paciente": f"{primer_apellido}, {primer_nombre}",
-                "id": patient_id,
-                "estudio": study_desc,
-                "imagen": imagen.ruta_archivo,
-                "thumbnail": imagen.thumbnail
-            })
+    except Exception as e:
+        db.rollback()
+        return {"archivo": archivo_path.name, "error": str(e)}
 
-        except Exception as e:
-            resultados.append({
-                "archivo": archivo.name,
-                "error": str(e)
-            })
 
+def tarea_fondo_importacion_recursiva(ruta_origen: str):
+    print(f"\n🚀 [MOTOR] ¡Iniciando escaneo masivo de archivos en: {ruta_origen}!")
+    db = SessionLocal()
+    conteo_exitosos = 0
+    conteo_errores = 0
+    try:
+        for root, dirs, files in os.walk(ruta_origen):
+            for file in files:
+                file_path = Path(root) / file
+                if "." not in file or file_path.suffix.lower() == ".dcm":
+                    try:
+                        print(f"📄 Analizando: {file_path.name}...", end="")
+                        res = procesar_un_archivo_dicom_manual(db, file_path)
+                        if res and res.get("status") == "success":
+                            conteo_exitosos += 1
+                            print(" -> ✅ ¡GUARDADO EN BD!")
+                            db.commit()
+                        else:
+                            conteo_errores += 1
+                            print(f" -> ⚠️ Omitido")
+                    except Exception as e:
+                        conteo_errores += 1
+                        print(f" -> ❌ Error: {str(e)}")
+                        db.rollback()
+        print(f"\n🏁 [INGESTA FINALIZADA] Exitosos: {conteo_exitosos} | Fallidos: {conteo_errores}\n")
+    finally:
+        db.close()
+
+
+def subproceso_abrir_explorador(resultado_compartido: dict):
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes('-topmost', True)
+    ruta = filedialog.askdirectory(title="MI_PACS — Seleccione la carpeta origen de estudios DICOM")
+    resultado_compartido["ruta_seleccionada"] = ruta
+    root.destroy()
+
+
+# ----------------------------------------------------------------------
+# 🔒 ENDPOINT BLINDADO CON JWT Y RUTA UNIFICADA LIMPIA (/api/import/disco-externo)
+# ----------------------------------------------------------------------
+@router.post("/disco-externo")
+def importar_desde_disco_manual(
+    background_tasks: BackgroundTasks,
+    usuario=Depends(obtener_usuario_actual)  # 🔐 Reestablecemos el candado de sesión
+):
+    """Abre el explorador de Windows nativo de forma segura validando el Token del Superusuario."""
+    global explorador_bloqueo
+    
+    # Validamos jerarquía admitiendo el rol sin fricción de mayúsculas
+    rol_usuario = getattr(usuario, "rol", "").lower()
+    if rol_usuario not in ["admin", "tecnico", "superadmin", "maestro"]:
+        raise HTTPException(
+            status_code=403, 
+            detail="Acceso restringido. Su rol no cuenta con credenciales para inyectar hardware local."
+        )
+    
+    if explorador_bloqueo:
+        raise HTTPException(
+            status_code=400, 
+            detail="El explorador de archivos ya se encuentra desplegado en el servidor."
+        )
+        
+    explorador_bloqueo = True
+    resultado_compartido = {"ruta_seleccionada": ""}
+    
+    try:
+        hilo_interfaz = threading.Thread(target=subproceso_abrir_explorador, args=(resultado_compartido,))
+        hilo_interfaz.start()
+        hilo_interfaz.join()
+    finally:
+        explorador_bloqueo = False
+        
+    ruta_final = resultado_compartido.get("ruta_seleccionada")
+    
+    if not ruta_final:
+        return {"status": "cancelled", "message": "Operación cancelada por el operador clínico."}
+        
+    if not os.path.exists(ruta_final):
+        raise HTTPException(status_code=400, detail="La ruta seleccionada no es accesible.")
+        
+    background_tasks.add_task(tarea_fondo_importacion_recursiva, ruta_final)
+    
     return {
-        "mensaje": "Importación completada",
-        "importados": resultados
+        "status": "success",
+        "message": "Inyección iniciada de forma exitosa.",
+        "ruta_processed": ruta_final
     }
+
+
+@router.post("/importar")
+def importar_dicom(usuario=Depends(obtener_usuario_actual), db: Session = Depends(get_db)):
+    requiere_rol(usuario, ["admin", "tecnico"])
+    archivos = list(INBOX.glob("*"))
+    if not archivos:
+        return {"mensaje": "No hay archivos DICOM en la bandeja de entrada local."}
+
+    resultados = []
+    for archivo in archivos:
+        res = procesar_un_archivo_dicom_manual(db, archivo)
+        if res:
+            if "status" in res:
+                archivo.unlink()
+            resultados.append(res)
+            
+    return {"mensaje": "Importación local completada", "importados": [r for r in resultados if r is not None]}
