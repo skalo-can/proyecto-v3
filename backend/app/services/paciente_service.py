@@ -1,12 +1,7 @@
 """
 paciente_service.py — MI_PACS
-Servicio clínico para la gestión de pacientes.
-Incluye:
-- Creación normal (frontend)
-- Creación automática desde DICOM
-- Búsqueda por identificación
-- Actualización
-- Eliminación lógica
+Servicio clínico central para la gestión integral de pacientes.
+Optimizado para el Modo Maestro con unificación de esquemas de actualización.
 """
 
 from sqlalchemy.orm import Session
@@ -25,10 +20,9 @@ from app.schemas.paciente import (
 # ---------------------------------------------------------
 def crear_paciente(db: Session, data: PacienteCreate) -> Paciente:
     """
-    Crea un paciente desde el frontend.
-    Se hashea la contraseña correctamente.
+    Crea un registro de paciente desde el formulario de admisión del frontend.
+    Garantiza el hash de seguridad de la contraseña clínica de acceso.
     """
-
     password_hash = bcrypt.hashpw(
         data.password.encode("utf-8"),
         bcrypt.gensalt()
@@ -53,18 +47,17 @@ def crear_paciente(db: Session, data: PacienteCreate) -> Paciente:
 
 
 # ---------------------------------------------------------
-# CREAR PACIENTE DESDE DICOM (PROFESIONAL)
+# CREAR PACIENTE DESDE DICOM (PARSEO DE METADATA CLÍNICA)
 # ---------------------------------------------------------
 def crear_paciente_desde_dicom(db: Session, identificacion: str, nombre_completo: str) -> Paciente:
     """
-    Crea un paciente usando solo la metadata DICOM.
-    Maneja correctamente el formato APELLIDO^NOMBRE.
+    Crea automáticamente un paciente abstrayendo la metadata de un estudio DICOM.
+    Normaliza de forma segura el delimitador caret tradicional (APELLIDO^NOMBRE).
     """
-
     nombre = str(nombre_completo).replace("^", " ").strip()
     partes = nombre.split(" ")
 
-    # DICOM suele ser: APELLIDO NOMBRE
+    # Estructura clásica de cabecera DICOM para PACS comerciales
     primer_apellido = partes[0] if len(partes) > 0 else "DICOM"
     primer_nombre = partes[1] if len(partes) > 1 else "Paciente"
 
@@ -76,7 +69,7 @@ def crear_paciente_desde_dicom(db: Session, identificacion: str, nombre_completo
         segundo_apellido=None,
         fecha_nacimiento=date(1900, 1, 1),
         email=None,
-        password_hash="",  # No aplica
+        password_hash="",  # No aplica para inyección directa por hardware
         activo=True
     )
 
@@ -87,16 +80,18 @@ def crear_paciente_desde_dicom(db: Session, identificacion: str, nombre_completo
 
 
 # ---------------------------------------------------------
-# BUSCAR PACIENTE POR ID INTERNO
+# BUSCAR PACIENTE POR ID INTERNO (PRIMARY KEY)
 # ---------------------------------------------------------
 def obtener_paciente(db: Session, paciente_id: int) -> Paciente | None:
+    """Retorna el registro del paciente por su ID secuencial interno."""
     return db.query(Paciente).filter(Paciente.id == paciente_id, Paciente.activo == True).first()
 
 
 # ---------------------------------------------------------
-# BUSCAR PACIENTE POR IDENTIFICACIÓN (DICOM)
+# BUSCAR PACIENTE POR IDENTIFICACIÓN (CÉDULA / CÓDIGO PACS)
 # ---------------------------------------------------------
 def obtener_paciente_por_identificacion(db: Session, identificacion: str) -> Paciente | None:
+    """Busca coincidencia estricta usando el ID clínico DICOM o documento de identidad."""
     return (
         db.query(Paciente)
         .filter(Paciente.identificacion == identificacion, Paciente.activo == True)
@@ -105,9 +100,10 @@ def obtener_paciente_por_identificacion(db: Session, identificacion: str) -> Pac
 
 
 # ---------------------------------------------------------
-# LISTAR PACIENTES
+# LISTAR PACIENTES (PAGINACIÓN CONTROLADA)
 # ---------------------------------------------------------
 def listar_pacientes(db: Session, limit: int = 50):
+    """Retorna la lista de pacientes activos ordenados cronológicamente por inserción."""
     return (
         db.query(Paciente)
         .filter(Paciente.activo == True)
@@ -117,54 +113,60 @@ def listar_pacientes(db: Session, limit: int = 50):
     )
 
 
+from datetime import datetime, date  # Asegúrate de tener este import arriba
+
 # ---------------------------------------------------------
-# ACTUALIZAR PACIENTE
+# ACTUALIZAR PACIENTE (SOPORTE DE CONVERSIÓN DE TIPOS)
 # ---------------------------------------------------------
 def actualizar_paciente(db: Session, paciente_id: int, data: PacienteUpdate) -> Paciente | None:
-    paciente = obtener_paciente(db, paciente_id)
+    """
+    Actualiza los campos de un paciente y convierte strings de fecha
+    en objetos date nativos para cumplir con el modelo SQLAlchemy.
+    """
+    paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
     if not paciente:
         return None
 
-    for campo, valor in data.dict(exclude_unset=True).items():
-        setattr(paciente, campo, valor)
+    # Extraer los datos limpios en un diccionario
+    update_data = data.dict(exclude_unset=True) if hasattr(data, "dict") else dict(data)
 
-    db.commit()
-    db.refresh(paciente)
-    return paciente
+    # 📆 PARSEO CRÍTICO: Si la fecha de nacimiento viene como string, la transformamos
+    if "fecha_nacimiento" in update_data and isinstance(update_data["fecha_nacimiento"], str):
+        try:
+            # Convierte "AAAA-MM-DD" en un objeto date real
+            update_data["fecha_nacimiento"] = datetime.strptime(update_data["fecha_nacimiento"], "%Y-%m-%d").date()
+        except ValueError:
+            print(f"⚠️ Formato de fecha inválido recibido: {update_data['fecha_nacimiento']}")
+            # Puedes optar por omitirla o manejarla si viene vacía
+            if not update_data["fecha_nacimiento"]:
+                update_data["fecha_nacimiento"] = None
 
+    # Mapeo dinámico y seguro sobre las columnas del modelo
+    for campo, valor in update_data.items():
+        if hasattr(paciente, campo):
+            setattr(paciente, campo, valor)
+
+    try:
+        db.commit()
+        db.refresh(paciente)
+        return paciente
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error crítico en persistencia SQL: {str(e)}")
+        return None
 
 # ---------------------------------------------------------
-# ELIMINACIÓN LÓGICA
+# ELIMINACIÓN LÓGICA (PRESERVACIÓN DE HISTORIAL DE ESTUDIOS)
 # ---------------------------------------------------------
 def eliminar_paciente(db: Session, paciente_id: int) -> bool:
-    paciente = obtener_paciente(db, paciente_id)
+    """
+    Aplica una inactivación lógica en lugar de un borrado físico destructivo.
+    Protege la integridad de la base de datos impidiendo estudios huérfanos.
+    """
+    paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
     if not paciente:
         return False
 
     paciente.activo = False
-    db.commit()
-    return True
-
-from app.models.paciente import Paciente
-from sqlalchemy.orm import Session
-
-def actualizar_paciente(db: Session, id: int, data: dict):
-    paciente = db.query(Paciente).filter(Paciente.id == id).first()
-    if not paciente:
-        return None
-
-    for key, value in data.items():
-        setattr(paciente, key, value)
-
-    db.commit()
-    return paciente
-
-
-def eliminar_paciente(db: Session, id: int):
-    paciente = db.query(Paciente).filter(Paciente.id == id).first()
-    if not paciente:
-        return None
-
-    db.delete(paciente)
     db.commit()
     return True
