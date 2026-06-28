@@ -1,4 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+/**
+ * Header.jsx — MI_PACS (Versión corregida y balanceada con React)
+ */
+
+import React, { useState, useRef, useEffect } from "react"; // 👈 ¡Inyectamos React formalmente aquí!
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
@@ -7,12 +11,11 @@ export const Header = ({ onOpenDicom, onResetDB }) => {
   const { user } = useAuth();
   const menuRef = useRef(null);
 
-  // --- LÓGICA DE PERMISOS ---
-  // Superusuario (Skalo)
-  const isSkalo = user && user.rol === "superadmin";
+  // --- LÓGICA DE PERMISOS FLEXIBLE ---
+  // Superusuario (Skalo / Admin unificado post-reset)
+  const isSkalo = user && (user.rol === "superadmin" || user.rol === "admin");
   
   // Usuarios permitidos para ver Configuración (Admin y Superadmin)
-  // El tecnólogo NO entra en este grupo, por lo que no verá el botón.
   const canSeeConfig = user && (user.rol === "superadmin" || user.rol === "admin");
 
   // Función unificada para abrir la configuración

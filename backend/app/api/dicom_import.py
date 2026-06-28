@@ -32,11 +32,8 @@ from app.services.estudio_service import crear_estudio
 from app.schemas.estudio import EstudioCreate
 
 # 🎯 PREFIJO CORE UNIFICADO: Toda ruta aquí adentro colgará de /api/import
-<<<<<<< HEAD
 router = APIRouter(prefix="/api/import", tags=["Importación DICOM"])
-=======
 router = APIRouter(prefix="/import", tags=["Importación DICOM"])
->>>>>>> development
 
 # Variable de control global para el ciclo de vida del explorador nativo
 explorador_bloqueo = False

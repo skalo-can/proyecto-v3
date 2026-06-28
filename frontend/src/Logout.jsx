@@ -1,4 +1,8 @@
-import { useEffect } from "react";
+/**
+ * Logout.jsx — MI_PACS (Versión corregida con React explícito)
+ */
+
+import React, { useEffect } from "react"; // 👈 ¡Inyectamos React formalmente aquí!
 import { useAuth } from "./AuthContext";
 
 export default function Logout() {

@@ -65,22 +65,31 @@ export default function Pacientes() {
     setFiltros(prev => ({ ...prev, [name]: value }));
   };
 
-  // 🔄 Manejador interactivo de ordenamiento al hacer clic en las cabeceras
+// 🔄 Manejador interactivo de ordenamiento al hacer clic en las cabeceras (CORREGIDO)
   const solicitarOrdenamiento = (columna) => {
-    if (sortBy === columna) {
+    // Convertimos los nombres visuales a las columnas reales que espera tu backend/BD
+    let columnaBackend = columna;
+    if (columna === "paciente") columnaBackend = "nombre"; // Mapea a p.primer_apellido o p.nombre en el modelo
+    if (columna === "fecha") columnaBackend = "fecha_estudio"; // Mapea a la columna real de la BD
+
+    if (sortBy === columnaBackend) {
       setSortOrder(prev => (prev === "asc" ? "desc" : "asc"));
     } else {
-      setSortBy(columna);
+      setSortBy(columnaBackend);
       setSortOrder("asc");
     }
   };
 
-  // Renderizador de flechas indicadoras en las cabeceras
+  // Renderizador de flechas indicadoras en las cabeceras (CORREGIDO)
   const renderIconoOrden = (columna) => {
-    if (sortBy !== columna) return <span style={{ color: '#475569', marginLeft: '5px' }}>↕</span>;
+    let columnaBackend = columna;
+    if (columna === "paciente") columnaBackend = "nombre";
+    if (columna === "fecha") columnaBackend = "fecha_estudio";
+
+    if (sortBy !== columnaBackend) return <span style={{ color: '#475569', marginLeft: '5px' }}>↕</span>;
     return sortOrder === "asc" ? <span style={{ color: '#fbbf24', marginLeft: '5px' }}>↑</span> : <span style={{ color: '#fbbf24', marginLeft: '5px' }}>↓</span>;
   };
-
+  
   // Alternar la selección (Checkbox + Clic en Nombre)
   const toggleSeleccionarPaciente = (id) => {
     setSeleccionados(prev => 

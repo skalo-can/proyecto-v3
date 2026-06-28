@@ -1,17 +1,10 @@
 """
 paciente_api.py — MI_PACS
-Endpoints clínicos para la gestión de pacientes.
-Compatible con:
-- Pacientes creados manualmente
-- Pacientes creados automáticamente desde DICOM
+Endpoints clínicos para la gestión de pacientes con ordenamiento interactivo multivariable (Python).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-<<<<<<< HEAD
-=======
-from sqlalchemy import asc, desc  # 👈 Importante para el ordenamiento interactivo
->>>>>>> development
 from datetime import date
 
 from app.core.database import get_db
@@ -32,12 +25,12 @@ from app.services.paciente_service import (
     eliminar_paciente
 )
 
-# 🔥 CORREGIDO: ya no duplicamos /api
+# 🚀 DEFINICIÓN DEL ROUTER (Declarado arriba de todo para evitar NameError)
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
 
 
 # ---------------------------------------------------------
-# LISTAR PACIENTES (TABLA PRINCIPAL CON JOIN RELACIONAL)
+# LISTAR PACIENTES (TABLA PRINCIPAL CON ORDENAMIENTO MULTIVARIABLE)
 # ---------------------------------------------------------
 @router.get("")
 @router.get("/")
@@ -46,18 +39,15 @@ def listar(
     fechaHasta: str = Query("2030-12-31"),
     modalidad: str = Query(None),
     busqueda: str = Query(None),
-<<<<<<< HEAD
-=======
-    sort_by: str = Query("fecha"),  # 👈 Parámetro dinámico de React (id, paciente, fecha)
-    order: str = Query("desc"),     # 👈 Parámetro dinámico de React (asc, desc)
->>>>>>> development
+    sort_by: str = Query("fecha"),  # 👈 Parámetros: id, paciente, fecha
+    order: str = Query("desc"),     # 👈 Parámetros: asc, desc
     db: Session = Depends(get_db)
 ):
     """
-    Endpoint Core unificado: Realiza un JOIN relacional dinámico para filtrar
-    por parámetros PACS (Fecha y Modalidad) y armar el JSON esperado por React.
+    Endpoint Core unificado: Trae los pacientes, aplica filtros relacionales PACS
+    y procesa un ordenamiento avanzado multivariable en memoria (ID Numérico, Alfabético, Fecha+Hora).
     """
-    # 🎯 Unimos la tabla Paciente con Estudio en una sola consulta relacional
+    # 🎯 Hacemos la consulta base uniendo Paciente y Estudio relacionalmente
     query = db.query(Paciente).join(Estudio)
     
     # 1. Filtro estricto por rango de fechas de captura del estudio
@@ -67,7 +57,6 @@ def listar(
         query = query.filter(Estudio.fecha_estudio >= f_desde, Estudio.fecha_estudio <= f_hasta)
     except Exception as e:
         print(f"⚠️ Formato de fecha inválido recibido en el query, se omite: {e}")
-<<<<<<< HEAD
 
     # 2. Filtro dinámico por Modalidad DICOM (CT, CR, MR, etc.)
     if modalidad and modalidad.strip() != "":
@@ -81,67 +70,7 @@ def listar(
             (Paciente.identificacion.like(termino))
         )
 
-    # Ordenamos de forma descendente para ver los últimos estudios subidos al principio
-    resultados = query.order_by(Paciente.id.desc()).all()
-    
-    # 📦 CONSTRUCCIÓN DEL JSON HÍBRIDO (Mapeo directo compatible con pacientes.jsx)
-    lista_mapeada = []
-    for p in resultados:
-        # Extraemos los estudios filtrados de este paciente en memoria
-        estudios_validos = p.estudios
-        if modalidad and modalidad.strip() != "":
-            estudios_validos = [e for e in p.estudios if e.tipo_estudio == modalidad.strip()]
-            
-        # Si por alguna razón el paciente no tiene estudios en ese filtro, pasamos al siguiente
-        if not estudios_validos:
-            continue
-            
-        estudio_principal = estudios_validos[0]
-        
-        lista_mapeada.append({
-            "id": p.id,
-            "identificacion": p.identificacion,
-            "primer_nombre": p.primer_nombre,
-            "primer_apellido": p.primer_apellido,
-            "activo": p.activo,
-            "sexo": getattr(p, "sexo", "M"),  # Fallback seguro si no está en la base de datos
-            "departamento": getattr(p, "departamento", "Radiología"),
-            # 🟢 AQUÍ NACEN LOS DATOS QUE ALIMENTAN LA PANTALLA:
-            "fecha_estudio": estudio_principal.fecha_estudio.isoformat() if estudio_principal.fecha_estudio else "S/F",
-            "tipo_estudio": estudio_principal.tipo_estudio if estudio_principal.tipo_estudio else "CR"
-        })
-        
-    return lista_mapeada
-=======
->>>>>>> development
-
-    # 2. Filtro dinámico por Modalidad DICOM (CT, CR, MR, etc.)
-    if modalidad and modalidad.strip() != "":
-        query = query.filter(Estudio.tipo_estudio == modalidad.strip())
-
-    # 3. Filtro de búsqueda rápida por Identificación o Apellidos del Paciente
-    if busqueda and busqueda.strip() != "":
-        termino = f"%{busqueda.strip()}%"
-        query = query.filter(
-            (Paciente.primer_apellido.ilike(termino)) | 
-            (Paciente.identificacion.like(termino))
-        )
-
-    # 🗺️ 4. MATRIZ DE ORDENAMIENTO DINÁMICO INTERACTIVO
-    mapa_columnas = {
-        "id": Paciente.identificacion,
-        "paciente": Paciente.primer_apellido,
-        "fecha": Estudio.fecha_estudio
-    }
-    
-    # Si viene un parámetro inválido, el fallback por defecto es ordenar por fecha del estudio
-    columna_objetivo = mapa_columnas.get(sort_by, Estudio.fecha_estudio)
-    
-    if order == "asc":
-        query = query.order_by(asc(columna_objetivo))
-    else:
-        query = query.order_by(desc(columna_objetivo))
-
+    # 🚀 Recuperamos los registros coincidentes de la Base de Datos de forma segura
     resultados = query.all()
     
     # 📦 CONSTRUCCIÓN DEL JSON HÍBRIDO (Mapeo directo compatible con pacientes.jsx)
@@ -152,19 +81,16 @@ def listar(
         if modalidad and modalidad.strip() != "":
             estudios_validos = [e for e in p.estudios if e.tipo_estudio == modalidad.strip()]
             
-        # Si por alguna razón el paciente no tiene estudios en ese filtro, pasamos al siguiente
         if not estudios_validos:
             continue
             
         estudio_principal = estudios_validos[0]
         
         # 🕒 Extracción segura de la hora desde la metadata del estudio
-        # Si tu base de datos tiene la columna "hora_estudio" la lee, de lo contrario devuelve el tag DICOM o "00:00"
         hora_final = "00:00"
         if hasattr(estudio_principal, "hora_estudio") and estudio_principal.hora_estudio:
             hora_final = estudio_principal.hora_estudio
         elif hasattr(estudio_principal, "dicom_metadata") and estudio_principal.dicom_metadata:
-            # Revisa si se guardó en el JSON de metadatos clínicos
             hora_final = estudio_principal.dicom_metadata.get("StudyTime", "00:00")[:4]
             if len(hora_final) == 4:
                 hora_final = f"{hora_final[:2]}:{hora_final[2:]}"
@@ -175,11 +101,52 @@ def listar(
             "primer_nombre": p.primer_nombre,
             "primer_apellido": p.primer_apellido,
             "activo": p.activo,
-            "sexo": getattr(p, "sexo", "M"),  # Fallback seguro si no está en la base de datos
+            "sexo": getattr(p, "sexo", "M"),
             "departamento": getattr(p, "departamento", "Radiología"),
             "fecha_estudio": estudio_principal.fecha_estudio.isoformat() if estudio_principal.fecha_estudio else "S/F",
             "tipo_estudio": estudio_principal.tipo_estudio if estudio_principal.tipo_estudio else "CR",
-            "hora_estudio": hora_final  # 👈 ¡INYECTADO AL FRONTEND CON TOTAL SEGURIDAD!
+            "hora_estudio": hora_final
         })
+
+    # 🗺️ 4. MATRIZ DE ORDENAMIENTO INTERACTIVO CRONOLÓGICO Y NUMÉRICO REAL
+    def obtener_llave_orden(item):
+        if sort_by == "id":
+            # 🎯 SOLUCIÓN AL ORDEN DE TEXTO: Forzamos la conversión a entero para orden matemático real (1116204315 > 9728484)
+            try:
+                return int(str(item["identificacion"]).strip())
+            except ValueError:
+                return str(item["identificacion"]).strip().lower()
+        elif sort_by == "nombre":
+            return str(item["primer_apellido"]).lower()
+        else:
+            # 🎯 CRONOLÓGICO: Fusiona Fecha ("2026-06-27") + Hora ("19:50") para crear una estampa temporal unificada
+            return f"{item['fecha_estudio']} {item['hora_estudio']}"
+
+    # Aplicamos el algoritmo de ordenamiento nativo de Python (sort)
+    es_descendente = (order == "desc")
+    lista_mapeada.sort(key=obtener_llave_orden, reverse=es_descendente)
         
     return lista_mapeada
+
+
+# ---------------------------------------------------------
+# ENDPOINTS REST COMPLETOS (CRUD COMPLEMENTARIO COMPLETO)
+# ---------------------------------------------------------
+@router.post("", response_model=PacienteResponse)
+def crear(paciente: PacienteCreate, db: Session = Depends(get_db)):
+    return crear_paciente(db=db, paciente=paciente)
+
+@router.get("/{paciente_id}", response_model=PacienteResponse)
+def leer(paciente_id: int, db: Session = Depends(get_db)):
+    db_paciente = obtener_paciente(db, paciente_id=paciente_id)
+    if db_paciente is None:
+        raise HTTPException(status_code=404, detail="Paciente no localizado")
+    return db_paciente
+
+@router.put("/{paciente_id}", response_model=PacienteResponse)
+def actualizar(paciente_id: int, paciente: PacienteUpdate, db: Session = Depends(get_db)):
+    return actualizar_paciente(db=db, paciente_id=paciente_id, paciente=paciente)
+
+@router.delete("/{paciente_id}")
+def eliminar(paciente_id: int, db: Session = Depends(get_db)):
+    return eliminar_paciente(db=db, paciente_id=paciente_id)
