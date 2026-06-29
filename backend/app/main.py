@@ -1,6 +1,7 @@
 """
 MI_PACS — Backend principal con Soporte de Notificaciones Real-Time
 ---------------------------------------------------------
+Optimizado con el Escudo Maestro de Migraciones Dinámicas Automáticas en Caliente.
 """
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -9,6 +10,9 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 import os
 from typing import List
+
+# 🛠️ IMPORTS PARA EL ESCUDO DE AUTOMIGRACIÓN DE PRODUCCIÓN
+from sqlalchemy import inspect, text
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
@@ -37,7 +41,7 @@ from app.api.paciente_portal_api import router as paciente_portal_router
 from app.api.paciente_link_api import router as paciente_link_router
 from app.api.paciente_email_api import router as paciente_email_router
 from app.api.reset_api import router as reset_router
-from app.api.dicom_import import router as dicom_import_router # Asegurado formato consistente
+from app.api.dicom_import import router as dicom_import_router 
 from app.api.dicom_tools_api import router as dicom_tools_router
 from app.api.dicom_import_new_api import router as dicom_import_new_router
 from app.api.dicom_stream_api import router as dicom_stream_router
@@ -54,8 +58,6 @@ from app.api.filtros.pacientes_filtros_api import router as pacientes_filtros_ro
 from app.api.filtros.estudios_filtros_api import router as estudios_filtros_router
 from app.api.filtros.busqueda_global_api import router as busqueda_global_router
 from app.api.admin_config import router as admin_config_router
-
-# 🚀 NUEVO: Importación del router del Panel de Configuración de Backups
 from app.api.backup_api import router as backup_router
 
 # Router del RIS y Conectividad
@@ -68,9 +70,52 @@ from app.api.usuario_api import router as usuario_api
 # Servidor DICOM dinámico y Scheduler
 from app.services.dicom_service import reiniciar_servidor_dicom
 from app.crud.dicom_config_crud import get_config, create_default_config
-
-# 🚀 NUEVO: Importación del servicio encargado de planificar las tareas automáticas
 from app.services.scheduler_service import inicializar_scheduler
+
+
+# ---------------------------------------------------------
+# RUTINA MAESTRO: MIGRACIÓN AUTOMÁTICA EN CALIENTE (CERO DOWN-TIME)
+# ---------------------------------------------------------
+def auto_migrar_columnas_pacs():
+    """
+    Inspecciona las columnas físicas de la tabla 'pacientes' en disco.
+    Si el código tiene nuevos campos que la BD hospitalaria no conoce,
+    los inyecta de forma transparente sin alterar los datos existentes.
+    """
+    # Forzamos la creación del archivo de base de datos base si no existiera
+    Base.metadata.create_all(bind=engine)
+    
+    # Abrimos una conexión limpia para inspeccionar el estado real del disco
+    with engine.connect() as conn:
+        inspector = inspect(conn)
+        columnas_existentes = [c["name"] for c in inspector.get_columns("pacientes")]
+    
+    columnas_en_codigo = Paciente.__table__.columns
+    
+    # Abrimos una transacción directa sobre el motor de persistencia
+    with engine.begin() as conexion:
+        for columna in columnas_en_codigo:
+            if columna.name not in columnas_existentes:
+                print(f"🚀 [MIGRACIÓN AUTOMÁTICA RIS] Detectado nuevo campo clínico en el código: '{columna.name}'")
+                
+                tipo_sql = "TEXT"
+                if str(columna.type) == "INTEGER":
+                    tipo_sql = "INTEGER"
+                elif str(columna.type) == "BOOLEAN":
+                    tipo_sql = "BOOLEAN DEFAULT 1"
+                elif str(columna.type) == "DATE":
+                    tipo_sql = "DATE"
+                
+                conexion.execute(text(f"ALTER TABLE pacientes ADD COLUMN {columna.name} {tipo_sql}"))
+                print(f"✅ Campo '{columna.name}' unificado con éxito en la base de datos de producción.")
+
+
+# 🛡️ PROTECCIÓN DE ARRANQUE CRÍTICO: Ejecutamos el escudo antes que cualquier lógica de FastAPI
+try:
+    auto_migrar_columnas_pacs()
+except Exception as e:
+    print(f"⚠️ Alerta controlada durante el auto-parcheo de tablas: {e}")
+
 
 # ---------------------------------------------------------
 # GESTOR DE CONEXIONES EN TIEMPO REAL (WEBSOCKETS)
@@ -104,7 +149,6 @@ app = FastAPI(
     version=settings.API_VERSION,
 )
 
-# 🔥 AJUSTE DE CORS: Cambiado a "*" para permitir acceso total desde tabletas y red local
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -112,9 +156,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 2. CREACIÓN DE TABLAS
-Base.metadata.create_all(bind=engine)
 
 # ---------------------------------------------------------
 # ENDPOINT WEBSOCKET PARA EL FRONTEND
@@ -164,8 +205,6 @@ app.include_router(dicom_config_api.router, prefix="/api/dicom", tags=["Configur
 app.include_router(dicom_modalities_router)
 app.include_router(tecnologo_api, prefix="/api")
 app.include_router(admin_config_router)
-
-# 🚀 NUEVO: Registro del router encargado de administrar las copias de seguridad selectivas
 app.include_router(backup_router, prefix="/api", tags=["Gestión de Backups"])
 
 @app.post("/api/notify-new-study")
@@ -193,7 +232,6 @@ def startup_event():
         print(f"🔵 Iniciando Servidor DICOM → AE={config.ae_title}, Puerto={config.port}")
         reiniciar_servidor_dicom(config.ae_title, config.port)
         
-        # 🚀 NUEVO: Arrancar el planificador automático a la 1:00 AM para NAS y envíos diferidos
         print("⏰ Iniciando Planificador Automático (Rutina: 01:00 AM)")
         inicializar_scheduler()
 

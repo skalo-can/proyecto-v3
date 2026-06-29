@@ -5,6 +5,7 @@ Esquemas Pydantic para la gestión de pacientes dentro del sistema MI_PACS.
 Incluye:
 - Paciente clínico completo (frontend)
 - Paciente creado desde DICOM (flujo automático)
+- Esquema de control de flujo administrativo para re-dictado Maestro.
 """
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
@@ -33,6 +34,13 @@ class PacienteBase(BaseModel):
         default=None,
         example="paciente@correo.com",
         description="Correo electrónico del paciente"
+    )
+
+    # 📱 Campo inyectado para integraciones de SMS / WhatsApp
+    telefono: Optional[str] = Field(
+        default=None,
+        example="+573001234567",
+        description="Número de teléfono celular para alertas automatizadas"
     )
 
 
@@ -74,12 +82,13 @@ class PacienteUpdate(BaseModel):
     Datos opcionales para actualizar un paciente existente.
     """
 
-    primer_nombre: Optional[str]
-    segundo_nombre: Optional[str]
-    primer_apellido: Optional[str]
-    segundo_apellido: Optional[str]
-    email: Optional[EmailStr]
-    fecha_nacimiento: Optional[date]
+    primer_nombre: Optional[str] = None
+    segundo_nombre: Optional[str] = None
+    primer_apellido: Optional[str] = None
+    segundo_apellido: Optional[str] = None
+    email: Optional[EmailStr] = None
+    telefono: Optional[str] = None  # 👈 Inyectado para permitir actualizaciones en el modal
+    fecha_nacimiento: Optional[date] = None
 
 
 # ---------------------------------------------------------
@@ -101,6 +110,7 @@ class PacienteResponse(BaseModel):
 
     fecha_nacimiento: Optional[date]
     email: Optional[EmailStr]
+    telefono: Optional[str]  # 👈 Inyectado para que el GET exponga el teléfono al frontend
 
     activo: bool
     creado_en: datetime
@@ -128,3 +138,17 @@ class PacienteListItem(BaseModel):
     activo: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------
+# 🛡️ NUEVO SCHEMA: CONTROL DE FLUJO PARA ESTUDIOS DEL PACIENTE
+# ---------------------------------------------------------
+class PacienteFlujoAdminUpdate(BaseModel):
+    """
+    DTO Maestro para que el Administrador o SuperUsuario pueda cambiar el estado 
+    operativo de los estudios históricos y permitir el re-dictado médico.
+    """
+    forzar_estado_proceso: bool = Field(
+        default=True, 
+        description="Si es True, altera el flujo clínico para marcar el informe como pendiente y reactivar el micrófono."
+    )

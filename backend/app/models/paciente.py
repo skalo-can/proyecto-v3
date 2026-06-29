@@ -76,6 +76,15 @@ class Paciente(Base):
         doc="Correo electrónico del paciente (opcional)"
     )
 
+    # 📱 Teléfono celular para alertas SMS / WhatsApp (Agregado e indexado para búsquedas rápidas)
+    telefono: Mapped[str | None] = mapped_column(
+        String(20),
+        unique=False,
+        nullable=True,
+        index=True,
+        doc="Número telefónico celular del paciente para envío de reportes automatizados"
+    )
+
     # Hash de contraseña (vacío si viene de DICOM)
     password_hash: Mapped[str | None] = mapped_column(
         String(255),

@@ -1,11 +1,11 @@
 """
 paciente_service.py — MI_PACS
 Servicio clínico central para la gestión integral de pacientes.
-Optimizado para el Modo Maestro con unificación de esquemas de actualización.
+Optimizado para el Modo Maestro con unificación de esquemas de actualización y persistencia de alertas móviles.
 """
 
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import datetime, date
 import bcrypt
 
 from app.models.paciente import Paciente
@@ -16,12 +16,12 @@ from app.schemas.paciente import (
 
 
 # ---------------------------------------------------------
-# CREAR PACIENTE NORMAL (USADO POR EL FRONTEND)
+# CREAR PACIENTE NORMAL (USADO POR EL FRONTEND / RIS)
 # ---------------------------------------------------------
 def crear_paciente(db: Session, data: PacienteCreate) -> Paciente:
     """
-    Crea un registro de paciente desde el formulario de admisión del frontend.
-    Garantiza el hash de seguridad de la contraseña clínica de acceso.
+    Crea un registro de paciente desde el formulario de admisión del frontend o RIS.
+    Garantiza el hash de seguridad de la contraseña clínica de acceso y asocia el número móvil.
     """
     password_hash = bcrypt.hashpw(
         data.password.encode("utf-8"),
@@ -36,6 +36,7 @@ def crear_paciente(db: Session, data: PacienteCreate) -> Paciente:
         segundo_apellido=data.segundo_apellido,
         fecha_nacimiento=data.fecha_nacimiento,
         email=data.email,
+        telefono=data.telefono,  # 📱 Inyectado aquí para la persistencia de mensajería (SMS/WhatsApp)
         password_hash=password_hash,
         activo=True
     )
@@ -69,6 +70,7 @@ def crear_paciente_desde_dicom(db: Session, identificacion: str, nombre_completo
         segundo_apellido=None,
         fecha_nacimiento=date(1900, 1, 1),
         email=None,
+        telefono=None,  # 📱 Placeholder nulo por defecto en inyecciones automáticas de hardware
         password_hash="",  # No aplica para inyección directa por hardware
         activo=True
     )
@@ -113,8 +115,6 @@ def listar_pacientes(db: Session, limit: int = 50):
     )
 
 
-from datetime import datetime, date  # Asegúrate de tener este import arriba
-
 # ---------------------------------------------------------
 # ACTUALIZAR PACIENTE (SOPORTE DE CONVERSIÓN DE TIPOS)
 # ---------------------------------------------------------
@@ -122,6 +122,7 @@ def actualizar_paciente(db: Session, paciente_id: int, data: PacienteUpdate) -> 
     """
     Actualiza los campos de un paciente y convierte strings de fecha
     en objetos date nativos para cumplir con el modelo SQLAlchemy.
+    Soporta dinámicamente el guardado del nuevo campo telefónico.
     """
     paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
     if not paciente:
@@ -137,11 +138,10 @@ def actualizar_paciente(db: Session, paciente_id: int, data: PacienteUpdate) -> 
             update_data["fecha_nacimiento"] = datetime.strptime(update_data["fecha_nacimiento"], "%Y-%m-%d").date()
         except ValueError:
             print(f"⚠️ Formato de fecha inválido recibido: {update_data['fecha_nacimiento']}")
-            # Puedes optar por omitirla o manejarla si viene vacía
             if not update_data["fecha_nacimiento"]:
                 update_data["fecha_nacimiento"] = None
 
-    # Mapeo dinámico y seguro sobre las columnas del modelo
+    # Mapeo dinámico y seguro sobre las columnas del modelo (incluye el teléfono automáticamente)
     for campo, valor in update_data.items():
         if hasattr(paciente, campo):
             setattr(paciente, campo, valor)
@@ -154,6 +154,7 @@ def actualizar_paciente(db: Session, paciente_id: int, data: PacienteUpdate) -> 
         db.rollback()
         print(f"❌ Error crítico en persistencia SQL: {str(e)}")
         return None
+
 
 # ---------------------------------------------------------
 # ELIMINACIÓN LÓGICA (PRESERVACIÓN DE HISTORIAL DE ESTUDIOS)
