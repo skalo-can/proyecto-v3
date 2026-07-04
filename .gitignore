@@ -43,3 +43,29 @@ seed_files/**
 **/1.2.840.*
 backend/static/thumbnails/
 backend/static/thumbnails/**
+
+# Excluir audios de dictado clínico locales
+backend/static/audios_dictado/
+backend/static/audios_dictado/**
+
+# Excluir documentos y anexos clínicos (PDFs, escaneos, ofimática)
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.rtf
+
+# Excluir carpetas futuras dedicadas a los adjuntos y escaneos
+backend/static/adjuntos/
+backend/static/adjuntos/**
+backend/static/documentos/
+backend/static/documentos/**
+backend/static/escaneos/
+backend/static/escaneos/**
+
+# Excluir reportes transcritos y textos crudos generados por el dictado
+backend/static/reportes/
+backend/static/reportes/**
+backend/static/transcripciones/
+backend/static/transcripciones/**
