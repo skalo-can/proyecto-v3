@@ -31,9 +31,8 @@ from app.models.estudio_imagen import EstudioImagen
 from app.services.estudio_service import crear_estudio
 from app.schemas.estudio import EstudioCreate
 
-# 🎯 PREFIJO CORE UNIFICADO: Toda ruta aquí adentro colgará de /api/import
-router = APIRouter(prefix="/api/import", tags=["Importación DICOM"])
-router = APIRouter(prefix="/import", tags=["Importación DICOM"])
+# 🎯 PREFIJO CORE UNIFICADO: Ajustado para interceptar la ruta exacta del frontend
+router = APIRouter(tags=["Importación DICOM"])
 
 # Variable de control global para el ciclo de vida del explorador nativo
 explorador_bloqueo = False
@@ -219,9 +218,9 @@ def subproceso_abrir_explorador(resultado_compartido: dict):
 
 
 # ----------------------------------------------------------------------
-# 🔒 ENDPOINT BLINDADO CON JWT Y RUTA UNIFICADA LIMPIA (/api/import/disco-externo)
+# 🔒 ENDPOINT BLINDADO CON JWT Y RUTA UNIFICADA LIMPIA (/api/pacientes/import/disco-externo)
 # ----------------------------------------------------------------------
-@router.post("/disco-externo")
+@router.post("/importacion-fisica/disco-externo")
 def importar_desde_disco_manual(
     background_tasks: BackgroundTasks,
     usuario=Depends(obtener_usuario_actual)  # 🔐 Reestablecemos el candado de sesión
@@ -260,17 +259,25 @@ def importar_desde_disco_manual(
         
     if not os.path.exists(ruta_final):
         raise HTTPException(status_code=400, detail="La ruta seleccionada no es accesible.")
+    
+    # Pre-conteo rápido de archivos válidos para enviar respuesta inmediata al frontend
+    conteo_archivos = 0
+    for root, _, files in os.walk(ruta_final):
+        for f in files:
+            if "." not in f or f.lower().endswith(".dcm"):
+                conteo_archivos += 1
         
     background_tasks.add_task(tarea_fondo_importacion_recursiva, ruta_final)
     
     return {
         "status": "success",
         "message": "Inyección iniciada de forma exitosa.",
+        "archivos_detectados": conteo_archivos,
         "ruta_processed": ruta_final
     }
 
 
-@router.post("/importar")
+@router.post("/pacientes/importar")
 def importar_dicom(usuario=Depends(obtener_usuario_actual), db: Session = Depends(get_db)):
     requiere_rol(usuario, ["admin", "tecnico"])
     archivos = list(INBOX.glob("*"))

@@ -4,7 +4,7 @@ MI_PACS — Backend principal con Soporte de Notificaciones Real-Time
 Optimizado con el Escudo Maestro de Migraciones Dinámicas Automáticas en Caliente.
 """
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -43,7 +43,7 @@ from app.api.paciente_email_api import router as paciente_email_router
 from app.api.reset_api import router as reset_router
 from app.api.dicom_import import router as dicom_import_router 
 from app.api.dicom_tools_api import router as dicom_tools_router
-from app.api.dicom_import_new_api import router as dicom_import_new_router
+#from app.api.dicom_import_new_api import router as dicom_import_new_router
 from app.api.dicom_stream_api import router as dicom_stream_router
 from app.api.stats_api import router as stats_router
 from app.api.dicom_advanced_tools_api import router as dicom_advanced_tools_router
@@ -186,7 +186,7 @@ app.include_router(paciente_email_router, prefix="/api")
 app.include_router(reset_router, prefix="/api")
 app.include_router(dicom_import_router, prefix="/api")
 app.include_router(dicom_tools_router, prefix="/api")
-app.include_router(dicom_import_new_router, prefix="/api")
+#app.include_router(dicom_import_new_router, prefix="/api")
 app.include_router(dicom_stream_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(dicom_advanced_tools_router, prefix="/api")
@@ -234,6 +234,32 @@ def startup_event():
         
         print("⏰ Iniciando Planificador Automático (Rutina: 01:00 AM)")
         inicializar_scheduler()
+
+# ---------------------------------------------------------
+# RECEPCIÓN DE AUDIO DE DICTADO MEDICO (FRONTEND)
+# ---------------------------------------------------------
+@app.post("/api/pacientes/{paciente_id}/guardar-audio")
+async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)):
+    try:
+        # 1. Crear carpeta para los audios si no existe dentro de 'static'
+        directorio_audios = os.path.join(static_dir, "audios_dictado")
+        os.makedirs(directorio_audios, exist_ok=True)
+        
+        # 2. Definir el nombre del archivo vinculado al ID del paciente
+        nombre_archivo = f"dictado_{paciente_id}.wav"
+        ruta_archivo = os.path.join(directorio_audios, nombre_archivo)
+        
+        # 3. Leer y guardar el audio físico que envió React
+        contenido = await audio.read()
+        with open(ruta_archivo, "wb") as f:
+            f.write(contenido)
+            
+        print(f"🎙️ [ÉXITO] Audio guardado para paciente ID {paciente_id} en: {ruta_archivo}")
+        return {"status": "success", "mensaje": "Dictado guardado correctamente"}
+        
+    except Exception as e:
+        print(f"❌ [ERROR] Fallo al guardar audio: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno al procesar el audio: {str(e)}")
 
 @app.get("/status")
 def status():
