@@ -103,7 +103,11 @@ def listar(
                         getattr(estudio_principal, "enviado_whatsapp", False)
 
         # 🧠 DETERMINACIÓN LÓGICA REFINADA DEL ESTADO PACS/RIS
-        if fue_entregado:
+        estado_bd = getattr(estudio_principal, "estado_pacs", None)
+        
+        if estado_bd == "Dictado":
+            estado_actual = "Dictado"
+        elif fue_entregado:
             estado_actual = "Entregado"
         elif esta_firmado:
             estado_actual = "Firmado"
@@ -114,6 +118,11 @@ def listar(
         else:
             es_externo = getattr(estudio_principal, "es_externo", True)
             estado_actual = "Importado" if es_externo else "Tomado"
+
+        # 🔄 Sincronización PROFUNDA: Si el estado calculado difiere del BD, actualizamos
+        if estado_bd != estado_actual:
+            estudio_principal.estado_pacs = estado_actual
+            db.commit()
 
         lista_mapeada.append({
             "id": p.id,
@@ -130,12 +139,9 @@ def listar(
             "fecha_estudio": estudio_principal.fecha_estudio.isoformat() if estudio_principal.fecha_estudio else "S/F",
             "tipo_estudio": estudio_principal.tipo_estudio if estudio_principal.tipo_estudio else "CR",
             "hora_estudio": hora_final,
-            
-            # 🔄 Sincronización del estado calculado de la Worklist
             "estado_pacs": estado_actual,
-            
             "flujo_clinico": {
-                "tiene_audio": tiene_audio,
+                "tiene_audio": tiene_audio or (estado_actual == "Dictado"),
                 "tiene_informe": tiene_informe,
                 "esta_firmado": esta_firmado,
                 "tiene_anexos": tiene_anexos,
@@ -250,4 +256,4 @@ def reabrir_flujo_estudio(paciente_id: int, control: PacienteFlujoAdminUpdate, d
 
 @router.delete("/{paciente_id}")
 def eliminar(paciente_id: int, db: Session = Depends(get_db)):
-    return eliminar_paciente(db=db, paciente_id=paciente_id)
+    return eliminar_paciente(db=db, paciente_id=paciente_id) 

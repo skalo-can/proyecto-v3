@@ -238,28 +238,58 @@ def startup_event():
 # ---------------------------------------------------------
 # RECEPCIÓN DE AUDIO DE DICTADO MEDICO (FRONTEND)
 # ---------------------------------------------------------
+from fastapi.responses import FileResponse
+
+@app.get("/api/pacientes/{paciente_id}/audio")
+async def obtener_audio_paciente(paciente_id: int):
+    directorio_audios = os.path.join(static_dir, "audios_dictado")
+    ruta_archivo = os.path.join(directorio_audios, f"dictado_{paciente_id}.wav")
+    
+    if os.path.exists(ruta_archivo):
+        return FileResponse(ruta_archivo, media_type="audio/wav")
+    else:
+        raise HTTPException(status_code=404, detail="Archivo de audio no encontrado")
+
 @app.post("/api/pacientes/{paciente_id}/guardar-audio")
 async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)):
+    # Definimos la variable localmente dentro del scope de la función
+    pid = paciente_id 
     try:
-        # 1. Crear carpeta para los audios si no existe dentro de 'static'
+        # 1. Crear carpeta
         directorio_audios = os.path.join(static_dir, "audios_dictado")
         os.makedirs(directorio_audios, exist_ok=True)
         
-        # 2. Definir el nombre del archivo vinculado al ID del paciente
-        nombre_archivo = f"dictado_{paciente_id}.wav"
+        # 2. Guardar archivo
+        nombre_archivo = f"dictado_{pid}.wav"
         ruta_archivo = os.path.join(directorio_audios, nombre_archivo)
-        
-        # 3. Leer y guardar el audio físico que envió React
-        contenido = await audio.read()
         with open(ruta_archivo, "wb") as f:
-            f.write(contenido)
+            f.write(await audio.read())
             
-        print(f"🎙️ [ÉXITO] Audio guardado para paciente ID {paciente_id} en: {ruta_archivo}")
-        return {"status": "success", "mensaje": "Dictado guardado correctamente"}
+        # 3. Persistencia en BD
+        db = SessionLocal()
+        try:
+            registro = db.query(Paciente).filter(Paciente.id == pid).first()
+            if registro:
+                registro.estado_pacs = "Dictado"
+            
+            estudio = db.query(Estudio).filter(Estudio.paciente_id == pid).first()
+            if estudio:
+                estudio.estado_pacs = "Dictado"
+            
+            db.commit()
+            print(f"✅ ÉXITO: Paciente {pid} actualizado.")
+        except Exception as db_err:
+            db.rollback()
+            print(f"❌ ERROR BD: {db_err}")
+        finally:
+            db.close()
+
+        await manager.notify_update()
+        return {"status": "success"}
         
     except Exception as e:
-        print(f"❌ [ERROR] Fallo al guardar audio: {e}")
-        raise HTTPException(status_code=500, detail=f"Error interno al procesar el audio: {str(e)}")
+        print(f"❌ ERROR GENERAL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/status")
 def status():

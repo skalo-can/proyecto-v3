@@ -76,6 +76,14 @@ class Estudio(Base):
         doc="Estado clínico del estudio (pendiente, procesado, etc.)"
     )
 
+    # 🚀 NUEVO: Campo para persistencia de estado de dictado
+    estado_pacs: Mapped[str | None] = mapped_column(
+        String(50),
+        default="Importado",
+        nullable=True,
+        doc="Estado persistente del dictado médico (Importado, Dictado, etc.)"
+    )
+
     # Relación con imágenes
     imagenes = relationship(
         "EstudioImagen",

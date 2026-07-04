@@ -7,6 +7,7 @@ import ModalDictadoHardware from "./ModalDictadoHardware";
 import ModalEdicionPaciente from "./ModalEdicionPaciente";
 import FiltrosPacientes from "./FiltrosPacientes";
 import TablaPacientes from "./TablaPacientes";
+import ModalTranscriptor from "../components/Modals/ModalTranscriptor";
 
 // Capa de Hooks y Utilidades independientes
 import { useAudioRecorder } from "./useAudioRecorder";
@@ -44,6 +45,9 @@ export default function Pacientes() {
   const [filtros, setFiltros] = useState({ 
     fechaDesde: "2020-01-01", fechaHasta: hoyStr, modalidad: "", busqueda: "" 
   });
+
+  const [modalTranscriptorOpen, setModalTranscriptorOpen] = useState(false);
+  const [transcriptorEstudioId, setTranscriptorEstudioId] = useState(null);
 
   // Consumo del Hook de Audio Aislado
   const audioRecorder = useAudioRecorder();
@@ -216,7 +220,7 @@ export default function Pacientes() {
     setSeleccionados([]);
   };
 
-const handleImportarDiscoExterno = async () => {
+  const handleImportarDiscoExterno = async () => {
     let tokenCrudo = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
     const tokenLimpio = tokenCrudo.replace(/['"]+/g, '').trim();
     
@@ -240,19 +244,16 @@ const handleImportarDiscoExterno = async () => {
       if (response.ok && data?.status === "success") {
         alert(`🚀 ¡Lectura de Disco Exitosa!\nSe detectaron ${data.archivos_detectados} archivos DICOM. Se están procesando en segundo plano sin congelar el sistema.`);
         
-        // 🔄 MAGIA AQUÍ: Auto-refresco inteligente
-        cargarDatos(); // Primera recarga inmediata
+        cargarDatos(); 
         
         let intentos = 0;
-        // Configuramos un temporizador que simula presionar el "Refresco Forzado" automáticamente
         const intervaloRefresco = setInterval(() => {
           cargarDatos();
           intentos++;
-          // Después de 5 recargas (15 segundos en total), detenemos el auto-refresco
           if (intentos >= 5) { 
             clearInterval(intervaloRefresco); 
           }
-        }, 3000); // Ejecuta el refresco cada 3000 milisegundos (3 segundos)
+        }, 3000); 
 
       } else if (data?.status === "cancelled") {
         console.log("Importación cancelada por el usuario.");
@@ -282,10 +283,18 @@ const handleImportarDiscoExterno = async () => {
   };
 
   const ejecutarPlayAudioTabla = (pacienteId) => {
-    const urlCargada = audiosClinicos[pacienteId];
+    let urlCargada = audiosClinicos[pacienteId];
+
+    // Si no está en la memoria temporal (porque recargaste la página), la construimos desde el backend
     if (!urlCargada) {
-      alert("ℹ️ No hay un dictado activo en búfer para reproducir. Registre el audio usando el botón 📝.");
-      return;
+      const pac = pacientes.find(p => p.id === pacienteId);
+      if (pac && (pac.estado_pacs === "Dictado" || (pac.flujo_clinico && pac.flujo_clinico.tiene_audio))) {
+      // Apuntamos a la ruta añadiendo un parámetro único para evitar la caché
+      urlCargada = `http://localhost:8000/api/pacientes/${pacienteId}/audio?t=${new Date().getTime()}`;
+      } else {
+        alert("ℹ️ No hay un dictado activo para reproducir. Registre el audio usando el botón 📝.");
+        return;
+      }
     }
 
     if (audioActualJugando === pacienteId) {
@@ -295,13 +304,21 @@ const handleImportarDiscoExterno = async () => {
       if (reproductorGlobalRef.current) reproductorGlobalRef.current.pause();
       const nuevoAudio = new Audio(urlCargada);
       reproductorGlobalRef.current = nuevoAudio;
-      nuevoAudio.play().catch(e => console.error("Fallo de audio:", e));
+      nuevoAudio.play().catch(e => {
+        console.error("Fallo de audio:", e);
+        alert("❌ El navegador no pudo reproducir el audio. Verifica si el archivo se guardó correctamente en el backend.");
+      });
       setAudioActualJugando(pacienteId);
 
       nuevoAudio.onended = () => {
         setAudioActualJugando(null);
       };
     }
+  };
+
+  const abrirModalTranscriptor = (id) => {
+    setTranscriptorEstudioId(id);
+    setModalTranscriptorOpen(true);
   };
 
   return (
@@ -320,7 +337,6 @@ const handleImportarDiscoExterno = async () => {
 
         <div style={styles.barraMedios}>
           <div style={{ display: 'flex', gap: '10px' }}>
-            {/* RESTAURADOS LOS COLORES DINÁMICOS Y CLASES */}
             <button 
               onClick={handleImportarDiscoExterno} 
               disabled={importando} 
@@ -351,6 +367,7 @@ const handleImportarDiscoExterno = async () => {
             solicitarOrdenamiento={solicitarOrdenamiento} renderIconoOrden={renderIconoOrden} audiosClinicos={audiosClinicos}
             audioActualJugando={audioActualJugando} ejecutarPlayAudioTabla={ejecutarPlayAudioTabla} estudiosAutorizados={estudiosAutorizados}
             abrirModuloDictado={abrirModuloDictado} abrirEditorPaciente={abrirEditorPaciente} handleReabrirFlujoEstudio={handleReabrirFlujoEstudio}
+            abrirModalTranscriptor={abrirModalTranscriptor}
           />
         </div>
       </main>
@@ -358,7 +375,11 @@ const handleImportarDiscoExterno = async () => {
       <ModalEdicionPaciente isOpen={modalEditOpen} formEdit={formEdit} setFormEdit={setFormEdit} onCancelar={() => setModalEditOpen(false)} onGuardar={handleGuardarEdicion} />
 
       <ModalDictadoHardware 
-        isOpen={modalDictadoOpen} paciente={pacienteDictando} estaGrabando={audioRecorder.estaGrabando} volumenVoz={audioRecorder.volumenVoz} audioUrl={audioRecorder.audioUrl}
+        isOpen={modalDictadoOpen} 
+        paciente={pacienteDictando} 
+        estaGrabando={audioRecorder.estaGrabando} 
+        volumenVoz={audioRecorder.volumenVoz} 
+        audioUrl={audioRecorder.audioUrl}
         onIniciar={audioRecorder.iniciarGrabacionHardware}
         onPausarReanudar={() => audioRecorder.estaGrabando ? audioRecorder.pausarGrabacionHardware() : audioRecorder.reanudarGrabacionHardware()}
         onDescartar={() => { audioRecorder.detenerGrabacionHardware(true); setModalDictadoOpen(false); }}
@@ -376,35 +397,49 @@ const handleImportarDiscoExterno = async () => {
           const conteoActual = parseInt(localStorage.getItem("firmas_medico") || "0");
           localStorage.setItem("firmas_medico", (conteoActual + 1).toString());
 
+          // 1. Cambio visual inmediato en la tabla
           setPacientes(prev => prev.map(item => {
             if (item.id === idDestino) {
               return {
                 ...item,
-                estado_pacs: "Dictado", 
-                flujo_clinico: { ...item.flujo_clinico, tiene_audio: true }
+                estado_pacs: "Dictado"
               };
             }
             return item;
           }));
 
           setModalDictadoOpen(false);
-          setPacienteDictando(null);
 
+          // 2. Envío del archivo al servidor (El backend se encarga del resto)
           if (blobParaEnviar) {
             const formData = new FormData();
             formData.append("audio", blobParaEnviar, `dictado_${idDestino}.wav`);
             try {
+              // Esta llamada guarda el audio y cambia el estado a "Dictado" en Python
               await fetch(`http://localhost:8000/api/pacientes/${idDestino}/guardar-audio`, {
                 method: "POST",
                 body: formData
               });
+              
+              // Limpiamos el flujo con éxito
+              setPacienteDictando(null);
             } catch (err) {
-              console.error("Fallo de red:", err);
+              console.error("Fallo de red al enviar dictado:", err);
             }
           }
-          alert("💾 Dictado finalizado con éxito. Vinculado a la estadística de productividad del radiólogo.");
-        }} 
+        }}
+        />
+
+      <ModalTranscriptor 
+        visible={modalTranscriptorOpen} 
+        onClose={() => setModalTranscriptorOpen(false)} 
+        estudioId={transcriptorEstudioId}
+        onSave={() => {
+          alert("Transcripción guardada con éxito.");
+          cargarDatos();
+        }}
       />
+
     </div>
   );
 }

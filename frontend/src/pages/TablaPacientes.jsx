@@ -144,6 +144,25 @@ export default function TablaPacientes({
                       {estaEscuchandoEste ? "⏸️" : "🎙️"}
                     </button>
 
+                    {(p.estado_pacs === "Dictado" || audiosClinicos[p.id] || (flujo && flujo.tiene_audio)) && (
+                    <button 
+                      onClick={() => abrirModalTranscriptor(p.id)}
+                      style={{
+                        background: '#8b5cf6', 
+                        color: '#fff', 
+                        border: 'none', 
+                        padding: '8px 12px', 
+                        borderRadius: '6px', 
+                        cursor: 'pointer',
+                        marginLeft: '5px',
+                        fontWeight: 'bold'
+                      }}
+                      title="Transcribir Estudio"
+                    >
+                      ✍️ Transcribir
+                    </button>
+                    )}
+
                     <button 
                       onClick={() => abrirModuloDictado(p.id)}
                       style={{
@@ -157,6 +176,7 @@ export default function TablaPacientes({
                     >
                       📝
                     </button>
+
                     <span style={{...styles.iconFlujoBase, color: flujo.esta_firmado ? "#10b981" : "#475569", opacity: flujo.esta_firmado ? 1 : 0.3}}>✍️</span>
                     <span style={{...styles.iconFlujoBase, color: flujo.tiene_anexos ? "#a855f7" : "#475569", opacity: flujo.tiene_anexos ? 1 : 0.3}}>📎</span>
                   </div>
