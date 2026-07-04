@@ -28,7 +28,9 @@ export default function TablaPacientes({
               checked={pacientes.length > 0 && seleccionados.length === pacientes.length} 
             />
           </th>
-          <th style={styles.thStyle}>ESTADO</th>
+          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("estado_pacs")}>
+            ESTADO {renderIconoOrden("estado_pacs")}
+          </th>
           <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>
             ID PACIENTE {renderIconoOrden("id")}
           </th>
@@ -36,7 +38,9 @@ export default function TablaPacientes({
             1ER APELLIDO {renderIconoOrden("paciente")}
           </th>
           <th style={styles.thStyle}>2DO APELLIDO</th>
-          <th style={styles.thStyle}>1ER NOMBRE</th>
+          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("primer_nombre")}>
+            1ER NOMBRE {renderIconoOrden("primer_nombre")}
+          </th>
           <th style={styles.thStyle}>2DO NOMBRE</th>
           <th style={styles.thStyle}>EMAIL CORREO</th>
           <th style={styles.thStyle}>TELÉFONO / WHATSAPP</th>
@@ -45,8 +49,12 @@ export default function TablaPacientes({
             FECHA ESTUDIO {renderIconoOrden("fecha")}
           </th> 
           <th style={styles.thStyle}>SEXO</th>
-          <th style={styles.thStyle}>MODALIDAD</th>
-          <th style={styles.thStyle}>DEPTO.</th>
+          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("modalidad")}>
+            MODALIDAD {renderIconoOrden("modalidad")}
+          </th>
+          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("departamento")}>
+            DEPTO. {renderIconoOrden("departamento")}
+          </th>
           <th style={styles.thStyle}>EDITAR</th>
           <th style={styles.thStyle}>VISOR</th>
         </tr>
