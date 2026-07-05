@@ -19,6 +19,14 @@ export default function TablaPacientes({
   abrirModalTranscriptor,
   abrirModalFirma 
 }) {
+
+  // 🚀 NUEVA FUNCIÓN: Abrir el PDF en una nueva pestaña
+  const abrirPDF = (idReal) => {
+    // Apunta a la carpeta estática del backend que expusimos en main.py
+    const urlPDF = `http://localhost:8000/static/pdf_reports/Reporte_${idReal}.pdf`;
+    window.open(urlPDF, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <table style={styles.tableStyle}>
       <thead style={styles.theadStyle}>
@@ -71,7 +79,7 @@ export default function TablaPacientes({
           </tr>
         ) : (
           pacientes.map((p) => {
-            const idReal = p.identificacion || p.id_paciente || "S/I";
+            const idReal = p.identificacion || p.id_paciente || p.id || "S/I";
             const primerNombre = p.primer_nombre || "";
             const segundoNombre = p.segundo_nombre || "-";
             const primerApellido = p.primer_apellido || "Desconocido";
@@ -128,7 +136,7 @@ export default function TablaPacientes({
                   <div style={styles.containerFlujo}>
                     {/* 🛡️ CONTROL DE ACCIONES SEPARADO Y BLINDADO POR ESTADO REAL */}
                     
-                    {/* ESTADO 1: PACIENTE DISPONIBLE PARA GRABACIÓN (Importado o Tomado) */}
+                    {/* ESTADO 1: PACIENTE DISPONIBLE PARA GRABACIÓN */}
                     {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && (
                       <button 
                         onClick={() => abrirModuloDictado(p.id)}
@@ -151,7 +159,7 @@ export default function TablaPacientes({
                       </button>
                     )}
 
-                    {/* ESTADO 2: PACIENTE YA DICTADO (Modo Reproducción del audio + Botón Transcribir) */}
+                    {/* ESTADO 2: PACIENTE YA DICTADO */}
                     {p.estado_pacs === "Dictado" && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                         <button 
@@ -191,7 +199,7 @@ export default function TablaPacientes({
                       </div>
                     )}
 
-                    {/* ESTADO 3: PACIENTE YA TRANSCRITO (Modo Validación y Firma) */}
+                    {/* ESTADO 3: PACIENTE YA TRANSCRITO */}
                     {p.estado_pacs === "Transcrito" && (
                       <button 
                         onClick={() => abrirModalFirma(p.id)}
@@ -210,11 +218,36 @@ export default function TablaPacientes({
                       </button>
                     )}
 
-                    {/* ESTADO 4: PACIENTE FIRMADO (Ciclo cerrado) */}
+                    {/* ESTADO 4: PACIENTE FIRMADO (Ciclo cerrado + Botón PDF) */}
                     {p.estado_pacs === "Firmado" && (
-                      <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center", gap: "4px" }}>
-                        ✅ Completado
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center", gap: "4px" }}>
+                          ✅ Completado
+                        </span>
+                        
+                        {/* 🚀 BOTÓN VISOR PDF INYECTADO AQUÍ */}
+                        <button 
+                          onClick={() => abrirPDF(idReal)}
+                          style={{
+                            padding: "4px 10px",
+                            backgroundColor: "#334155",
+                            color: "#fff",
+                            border: "1px solid #475569",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            transition: "background-color 0.2s"
+                          }}
+                          title="Ver Reporte PDF"
+                          onMouseEnter={(e) => e.target.style.backgroundColor = "#475569"}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = "#334155"}
+                        >
+                          📄 Ver PDF
+                        </button>
+                      </div>
                     )}
                   </div>
                 </td>

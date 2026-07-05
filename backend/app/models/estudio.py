@@ -14,6 +14,8 @@ from datetime import date
 from app.core.database import Base
 from app.schemas.estudio import EstadoEstudio
 
+from app.models.reporte import Reporte
+
 
 class Estudio(Base):
     __tablename__ = "estudios"
@@ -140,3 +142,13 @@ class Estudio(Base):
         doc="Logs generados por los módulos de IA asociados al estudio"
     )
     
+    # ---------------------------------------------------------
+    # RELACIÓN CON EL REPORTE PDF OFICIAL (MÓDULO DE ENTREGA)
+    # ---------------------------------------------------------
+    reporte = relationship(
+        "Reporte",
+        back_populates="estudio",
+        uselist=False,  # uselist=False le dice a SQLAlchemy que es una relación estricta 1-a-1
+        cascade="all, delete-orphan",
+        doc="Reporte oficial en PDF asociado a este estudio"
+    )

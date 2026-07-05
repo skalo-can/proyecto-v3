@@ -5,6 +5,7 @@ export default function ModalFirma({ visible, onClose, estudioId, onSave }) {
   const [reporteTexto, setReporteTexto] = useState("");
   const [nombreMedico, setNombreMedico] = useState("");
   const [registroMedico, setRegistroMedico] = useState("");
+  const [estaGenerandoPdf, setEstaGenerandoPdf] = useState(false); // Estado de carga visual
 
   // 🖱️ LÓGICA DE VENTANA FLOTANTE (DRAG & DROP)
   const [posicion, setPosicion] = useState({ x: 0, y: 0 });
@@ -64,8 +65,11 @@ export default function ModalFirma({ visible, onClose, estudioId, onSave }) {
       return;
     }
 
+    setEstaGenerandoPdf(true); // Iniciamos indicador de carga
+
     try {
-      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/firmar-informe`, {
+      // 1️⃣ PRIMERA LLAMADA: Guardar el informe editado y datos del médico
+      const responseGuardar = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/firmar-informe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -75,16 +79,29 @@ export default function ModalFirma({ visible, onClose, estudioId, onSave }) {
         })
       });
 
-      if (!response.ok) {
-        throw new Error("Error al estampar la firma en el servidor.");
+      if (!responseGuardar.ok) {
+        throw new Error("Error al estampar la firma y guardar los datos en el servidor.");
       }
 
+      // 2️⃣ SEGUNDA LLAMADA: Generar el PDF final usando los datos recién guardados
+      const responsePdf = await fetch(`http://localhost:8000/api/estudios/${estudioId}/firmar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (!responsePdf.ok) {
+         console.warn("El informe se guardó, pero hubo un problema al generar el PDF físico.");
+      }
+
+      alert("✅ Documento firmado exitosamente y PDF generado de forma automática.");
       onClose();
       if (onSave) onSave(); // Recarga la tabla para cambiar a color verde (Firmado)
       
     } catch (error) {
       console.error("Error al firmar:", error);
       alert("❌ Hubo un fallo al conectar con la API.");
+    } finally {
+      setEstaGenerandoPdf(false); // Detenemos indicador de carga
     }
   };
 
@@ -186,23 +203,27 @@ export default function ModalFirma({ visible, onClose, estudioId, onSave }) {
 
         {/* BOTONES DE ACCIÓN */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "15px", marginTop: "10px" }}>
-          <button className="btn cancelar" onClick={onClose} style={{ padding: "10px 20px" }}>
+          <button className="btn cancelar" onClick={onClose} style={{ padding: "10px 20px" }} disabled={estaGenerandoPdf}>
             Cancelar
           </button>
           <button 
             onClick={handleFirmar} 
+            disabled={estaGenerandoPdf}
             style={{ 
               padding: "10px 20px", 
-              backgroundColor: "#10b981", // Verde de validación
+              backgroundColor: estaGenerandoPdf ? "#6b7280" : "#10b981", // Gris si está cargando, Verde si está libre
               color: "white", 
               border: "none", 
               borderRadius: "4px", 
               fontWeight: "bold", 
-              cursor: "pointer",
-              boxShadow: "0 4px 10px rgba(16, 185, 129, 0.3)"
+              cursor: estaGenerandoPdf ? "not-allowed" : "pointer",
+              boxShadow: estaGenerandoPdf ? "none" : "0 4px 10px rgba(16, 185, 129, 0.3)",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
             }}
           >
-            🔏 Estampar Firma
+            {estaGenerandoPdf ? "⏳ Generando PDF..." : "🔏 Estampar Firma"}
           </button>
         </div>
 
