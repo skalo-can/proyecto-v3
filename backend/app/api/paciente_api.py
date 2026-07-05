@@ -105,15 +105,17 @@ def listar(
         # 🧠 DETERMINACIÓN LÓGICA REFINADA DEL ESTADO PACS/RIS
         estado_bd = getattr(estudio_principal, "estado_pacs", None)
         
-        if estado_bd == "Dictado":
-            estado_actual = "Dictado"
+        # 🛡️ CAPTURA ROBUSTA: Comprobamos si es "Firmado", True, o el entero 1 (comportamiento nativo de SQLite)
+        valor_firmado = getattr(estudio_principal, "esta_firmado", False)
+        es_estudio_firmado = estado_bd == "Firmado" or valor_firmado is True or valor_firmado == 1 or valor_firmado == "1"
+
+        if es_estudio_firmado:
+            estado_actual = "Firmado"
         elif fue_entregado:
             estado_actual = "Entregado"
-        elif esta_firmado:
-            estado_actual = "Firmado"
-        elif tiene_informe:
+        elif estado_bd == "Transcrito" or tiene_informe:
             estado_actual = "Transcrito"
-        elif tiene_audio:
+        elif estado_bd == "Dictado" or tiene_audio:
             estado_actual = "Dictado"
         else:
             es_externo = getattr(estudio_principal, "es_externo", True)
@@ -256,4 +258,87 @@ def reabrir_flujo_estudio(paciente_id: int, control: PacienteFlujoAdminUpdate, d
 
 @router.delete("/{paciente_id}")
 def eliminar(paciente_id: int, db: Session = Depends(get_db)):
-    return eliminar_paciente(db=db, paciente_id=paciente_id) 
+    return eliminar_paciente(db=db, paciente_id=paciente_id)
+
+from pydantic import BaseModel
+
+class TranscripcionInput(BaseModel):
+    informe: str
+
+@router.post("/{paciente_id}/guardar-transcripcion")
+def guardar_transcripcion(paciente_id: int, datos: TranscripcionInput, db: Session = Depends(get_db)):
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+    if not estudio:
+        raise HTTPException(status_code=404, detail="Estudio clínico no localizado")
+        
+    try:
+        # 1. Almacenar el informe de texto de forma redundante para asegurar la lectura de listar()
+        estudio.informe_texto = datos.informe
+        estudio.estado_pacs = "Transcrito"
+        
+        # 2. Forzar las banderas físicas que la base de datos lee en el bucle 'for p in resultados'
+        setattr(estudio, "tiene_transcripcion", True)
+        setattr(estudio, "tiene_dictado", False)  # 🔒 Bloqueo de dictado a nivel base de datos
+        
+        db.commit()
+        return {"status": "success", "message": "Transcripción acoplada y bloqueo de seguridad activado."}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Fallo crítico en cadena de custodia: {str(e)}")
+    
+    # ---------------------------------------------------------
+    # ENDPOINTS PARA REVISIÓN Y FIRMA DIGITAL
+    # ---------------------------------------------------------
+class FirmaInput(BaseModel):
+    informe_final: str
+    medico_firma: str
+    registro_medico: str
+
+@router.get("/{paciente_id}/obtener-transcripcion")
+def obtener_transcripcion(paciente_id: int, db: Session = Depends(get_db)):
+    """
+    Retorna el informe del estudio principal mapeado para la tabla.
+    """
+    # Buscamos el primer estudio vinculado al paciente (idéntico a la lógica del listado principal)
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+    
+    if not estudio:
+        return {"informe_texto": ""}
+        
+    texto_informe = getattr(estudio, "informe_texto", "") or ""
+    return {
+        "informe_texto": texto_informe,
+        "informe_text": texto_informe,
+        "texto": texto_informe
+    }
+
+
+@router.post("/{paciente_id}/firmar-informe")
+def firmar_informe(paciente_id: int, datos: FirmaInput, db: Session = Depends(get_db)):
+    """
+    Guarda los datos en el estudio principal y muta el estado permanentemente.
+    """
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+    if not estudio:
+        raise HTTPException(status_code=404, detail="Estudio clínico no localizado")
+        
+    try:
+        # 1. Guardar el informe de texto y actualizar el estado PACS en caliente
+        estudio.informe_texto = datos.informe_final
+        estudio.estado_pacs = "Firmado"
+        
+        # 2. Inyección de propiedades del Radiólogo de forma directa y a través de atributos
+        setattr(estudio, "esta_firmado", True)
+        setattr(estudio, "tiene_transcripcion", True)
+        setattr(estudio, "tiene_dictado", False)
+        
+        if hasattr(estudio, "medico_firma"): setattr(estudio, "medico_firma", datos.medico_firma)
+        if hasattr(estudio, "registro_medico"): setattr(estudio, "registro_medico", datos.registro_medico)
+
+        db.commit()
+        return {"status": "success", "message": "Informe firmado digitalmente con éxito."}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Fallo al estampar firma digital: {str(e)}")

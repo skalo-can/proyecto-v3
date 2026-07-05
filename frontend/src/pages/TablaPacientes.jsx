@@ -15,7 +15,9 @@ export default function TablaPacientes({
   estudiosAutorizados,
   abrirModuloDictado,
   abrirEditorPaciente,
-  handleReabrirFlujoEstudio
+  handleReabrirFlujoEstudio,
+  abrirModalTranscriptor,
+  abrirModalFirma 
 }) {
   return (
     <table style={styles.tableStyle}>
@@ -82,11 +84,6 @@ export default function TablaPacientes({
             const horaReal = p.hora_estudio || "00:00";
 
             const estaSeleccionado = seleccionados.includes(p.id);
-            const flujo = p.flujo_clinico || { tiene_audio: false, tiene_informe: false, esta_firmado: false, tiene_anexos: false };
-
-            const tieneAudioSesion = !!audiosClinicos[p.id] || flujo.tiene_audio;
-            const estaEscuchandoEste = audioActualJugando === p.id;
-            const habilitadoParaDictado = !!estudiosAutorizados[p.id] || p.estado_pacs === "Tomado";
             const estiloMod = obtenerEstiloModalidad(mReal);
 
             return (
@@ -129,56 +126,96 @@ export default function TablaPacientes({
                 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
                   <div style={styles.containerFlujo}>
-                    <button 
-                      onClick={() => ejecutarPlayAudioTabla(p.id)}
-                      style={{
-                        ...styles.iconFlujoBase,
-                        color: estaEscuchandoEste ? "#10b981" : (tieneAudioSesion ? "#fbbf24" : "#475569"),
-                        backgroundColor: tieneAudioSesion ? "rgba(251,191,36,0.15)" : "transparent",
-                        border: tieneAudioSesion ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent",
-                        boxShadow: estaEscuchandoEste ? "0 0 10px #10b981" : (tieneAudioSesion ? "0 0 8px rgba(251,191,36,0.2)" : "none"),
-                        opacity: tieneAudioSesion ? 1 : 0.3,
-                        cursor: tieneAudioSesion ? "pointer" : "default"
-                      }}
-                    >
-                      {estaEscuchandoEste ? "⏸️" : "🎙️"}
-                    </button>
-
-                    {(p.estado_pacs === "Dictado" || audiosClinicos[p.id] || (flujo && flujo.tiene_audio)) && (
-                    <button 
-                      onClick={() => abrirModalTranscriptor(p.id)}
-                      style={{
-                        background: '#8b5cf6', 
-                        color: '#fff', 
-                        border: 'none', 
-                        padding: '8px 12px', 
-                        borderRadius: '6px', 
-                        cursor: 'pointer',
-                        marginLeft: '5px',
-                        fontWeight: 'bold'
-                      }}
-                      title="Transcribir Estudio"
-                    >
-                      ✍️ Transcribir
-                    </button>
+                    {/* 🛡️ CONTROL DE ACCIONES SEPARADO Y BLINDADO POR ESTADO REAL */}
+                    
+                    {/* ESTADO 1: PACIENTE DISPONIBLE PARA GRABACIÓN (Importado o Tomado) */}
+                    {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && (
+                      <button 
+                        onClick={() => abrirModuloDictado(p.id)}
+                        style={{
+                          ...styles.iconFlujoBase, 
+                          color: "#ef4444", 
+                          backgroundColor: "rgba(239,68,68,0.1)", 
+                          border: "1px solid rgba(239,68,68,0.2)", 
+                          cursor: "pointer",
+                          padding: "6px 12px",
+                          borderRadius: "4px",
+                          fontWeight: "bold",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px"
+                        }}
+                        title="Iniciar Dictado Médico (Grabación Nueva)"
+                      >
+                        🎙️ Grabar
+                      </button>
                     )}
 
-                    <button 
-                      onClick={() => abrirModuloDictado(p.id)}
-                      style={{
-                        ...styles.iconFlujoBase, 
-                        color: !habilitadoParaDictado ? "#475569" : (flujo.tiene_audio ? "#3b82f6" : "#ef4444"), 
-                        backgroundColor: !habilitadoParaDictado ? "transparent" : (flujo.tiene_audio ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.1)"), 
-                        border: !habilitadoParaDictado ? "1px solid transparent" : (flujo.tiene_audio ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(239,68,68,0.2)"), 
-                        cursor: habilitadoParaDictado ? "pointer" : "not-allowed",
-                        opacity: habilitadoParaDictado ? 1 : 0.35
-                      }}
-                    >
-                      📝
-                    </button>
+                    {/* ESTADO 2: PACIENTE YA DICTADO (Modo Reproducción del audio + Botón Transcribir) */}
+                    {p.estado_pacs === "Dictado" && (
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <button 
+                          onClick={() => ejecutarPlayAudioTabla(p.id)}
+                          style={{
+                            ...styles.iconFlujoBase, 
+                            color: "#3b82f6", 
+                            backgroundColor: "rgba(59,130,246,0.15)", 
+                            border: "1px solid rgba(59,130,246,0.3)", 
+                            cursor: "pointer",
+                            padding: "6px 12px",
+                            borderRadius: "4px",
+                            fontWeight: "bold",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px"
+                          }}
+                          title="Reproducir Dictado del Médico"
+                        >
+                          🔊 Play
+                        </button>
+                        
+                        <button 
+                          onClick={() => abrirModalTranscriptor(p.id)}
+                          style={{
+                            padding: "6px 12px",
+                            backgroundColor: "#8b5cf6",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontWeight: "bold"
+                          }}
+                        >
+                          ✍️ Transcribir
+                        </button>
+                      </div>
+                    )}
 
-                    <span style={{...styles.iconFlujoBase, color: flujo.esta_firmado ? "#10b981" : "#475569", opacity: flujo.esta_firmado ? 1 : 0.3}}>✍️</span>
-                    <span style={{...styles.iconFlujoBase, color: flujo.tiene_anexos ? "#a855f7" : "#475569", opacity: flujo.tiene_anexos ? 1 : 0.3}}>📎</span>
+                    {/* ESTADO 3: PACIENTE YA TRANSCRITO (Modo Validación y Firma) */}
+                    {p.estado_pacs === "Transcrito" && (
+                      <button 
+                        onClick={() => abrirModalFirma(p.id)}
+                        style={{
+                          padding: "6px 12px",
+                          backgroundColor: "#10b981",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontWeight: "bold",
+                          boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)"
+                        }}
+                      >
+                        🔏 Validar y Firmar
+                      </button>
+                    )}
+
+                    {/* ESTADO 4: PACIENTE FIRMADO (Ciclo cerrado) */}
+                    {p.estado_pacs === "Firmado" && (
+                      <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center", gap: "4px" }}>
+                        ✅ Completado
+                      </span>
+                    )}
                   </div>
                 </td>
 

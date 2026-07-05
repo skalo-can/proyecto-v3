@@ -84,6 +84,44 @@ class Estudio(Base):
         doc="Estado persistente del dictado médico (Importado, Dictado, etc.)"
     )
 
+    # ---------------------------------------------------------
+    # 📝 CAMPOS DEL FLUJO CLÍNICO (RADIÓLOGO Y TRANSCRIPTOR)
+    # ---------------------------------------------------------
+    informe_texto: Mapped[str | None] = mapped_column(
+        String(5000), 
+        nullable=True, 
+        doc="Texto completo de la transcripción del diagnóstico"
+    )
+    
+    audio_path: Mapped[str | None] = mapped_column(
+        String(255), 
+        nullable=True, 
+        doc="Ruta local del archivo de audio .wav del dictado"
+    )
+    
+    medico_firma: Mapped[str | None] = mapped_column(
+        String(100), 
+        nullable=True, 
+        doc="Nombre del médico radiólogo que valida el estudio"
+    )
+    
+    registro_medico: Mapped[str | None] = mapped_column(
+        String(50), 
+        nullable=True, 
+        doc="Registro médico (RM) del radiólogo"
+    )
+
+    # 🛡️ BANDERAS BOOLEANAS DE SEGURIDAD OPERACIONAL
+    tiene_dictado: Mapped[bool] = mapped_column(default=False, nullable=False)
+    tiene_transcripcion: Mapped[bool] = mapped_column(default=False, nullable=False)
+    esta_firmado: Mapped[bool] = mapped_column(default=False, nullable=False)
+    
+    # Banderas de entrega (Requeridas por tu paciente_api.py)
+    entregado: Mapped[bool] = mapped_column(default=False, nullable=False)
+    enviado_sms: Mapped[bool] = mapped_column(default=False, nullable=False)
+    enviado_email: Mapped[bool] = mapped_column(default=False, nullable=False)
+    enviado_whatsapp: Mapped[bool] = mapped_column(default=False, nullable=False)
+
     # Relación con imágenes
     imagenes = relationship(
         "EstudioImagen",

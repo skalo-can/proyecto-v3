@@ -8,6 +8,7 @@ import ModalEdicionPaciente from "./ModalEdicionPaciente";
 import FiltrosPacientes from "./FiltrosPacientes";
 import TablaPacientes from "./TablaPacientes";
 import ModalTranscriptor from "../components/Modals/ModalTranscriptor";
+import ModalFirma from "../components/Modals/ModalFirma"; // 👈 AGREGA ESTA LÍNEA
 
 // Capa de Hooks y Utilidades independientes
 import { useAudioRecorder } from "./useAudioRecorder";
@@ -48,6 +49,10 @@ export default function Pacientes() {
 
   const [modalTranscriptorOpen, setModalTranscriptorOpen] = useState(false);
   const [transcriptorEstudioId, setTranscriptorEstudioId] = useState(null);
+
+  // 🔒 ESTADOS DE CONTROL OPERATIVO PARA EL MÓDULO DE FIRMA DIGITAL
+  const [modalFirmaOpen, setModalFirmaOpen] = useState(false);
+  const [firmaEstudioId, setFirmaEstudioId] = useState(null);
 
   // Consumo del Hook de Audio Aislado
   const audioRecorder = useAudioRecorder();
@@ -362,12 +367,24 @@ export default function Pacientes() {
 
       <main style={styles.tableContainer}>
         <div style={styles.scrollWrapper} className="custom-pacs-scroll">
+          {/* 🛡️ CLAVE DINÁMICA: Forzamos el redibujado de la tabla al cambiar el volumen de datos o estados */}
           <TablaPacientes 
-            pacientes={pacientes} seleccionados={seleccionados} setSeleccionados={setSeleccionados} toggleSeleccionarPaciente={toggleSeleccionarPaciente}
-            solicitarOrdenamiento={solicitarOrdenamiento} renderIconoOrden={renderIconoOrden} audiosClinicos={audiosClinicos}
-            audioActualJugando={audioActualJugando} ejecutarPlayAudioTabla={ejecutarPlayAudioTabla} estudiosAutorizados={estudiosAutorizados}
-            abrirModuloDictado={abrirModuloDictado} abrirEditorPaciente={abrirEditorPaciente} handleReabrirFlujoEstudio={handleReabrirFlujoEstudio}
+            key={`tabla-pacs-${pacientes.length}-${pacientes.map(p => p.estado_pacs).join('-')}`}
+            pacientes={pacientes} 
+            seleccionados={seleccionados} 
+            setSeleccionados={setSeleccionados} 
+            toggleSeleccionarPaciente={toggleSeleccionarPaciente}
+            solicitarOrdenamiento={solicitarOrdenamiento} 
+            renderIconoOrden={renderIconoOrden} 
+            audiosClinicos={audiosClinicos}
+            audioActualJugando={audioActualJugando} 
+            ejecutarPlayAudioTabla={ejecutarPlayAudioTabla} 
+            estudiosAutorizados={estudiosAutorizados}
+            abrirModuloDictado={abrirModuloDictado} 
+            abrirEditorPaciente={abrirEditorPaciente} 
+            handleReabrirFlujoEstudio={handleReabrirFlujoEstudio}
             abrirModalTranscriptor={abrirModalTranscriptor}
+            abrirModalFirma={(id) => { setFirmaEstudioId(id); setModalFirmaOpen(true); }}
           />
         </div>
       </main>
@@ -388,58 +405,74 @@ export default function Pacientes() {
           const blobParaEnviar = audioRecorder.audioBlobReal;
           const urlAGuardar = audioRecorder.audioUrl;
           
+          // 1. Detener el hardware inmediatamente
           audioRecorder.detenerGrabacionHardware(false);
           
           if (urlAGuardar) {
             setAudiosClinicos(prev => ({ ...prev, [idDestino]: urlAGuardar }));
           }
 
+          // 🛡️ BLOQUEO PREVENTIVO EN CALIENTE:
+          // Forzamos que en la interfaz visual el estado cambie a "Dictado" YA MISMO,
+          // así el botón del micrófono de la fila se apaga antes de que responda el servidor.
+          // 🛡️ BLOQUEO PREVENTIVO EN CALIENTE CORREGIDO:
+          // Modificamos la raíz del paciente donde sí existe 'estado_pacs' de forma directa
+          setPacientes(prevPacientes => 
+            prevPacientes.map(p => 
+              p.id === idDestino 
+                ? { 
+                    ...p, 
+                    estado_pacs: "Dictado",
+                    flujo_clinico: { ...p.flujo_clinico, tiene_audio: true } 
+                  }
+                : p
+            )
+          );
+
           const conteoActual = parseInt(localStorage.getItem("firmas_medico") || "0");
           localStorage.setItem("firmas_medico", (conteoActual + 1).toString());
 
-          // 1. Cambio visual inmediato en la tabla
-          setPacientes(prev => prev.map(item => {
-            if (item.id === idDestino) {
-              return {
-                ...item,
-                estado_pacs: "Dictado"
-              };
-            }
-            return item;
-          }));
-
+          // 2. Cerrar la ventana emergente
           setModalDictadoOpen(false);
 
-          // 2. Envío del archivo al servidor (El backend se encarga del resto)
+          // 3. Envío del archivo de audio al servidor de forma asíncrona
           if (blobParaEnviar) {
             const formData = new FormData();
             formData.append("audio", blobParaEnviar, `dictado_${idDestino}.wav`);
             try {
-              // Esta llamada guarda el audio y cambia el estado a "Dictado" en Python
               await fetch(`http://localhost:8000/api/pacientes/${idDestino}/guardar-audio`, {
                 method: "POST",
                 body: formData
               });
               
-              // Limpiamos el flujo con éxito
+              // 🔄 Sincronización final con el servidor
+              cargarDatos(); 
               setPacienteDictando(null);
+
             } catch (err) {
               console.error("Fallo de red al enviar dictado:", err);
+              alert("❌ El audio no pudo ser guardado en el servidor. Intente de nuevo.");
             }
           }
         }}
         />
 
-      <ModalTranscriptor 
-        visible={modalTranscriptorOpen} 
-        onClose={() => setModalTranscriptorOpen(false)} 
-        estudioId={transcriptorEstudioId}
+        <ModalTranscriptor 
+          visible={modalTranscriptorOpen} 
+          onClose={() => setModalTranscriptorOpen(false)} 
+          estudioId={transcriptorEstudioId}
+          onSave={cargarDatos} // 👈 Cambiado: Ejecuta la recarga de la API en caliente inmediatamente
+        />
+
+      {/* 🔒 MONTAJE OPERATIVO DEL COMPONENTE DE FIRMA DIGITAL */}
+      <ModalFirma 
+        visible={modalFirmaOpen} 
+        onClose={() => setModalFirmaOpen(false)} 
+        estudioId={firmaEstudioId}
         onSave={() => {
-          alert("Transcripción guardada con éxito.");
-          cargarDatos();
+          cargarDatos(); // Refresca el repositorio clínico de inmediato
         }}
       />
-
     </div>
   );
 }
