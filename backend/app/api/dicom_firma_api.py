@@ -1,187 +1,69 @@
-"""
-firma_api.py — MI_PACS
----------------------------------------------------------
-Firma digital del reporte y generación de PDF clínico.
-"""
-
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from pathlib import Path
 from datetime import datetime
-
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+import os
 
 from app.core.database import get_db
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
-
 from app.models.estudio import Estudio
 from app.models.paciente import Paciente
-
+from app.services.generador_pdf import construir_reporte_pdf
 
 router = APIRouter(prefix="/estudios", tags=["Firma y PDF"])
+STATIC_PDF_PATH = Path("static/pdf_reports")
+STATIC_PDF_PATH.mkdir(parents=True, exist_ok=True)
 
+class DatosFirma(BaseModel):
+    medico_firma: str = ""
+    registro_medico: str = ""
 
-# ---------------------------------------------------------
-# RUTA BASE PARA PDF CLÍNICOS
-# ---------------------------------------------------------
-PDF_BASE_PATH = Path("reportes")
-PDF_BASE_PATH.mkdir(exist_ok=True)
-
-
-# ---------------------------------------------------------
-# 1) FIRMAR REPORTE (solo médico)
-# ---------------------------------------------------------
 @router.post("/{estudio_id}/firmar")
 def firmar_reporte_endpoint(
     estudio_id: int,
+    payload: DatosFirma = DatosFirma(), # 🚀 Evita errores si el frontend no lo envía
     usuario=Depends(obtener_usuario_actual),
     db: Session = Depends(get_db)
 ):
-    """
-    El médico firma digitalmente el reporte clínico.
-    Cambia el estado a 'firmado' y registra fecha/hora.
-    """
-
     requiere_rol(usuario, ["medico"])
-
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
+    paciente = db.query(Paciente).filter(Paciente.id == estudio.paciente_id).first()
+    texto_reporte = estudio.informe_final or getattr(estudio, 'reporte_texto', "")
 
-    if not estudio:
-        raise HTTPException(status_code=404, detail="Estudio no encontrado.")
+    # 🚀 SI LLEGA VACÍO, FORZAMOS UN TEXTO PARA SABER QUÉ FALLA
+    rm_final = payload.registro_medico or getattr(estudio, 'registro_medico', "")
+    if not rm_final or rm_final.strip() == "":
+        rm_final = "SIN REGISTRO MÉDICO (No llegó desde React)"
 
-    if not estudio.reporte_texto:
-        raise HTTPException(status_code=400, detail="No hay reporte para firmar.")
+    datos_para_pdf = {
+        "nombre_paciente": f"{paciente.primer_nombre} {paciente.primer_apellido}",
+        "id_paciente": paciente.identificacion,
+        "fecha_estudio": estudio.fecha_estudio.strftime("%Y-%m-%d") if estudio.fecha_estudio else "S/F",
+        "modalidad": estudio.modalidad or "CR",
+        "texto_diagnostico": texto_reporte,
+        "nombre_medico": payload.medico_firma or f"{usuario.primer_nombre} {usuario.primer_apellido}",
+        "registro_medico": rm_final 
+    }
 
-    fecha_firma = datetime.utcnow()
+    nombre_archivo = f"Reporte_{paciente.identificacion}.pdf"
+    ruta_fisica_salida = os.path.join(str(STATIC_PDF_PATH), nombre_archivo)
+
+    construir_reporte_pdf(datos_para_pdf, ruta_fisica_salida)
 
     estudio.reporte_estado = "firmado"
+    estudio.estado_pacs = "Firmado"
     estudio.firmado_por = usuario.id
-    estudio.firmado_en = fecha_firma
+    estudio.firmado_en = datetime.utcnow()
+    estudio.reporte_pdf_path = f"/static/pdf_reports/{nombre_archivo}"
 
     db.commit()
-    db.refresh(estudio)
+    return {"status": "success", "pdf_path": estudio.reporte_pdf_path}
 
-    return {
-        "message": "Reporte firmado correctamente.",
-        "firmado_en": fecha_firma
-    }
-
-
-# ---------------------------------------------------------
-# 2) GENERAR PDF DEL REPORTE (solo médico)
-# ---------------------------------------------------------
-@router.post("/{estudio_id}/generar_pdf")
-def generar_pdf_endpoint(
-    estudio_id: int,
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    """
-    Genera un PDF clínico con:
-    - Datos del paciente
-    - Datos del estudio
-    - Texto del reporte
-    - Firma del médico
-    """
-
-    requiere_rol(usuario, ["medico"])
-
-    estudio = (
-        db.query(Estudio)
-        .filter(Estudio.id == estudio_id)
-        .first()
-    )
-
-    if not estudio:
-        raise HTTPException(status_code=404, detail="Estudio no encontrado.")
-
-    if not estudio.reporte_texto:
-        raise HTTPException(status_code=400, detail="No hay reporte para generar PDF.")
-
-    paciente = db.query(Paciente).filter(Paciente.id == estudio.paciente_id).first()
-
-    if not paciente:
-        raise HTTPException(status_code=404, detail="Paciente no encontrado.")
-
-    # Crear ruta del PDF
-    pdf_path = PDF_BASE_PATH / f"reporte_estudio_{estudio_id}.pdf"
-
-    # Crear PDF clínico
-    c = canvas.Canvas(str(pdf_path), pagesize=letter)
-    c.setFont("Helvetica", 12)
-
-    y = 750
-    c.drawString(50, y, "REPORTE RADIOLÓGICO")
-    y -= 40
-
-    c.drawString(50, y, f"Paciente: {paciente.primer_nombre} {paciente.primer_apellido}")
-    y -= 20
-    c.drawString(50, y, f"Identificación: {paciente.identificacion}")
-    y -= 20
-    c.drawString(50, y, f"Fecha de nacimiento: {paciente.fecha_nacimiento}")
-    y -= 40
-
-    c.drawString(50, y, "REPORTE:")
-    y -= 20
-
-    # Texto multilínea
-    for linea in estudio.reporte_texto.split("\n"):
-        c.drawString(50, y, linea)
-        y -= 15
-
-    y -= 30
-    c.drawString(50, y, f"Firmado por (ID médico): {estudio.firmado_por}")
-    y -= 20
-    c.drawString(50, y, f"Fecha de firma: {estudio.firmado_en}")
-
-    c.save()
-
-    # Guardar ruta en BD
-    estudio.reporte_pdf_path = str(pdf_path)
-    db.commit()
-    db.refresh(estudio)
-
-    return {
-        "message": "PDF generado correctamente.",
-        "pdf_path": str(pdf_path)
-    }
-
-
-# ---------------------------------------------------------
-# 3) DESCARGAR PDF (médico o paciente dueño del estudio)
-# ---------------------------------------------------------
 @router.get("/{estudio_id}/pdf")
-def descargar_pdf_endpoint(
-    estudio_id: int,
-    usuario=Depends(obtener_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    """
-    Devuelve el PDF clínico generado.
-
-    Permisos:
-    - médico
-    - paciente (solo si es su estudio)
-    """
-
+def descargar_pdf_endpoint(estudio_id: int, usuario=Depends(obtener_usuario_actual), db: Session=Depends(get_db)):
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
-
-    if not estudio:
-        raise HTTPException(status_code=404, detail="Estudio no encontrado.")
-
-    # Validación de acceso
-    if usuario.rol == "paciente" and usuario.id != estudio.paciente_id:
-        raise HTTPException(status_code=403, detail="Acceso denegado.")
-
-    if not estudio.reporte_pdf_path:
-        raise HTTPException(status_code=404, detail="No hay PDF generado.")
-
-    pdf_path = Path(estudio.reporte_pdf_path)
-
-    if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="El archivo PDF no existe.")
-
-    return FileResponse(str(pdf_path), media_type="application/pdf")
+    ruta_limpia = estudio.reporte_pdf_path.lstrip("/")
+    return FileResponse(str(Path(ruta_limpia)), media_type="application/pdf")

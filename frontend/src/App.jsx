@@ -26,9 +26,12 @@ import Productividad from "./pages/Productividad";
 import TecnologoConsole from "./pages/TecnologoConsole";
 import GestionUsuarios from "./pages/GestionUsuarios";
 import BackupConfigPage from "./pages/BackupConfigPage";
-
-// 🚀 IMPORTAMOS SU NUEVO PORTAL
 import { PortalPaciente } from "./components/PortalPaciente/PortalPaciente";
+
+// 🚀 IMPORTACIONES PARA MÓDULOS MULTIMONITOR
+import ModalDictadoHardware from "./pages/ModalDictadoHardware";
+import ModalTranscriptor from "./components/Modals/ModalTranscriptor";
+import ModalFirma from "./components/Modals/ModalFirma";
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, loading, user } = useAuth();
@@ -49,7 +52,7 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
-// 🔥 LAYOUT INTELIGENTE: Eliminamos el flasheo con una validación de 'loading'
+// 🔥 LAYOUT INTELIGENTE
 function Layout({ children, onOpenDicom }) {
   const [sidebarOpen, setSidebarOpen] = useState(false); 
   const { user, loading } = useAuth(); 
@@ -60,13 +63,7 @@ function Layout({ children, onOpenDicom }) {
 
   if (user?.rol === 'paciente') {
     return (
-      <main style={{ 
-        background: '#000', 
-        minHeight: '100vh', 
-        width: '100vw', 
-        position: 'relative', 
-        zIndex: 1 
-      }}>
+      <main style={{ background: '#000', minHeight: '100vh', width: '100vw', position: 'relative', zIndex: 1 }}>
         {children}
       </main>
     );
@@ -90,7 +87,7 @@ function Layout({ children, onOpenDicom }) {
 
 export default function App() {
   const [showDicomModal, setShowDicomModal] = useState(false);
-  const { user, isAuthenticated, loading } = useAuth(); // Agregamos isAuthenticated y loading
+  const { user, isAuthenticated, loading } = useAuth(); 
   const openDicom = () => setShowDicomModal(true);
 
   if (loading) return <div style={{ background: '#000', height: '100vh' }} />;
@@ -100,7 +97,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         
-        {/* 🏠 RUTA RAÍZ CON REDIRECCIÓN MAESTRA PARA PACIENTES */}
+        {/* 🏠 RUTA RAÍZ */}
         <Route path="/" element={
           isAuthenticated && user?.rol === 'paciente' ? (
             <Navigate to="/portal-paciente" replace />
@@ -113,26 +110,40 @@ export default function App() {
           )
         } />
 
+        {/* ========================================================
+            🚀 RUTAS LIMPIAS (MULTIMONITOR)
+            SIN Layout, para abrir en ventanas flotantes nativas.
+           ======================================================== */}
+        <Route path="/visor-dictado/:pacienteId" element={
+          <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'invitado']}>
+            {/* Le pasamos visible=true siempre, ya que la ruta en sí es el modal */}
+            <ModalDictadoHardware isOpen={true} isWindow={true} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/visor-transcriptor/:estudioId" element={
+          <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'auxiliar', 'invitado']}>
+            <ModalTranscriptor visible={true} isWindow={true} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/visor-firma/:estudioId" element={
+          <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'invitado']}>
+            <ModalFirma visible={true} isWindow={true} />
+          </ProtectedRoute>
+        } />
+        {/* ======================================================== */}
+
         {/* 👥 PACIENTES Y ESTUDIOS */}
         <Route path="/pacientes" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado']}><Pacientes /></ProtectedRoute></Layout>} />
         <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado']}><Estudios /></ProtectedRoute></Layout>} />
         <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'auxiliar', 'invitado']}><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
         
         {/* 📱 CONSOLA TÉCNICA */}
-        <Route path="/tecnologo" element={
-          <ProtectedRoute allowedRoles={['tecnologo', 'superadmin']}>
-            <TecnologoConsole />
-          </ProtectedRoute>
-        } />
+        <Route path="/tecnologo" element={<ProtectedRoute allowedRoles={['tecnologo', 'superadmin']}><TecnologoConsole /></ProtectedRoute>} />
 
         {/* 🛠️ GESTIÓN DE USUARIOS */}
-        <Route path="/gestion-usuarios" element={
-          <Layout onOpenDicom={openDicom}>
-            <ProtectedRoute allowedRoles={['superadmin']}>
-              <GestionUsuarios />
-            </ProtectedRoute>
-          </Layout>
-        } />
+        <Route path="/gestion-usuarios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><GestionUsuarios /></ProtectedRoute></Layout>} />
 
         {/* 📊 ESTADÍSTICAS Y PRODUCTIVIDAD */}
         <Route path="/estadisticas" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'invitado']}><DashboardStats /></ProtectedRoute></Layout>} />
@@ -143,33 +154,14 @@ export default function App() {
         <Route path="/config-mapeo" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><ConfigMapeoPage /></ProtectedRoute></Layout>} />
         <Route path="/auditoria" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><AuditoriaPage /></ProtectedRoute></Layout>} />
         <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'recepcion']}><RecepcionPage /></ProtectedRoute></Layout>} />
-        
-        {/* 🚀 NUEVA RUTA: Gestión del ciclo de vida y políticas de backup */}
-        <Route path="/gestion-backups" element={
-          <Layout onOpenDicom={openDicom}>
-            <ProtectedRoute allowedRoles={['superadmin']}>
-              <BackupConfigPage />
-            </ProtectedRoute>
-          </Layout>
-        } />
-
-        {/* 🔐 PORTAL PACIENTE */}
-        <Route path="/portal-paciente" element={
-          <Layout>
-            <ProtectedRoute allowedRoles={['paciente']}>
-              <PortalPaciente />
-            </ProtectedRoute>
-          </Layout>
-        } />
-
-        {/* LOGS Y EXTRAS */}
+        <Route path="/gestion-backups" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><BackupConfigPage /></ProtectedRoute></Layout>} />
+        <Route path="/portal-paciente" element={<Layout><ProtectedRoute allowedRoles={['paciente']}><PortalPaciente /></ProtectedRoute></Layout>} />
         <Route path="/email-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><EmailLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/whatsapp-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/reporte-cobros" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'auxiliar']}><ReporteCobrosPage /></ProtectedRoute></Layout>} />
 
         <Route path="/logout" element={<Logout />} />
         
-        {/* REDIRECCIÓN INTELIGENTE FINAL */}
         <Route path="*" element={
           user?.rol === 'tecnologo' ? <Navigate to="/tecnologo" replace /> : 
           user?.rol === 'paciente' ? <Navigate to="/portal-paciente" replace /> :

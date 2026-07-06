@@ -3,12 +3,9 @@ import { useNavigate } from "react-router-dom";
 import "./pacientes.css"; 
 
 // Subcomponentes Estructurados
-import ModalDictadoHardware from "./ModalDictadoHardware";
 import ModalEdicionPaciente from "./ModalEdicionPaciente";
 import FiltrosPacientes from "./FiltrosPacientes";
 import TablaPacientes from "./TablaPacientes";
-import ModalTranscriptor from "../components/Modals/ModalTranscriptor";
-import ModalFirma from "../components/Modals/ModalFirma"; // 👈 AGREGA ESTA LÍNEA
 
 // Capa de Hooks y Utilidades independientes
 import { useAudioRecorder } from "./useAudioRecorder";
@@ -34,8 +31,6 @@ export default function Pacientes() {
     primer_apellido: "", segundo_apellido: "", email: "", telefono: "", fecha_nacimiento: "" 
   });
 
-  const [modalDictadoOpen, setModalDictadoOpen] = useState(false);
-  const [pacienteDictando, setPacienteDictando] = useState(null);
   const [estudiosAutorizados, setEstudiosAutorizados] = useState({});
   const [audiosClinicos, setAudiosClinicos] = useState({});
   const [audioActualJugando, setAudioActualJugando] = useState(null);
@@ -47,17 +42,10 @@ export default function Pacientes() {
     fechaDesde: "2020-01-01", fechaHasta: hoyStr, modalidad: "", busqueda: "" 
   });
 
-  const [modalTranscriptorOpen, setModalTranscriptorOpen] = useState(false);
-  const [transcriptorEstudioId, setTranscriptorEstudioId] = useState(null);
-
-  // 🔒 ESTADOS DE CONTROL OPERATIVO PARA EL MÓDULO DE FIRMA DIGITAL
-  const [modalFirmaOpen, setModalFirmaOpen] = useState(false);
-  const [firmaEstudioId, setFirmaEstudioId] = useState(null);
-
   // Consumo del Hook de Audio Aislado
   const audioRecorder = useAudioRecorder();
 
-  // Solicitudes HTTP de Repositorio PACS (RESTAURADO)
+  // Solicitudes HTTP de Repositorio PACS
   const cargarDatos = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams({
@@ -83,6 +71,20 @@ export default function Pacientes() {
 
   useEffect(() => { 
     cargarDatos(); 
+  }, [cargarDatos]);
+
+  // 📡 CANAL DE COMUNICACIÓN MULTIMONITOR (Recepción activa)
+  useEffect(() => {
+    const canalRefresco = new BroadcastChannel("mipacs_refresco_flujo");
+    
+    canalRefresco.onmessage = (evento) => {
+      if (evento.data === "actualizar_tabla") {
+        console.log("🔄 Señal recibida. Refrescando datos de la tabla...");
+        cargarDatos(); // Ejecuta tu carga nativa de datos directamente
+      }
+    };
+
+    return () => canalRefresco.close();
   }, [cargarDatos]);
 
   const handleFiltroChange = (e) => {
@@ -189,7 +191,7 @@ export default function Pacientes() {
       }
     } catch (error) {
       console.error("Error en la petición PUT:", error);
-      alert("❌ Error de comunicación con la API. Verifica los logs de Uvicorn.");
+      alert("❌ Error de comunicación con la API.");
     }
   };
 
@@ -248,7 +250,6 @@ export default function Pacientes() {
       
       if (response.ok && data?.status === "success") {
         alert(`🚀 ¡Lectura de Disco Exitosa!\nSe detectaron ${data.archivos_detectados} archivos DICOM. Se están procesando en segundo plano sin congelar el sistema.`);
-        
         cargarDatos(); 
         
         let intentos = 0;
@@ -260,44 +261,56 @@ export default function Pacientes() {
           }
         }, 3000); 
 
-      } else if (data?.status === "cancelled") {
-        console.log("Importación cancelada por el usuario.");
       } else {
         alert(`❌ Error en el servidor PACS: ${data?.detail || "Fallo interno."}`);
       }
     } catch (error) {
       console.error("Error de red en importación:", error);
-      alert("❌ Error de comunicación con la API. Verifica los logs.");
+      alert("❌ Error de comunicación con la API.");
     } finally {
       setImportando(false);
     }
   };
 
+  // 🚀 VENTANAS INDEPENDIENTES MULTIMONITOR
   const abrirModuloDictado = (pacienteId) => {
     const pac = pacientes.find(p => p.id === pacienteId);
     if (!pac) return;
+    
     if (!(!!estudiosAutorizados[pacienteId] || pac.estado_pacs === "Tomado")) {
-      alert("🔒 Estudio Bloqueado: Requiere autorización.");
-      return;
+        alert("🔒 Estudio Bloqueado: Requiere autorización del Administrador mediante el botón azul (🔄).");
+        return;
     }
-    setPacienteDictando(pac);
-    audioRecorder.setAudioUrl(null);
-    audioRecorder.setAudioBlobReal(null);
-    setModalDictadoOpen(true); 
-    audioRecorder.iniciarGrabacionHardware(); 
+    
+    const w = 1000, h = 950;
+    const left = (window.screen.width - w) / 2;
+    const top = (window.screen.height - h) / 2;
+    window.open(`/visor-dictado/${pacienteId}`, `Dictado_${pacienteId}`, `width=${w},height=${h},top=${top},left=${left},resizable=yes`);
+  };
+
+  const abrirModalTranscriptor = (id) => {
+    const w = 1300, h = 1000;
+    const left = (window.screen.width - w) / 2;
+    const top = (window.screen.height - h) / 2;
+    window.open(`/visor-transcriptor/${id}`, `Transcriptor_${id}`, `width=${w},height=${h},top=${top},left=${left},resizable=yes`);
+  };
+
+  const abrirModalFirma = (id) => {
+    const w = 1300, h = 1000;
+    const left = (window.screen.width - w) / 2;
+    const top = (window.screen.height - h) / 2;
+    window.open(`/visor-firma/${id}`, `Firma_${id}`, `width=${w},height=${h},top=${top},left=${left},resizable=yes`);
   };
 
   const ejecutarPlayAudioTabla = (pacienteId) => {
     let urlCargada = audiosClinicos[pacienteId];
 
-    // Si no está en la memoria temporal (porque recargaste la página), la construimos desde el backend
     if (!urlCargada) {
       const pac = pacientes.find(p => p.id === pacienteId);
       if (pac && (pac.estado_pacs === "Dictado" || (pac.flujo_clinico && pac.flujo_clinico.tiene_audio))) {
-      // Apuntamos a la ruta añadiendo un parámetro único para evitar la caché
-      urlCargada = `http://localhost:8000/api/pacientes/${pacienteId}/audio?t=${new Date().getTime()}`;
+        urlCargada = `http://localhost:8000/api/pacientes/${pacienteId}/audio?t=${new Date().getTime()}`;
       } else {
-        alert("ℹ️ No hay un dictado activo para reproducir. Registre el audio usando el botón 📝.");
+        alert("ℹ️ No hay un dictado activo para reproducir.");
         return;
       }
     }
@@ -311,7 +324,7 @@ export default function Pacientes() {
       reproductorGlobalRef.current = nuevoAudio;
       nuevoAudio.play().catch(e => {
         console.error("Fallo de audio:", e);
-        alert("❌ El navegador no pudo reproducir el audio. Verifica si el archivo se guardó correctamente en el backend.");
+        alert("❌ El navegador no pudo reproducir el audio.");
       });
       setAudioActualJugando(pacienteId);
 
@@ -319,11 +332,6 @@ export default function Pacientes() {
         setAudioActualJugando(null);
       };
     }
-  };
-
-  const abrirModalTranscriptor = (id) => {
-    setTranscriptorEstudioId(id);
-    setModalTranscriptorOpen(true);
   };
 
   return (
@@ -367,7 +375,6 @@ export default function Pacientes() {
 
       <main style={styles.tableContainer}>
         <div style={styles.scrollWrapper} className="custom-pacs-scroll">
-          {/* 🛡️ CLAVE DINÁMICA: Forzamos el redibujado de la tabla al cambiar el volumen de datos o estados */}
           <TablaPacientes 
             key={`tabla-pacs-${pacientes.length}-${pacientes.map(p => p.estado_pacs).join('-')}`}
             pacientes={pacientes} 
@@ -384,95 +391,12 @@ export default function Pacientes() {
             abrirEditorPaciente={abrirEditorPaciente} 
             handleReabrirFlujoEstudio={handleReabrirFlujoEstudio}
             abrirModalTranscriptor={abrirModalTranscriptor}
-            abrirModalFirma={(id) => { setFirmaEstudioId(id); setModalFirmaOpen(true); }}
+            abrirModalFirma={abrirModalFirma} 
           />
         </div>
       </main>
 
       <ModalEdicionPaciente isOpen={modalEditOpen} formEdit={formEdit} setFormEdit={setFormEdit} onCancelar={() => setModalEditOpen(false)} onGuardar={handleGuardarEdicion} />
-
-      <ModalDictadoHardware 
-        isOpen={modalDictadoOpen} 
-        paciente={pacienteDictando} 
-        estaGrabando={audioRecorder.estaGrabando} 
-        volumenVoz={audioRecorder.volumenVoz} 
-        audioUrl={audioRecorder.audioUrl}
-        onIniciar={audioRecorder.iniciarGrabacionHardware}
-        onPausarReanudar={() => audioRecorder.estaGrabando ? audioRecorder.pausarGrabacionHardware() : audioRecorder.reanudarGrabacionHardware()}
-        onDescartar={() => { audioRecorder.detenerGrabacionHardware(true); setModalDictadoOpen(false); }}
-        onGuardar={async () => {
-          const idDestino = pacienteDictando.id;
-          const blobParaEnviar = audioRecorder.audioBlobReal;
-          const urlAGuardar = audioRecorder.audioUrl;
-          
-          // 1. Detener el hardware inmediatamente
-          audioRecorder.detenerGrabacionHardware(false);
-          
-          if (urlAGuardar) {
-            setAudiosClinicos(prev => ({ ...prev, [idDestino]: urlAGuardar }));
-          }
-
-          // 🛡️ BLOQUEO PREVENTIVO EN CALIENTE:
-          // Forzamos que en la interfaz visual el estado cambie a "Dictado" YA MISMO,
-          // así el botón del micrófono de la fila se apaga antes de que responda el servidor.
-          // 🛡️ BLOQUEO PREVENTIVO EN CALIENTE CORREGIDO:
-          // Modificamos la raíz del paciente donde sí existe 'estado_pacs' de forma directa
-          setPacientes(prevPacientes => 
-            prevPacientes.map(p => 
-              p.id === idDestino 
-                ? { 
-                    ...p, 
-                    estado_pacs: "Dictado",
-                    flujo_clinico: { ...p.flujo_clinico, tiene_audio: true } 
-                  }
-                : p
-            )
-          );
-
-          const conteoActual = parseInt(localStorage.getItem("firmas_medico") || "0");
-          localStorage.setItem("firmas_medico", (conteoActual + 1).toString());
-
-          // 2. Cerrar la ventana emergente
-          setModalDictadoOpen(false);
-
-          // 3. Envío del archivo de audio al servidor de forma asíncrona
-          if (blobParaEnviar) {
-            const formData = new FormData();
-            formData.append("audio", blobParaEnviar, `dictado_${idDestino}.wav`);
-            try {
-              await fetch(`http://localhost:8000/api/pacientes/${idDestino}/guardar-audio`, {
-                method: "POST",
-                body: formData
-              });
-              
-              // 🔄 Sincronización final con el servidor
-              cargarDatos(); 
-              setPacienteDictando(null);
-
-            } catch (err) {
-              console.error("Fallo de red al enviar dictado:", err);
-              alert("❌ El audio no pudo ser guardado en el servidor. Intente de nuevo.");
-            }
-          }
-        }}
-        />
-
-        <ModalTranscriptor 
-          visible={modalTranscriptorOpen} 
-          onClose={() => setModalTranscriptorOpen(false)} 
-          estudioId={transcriptorEstudioId}
-          onSave={cargarDatos} // 👈 Cambiado: Ejecuta la recarga de la API en caliente inmediatamente
-        />
-
-      {/* 🔒 MONTAJE OPERATIVO DEL COMPONENTE DE FIRMA DIGITAL */}
-      <ModalFirma 
-        visible={modalFirmaOpen} 
-        onClose={() => setModalFirmaOpen(false)} 
-        estudioId={firmaEstudioId}
-        onSave={() => {
-          cargarDatos(); // Refresca el repositorio clínico de inmediato
-        }}
-      />
     </div>
   );
 }

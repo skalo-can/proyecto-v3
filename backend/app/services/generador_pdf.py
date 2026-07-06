@@ -57,7 +57,7 @@ def construir_reporte_pdf(datos_estudio, ruta_salida):
         return False
 
 # =====================================================================
-# BLOQUE DE PRUEBA INDEPENDIENTE (ACTUALIZADO A TU RUTA REAL)
+# BLOQUE DE PRUEBA INDEPENDIENTE (ACTUALIZADO CON REGISTRO MÉDICO)
 # =====================================================================
 if __name__ == "__main__":
     datos_prueba = {
@@ -66,7 +66,8 @@ if __name__ == "__main__":
         "fecha_estudio": "2026-04-04 00:00",
         "modalidad": "CT",
         "texto_diagnostico": "Se realiza Tomografía Computarizada sin hallazgos patológicos agudos.\n\nEstructuras óseas conservadas. No se observan colecciones ni masas evidentes en los cortes analizados.\n\nConclusión: Estudio dentro de límites normales.",
-        "nombre_medico": "Carlos Mendoza"
+        "nombre_medico": "Carlos Mendoza",
+        "registro_medico": "RM-99452"  # Agregado para pruebas locales
     }
 
     # CALCULAMOS LA RUTA REAL HACIA TU CARPETA DE ESTÁTICOS

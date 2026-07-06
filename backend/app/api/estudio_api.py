@@ -5,9 +5,6 @@ from app.core.database import get_db
 from app.models.estudio import Estudio 
 from app.models.ris_orden import RISOrden 
 
-# 🚀 IMPORTACIÓN NUEVA: Servicio para firmar y generar PDF
-from app.services.gestor_firma import procesar_firma_estudio
-
 router = APIRouter(prefix="/estudios", tags=["Estudios"])
 
 @router.patch("/atender/{identificador}")
@@ -62,24 +59,3 @@ def marcar_estudio_atendido_endpoint(identificador: str, data: dict, db: Session
         # Devolvemos éxito para que el Frontend no se trabe, pero el log nos dirá qué pasó
         return {"status": "success", "message": "Procesado por contingencia"}
 
-# =====================================================================
-# 📝 NUEVO ENDPOINT: FIRMAR ESTUDIO Y GENERAR REPORTE PDF
-# =====================================================================
-@router.post("/{estudio_id}/firmar")
-def firmar_estudio_endpoint(estudio_id: int, db: Session = Depends(get_db)):
-    """
-    Endpoint invocado por el Frontend cuando el radiólogo presiona 'Firmar'.
-    Genera el PDF oficial en static/pdf_reports e impacta la base de datos.
-    """
-    exito = procesar_firma_estudio(db=db, estudio_id=estudio_id)
-    
-    if not exito:
-        raise HTTPException(
-            status_code=400, 
-            detail="No se pudo procesar la firma del estudio. Verifique los datos clínicos."
-        )
-        
-    return {
-        "status": "success", 
-        "message": f"Estudio {estudio_id} firmado con éxito y PDF generado."
-    }

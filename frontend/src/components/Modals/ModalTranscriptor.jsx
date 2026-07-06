@@ -1,186 +1,123 @@
 import React, { useState, useEffect, useRef } from "react";
-import "./EditarModal.css";
+import { useParams } from "react-router-dom";
 
-export default function ModalTranscriptor({ visible, onClose, estudioId, onSave }) {
+export default function ModalTranscriptor({ isWindow }) {
+  const { estudioId } = useParams();
   const [texto, setTexto] = useState("");
   const [audioUrl, setAudioUrl] = useState(null);
+  const [paciente, setPaciente] = useState(null);
   const audioRef = useRef(null);
 
-  // 🖱️ LÓGICA DE VENTANA FLOTANTE (DRAG & DROP)
-  const [posicion, setPosicion] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-
-  const iniciarArrastre = (e) => {
-    setIsDragging(true);
-    // Calculamos la diferencia entre el clic del mouse y la posición actual del modal
-    const offsetX = e.clientX - posicion.x;
-    const offsetY = e.clientY - posicion.y;
-
-    const moverVentana = (moveEvent) => {
-      setPosicion({
-        x: moveEvent.clientX - offsetX,
-        y: moveEvent.clientY - offsetY,
-      });
-    };
-
-    const soltarVentana = () => {
-      setIsDragging(false);
-      // Limpiamos los eventos de memoria al soltar el clic
-      document.removeEventListener("mousemove", moverVentana);
-      document.removeEventListener("mouseup", soltarVentana);
-    };
-
-    document.addEventListener("mousemove", moverVentana);
-    document.addEventListener("mouseup", soltarVentana);
-  };
-
-  // Cargar datos al abrir
   useEffect(() => {
-    if (visible && estudioId) {
+    if (estudioId) {
       setAudioUrl(`http://localhost:8000/api/pacientes/${estudioId}/audio?t=${new Date().getTime()}`);
-      setTexto("");
-      // Resetea la posición al centro cuando se abre un paciente nuevo
-      setPosicion({ x: 0, y: 0 }); 
-    } else {
-      setAudioUrl(null);
+      fetch(`http://localhost:8000/api/pacientes?busqueda=${estudioId}`)
+        .then(res => res.json())
+        .then(data => {
+           const p = Array.isArray(data) ? data.find(x => x.id == estudioId) : data.items?.find(x => x.id == estudioId);
+           setPaciente(p);
+        })
+        .catch(err => console.error("Error al cargar datos del paciente", err));
     }
-  }, [visible, estudioId]);
+  }, [estudioId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey) {
+        if (e.code === 'Space') {
+          e.preventDefault(); 
+          if (audioRef.current) {
+            audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause();
+          }
+        }
+        if (e.code === 'ArrowLeft') {
+          e.preventDefault();
+          if (audioRef.current) audioRef.current.currentTime -= 5;
+        }
+        if (e.code === 'ArrowRight') {
+          e.preventDefault();
+          if (audioRef.current) audioRef.current.currentTime += 5;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleGuardar = async () => {
     if (!texto.trim()) {
       alert("⚠️ Por favor, escriba la transcripción antes de guardar.");
       return;
     }
-
     try {
       const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/guardar-transcripcion`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ informe: texto }),
       });
+      if (!response.ok) throw new Error("Error en el servidor");
+      if (!response.ok) throw new Error("Error en el servidor");
 
-      if (!response.ok) {
-        throw new Error("Error en el servidor al procesar la transcripción.");
-      }
+      // 🚀 AVISAR AL MONITOR PRINCIPAL ANTES DE CERRAR
+      const canal = new BroadcastChannel("mipacs_refresco_flujo");
+      canal.postMessage("actualizar_tabla");
+      canal.close();
 
-      await response.json();
-
-      onClose();            
-      if (onSave) onSave(); 
-      console.log("✅ Transcripción procesada y confirmada por el backend.");
-      
+      window.close();
+      window.close(); 
     } catch (error) {
-      console.error("Error al guardar transcripción:", error);
       alert("❌ Hubo un fallo al conectar con la API.");
     }
   };
 
-  if (!visible) return null;
+  // 🎨 ESTILOS MULTIMONITOR Y TECLAS
+  const layoutMultimonitor = { width: '100vw', height: '100vh', background: '#07080a', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '30px', border: '8px solid #8b5cf6' };
+  const btnEstilo = { padding: "12px 25px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", border: "none" };
+  const kbdStyle = { backgroundColor: "#334155", border: "1px solid #475569", borderRadius: "4px", padding: "4px 8px", color: "#fbbf24", fontFamily: "monospace", fontSize: "0.9rem", boxShadow: "0 2px 0 #0f172a" };
 
   return (
-    // 🛡️ Al quitar el background oscuro o hacerlo transparente, el usuario no siente que bloquea la app
-    <div className="modal-overlay" style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
-      
-      {/* CONTENEDOR PRINCIPAL DEL MODAL */}
-      <div 
-        className="modal glass-box" 
-        style={{ 
-          width: "750px", 
-          minWidth: "500px", // 🛡️ Permite encogerla hasta 500px
-          maxWidth: "95vw",  // 🛡️ Evita que se salga de la pantalla a lo ancho
-          minHeight: "500px",
-          maxHeight: "90vh", // 🛡️ Evita que se salga de la pantalla a lo alto
-          padding: "30px", 
-          display: "flex",
-          flexDirection: "column",
-          gap: "20px", 
-          transform: `translate(${posicion.x}px, ${posicion.y}px)`, 
-          transition: isDragging ? "none" : "transform 0.1s ease-out", 
-          boxShadow: isDragging ? "0 25px 50px rgba(0,0,0,0.5)" : "0 10px 30px rgba(0,0,0,0.3)",
-          resize: "both", 
-          overflow: "hidden" // 🛡️ Mantiene la esquinita de agarre siempre visible
-        }}
-      >
-        
-        {/* CABECERA ARRASTRABLE */}
-        <h3 
-          onMouseDown={iniciarArrastre}
-          style={{
-            cursor: isDragging ? "grabbing" : "grab", // 🌟 Cambia la manito al agarrar
-            margin: "-10px -10px 10px -10px",
-            padding: "15px",
-            backgroundColor: "rgba(255,255,255,0.05)",
-            borderRadius: "6px",
-            border: "1px dashed rgba(255,255,255,0.2)",
-            textAlign: "center",
-            userSelect: "none", // Evita que se sombree el texto al arrastrar
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: "10px"
-          }}
-          title="Haz clic y arrastra para mover la ventana"
-        >
-          🖐️ Transcripción Humana 
-        </h3>
+    <div style={layoutMultimonitor}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+        <h2 style={{ color: "#fff", margin: 0, fontSize: "1.8rem" }}>✍️ Estación de Transcripción</h2>
+        {paciente && (
+          <div style={{ textAlign: "right" }}>
+            <h3 style={{ margin: 0, color: "#fff" }}>{paciente.primer_apellido} {paciente.primer_nombre}</h3>
+            <span style={{ color: "#8b5cf6", fontFamily: "monospace" }}>ID: {paciente.identificacion || paciente.id}</span>
+          </div>
+        )}
+      </div>
 
-        {/* REPRODUCTOR */}
-        <div className="reproductor-controles" style={{ padding: "10px", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: "8px" }}>
-          <audio ref={audioRef} src={audioUrl} controls style={{ width: "100%" }} />
-          <div style={{ marginTop: "15px", display: "flex", gap: "10px", justifyContent: "center" }}>
-            <button onClick={() => audioRef.current && (audioRef.current.playbackRate = 1.0)} style={{ padding: "5px 15px", borderRadius: "4px", cursor: "pointer" }}>1x</button>
-            <button onClick={() => audioRef.current && (audioRef.current.playbackRate = 1.5)} style={{ padding: "5px 15px", borderRadius: "4px", cursor: "pointer" }}>1.5x</button>
-            <button onClick={() => audioRef.current && (audioRef.current.currentTime -= 5)} style={{ padding: "5px 15px", borderRadius: "4px", cursor: "pointer" }}>⏪ -5s</button>
+      {/* 🚀 PANEL VISUAL DE ATAJOS (CHEAT SHEET) */}
+      <div style={{ backgroundColor: "rgba(139, 92, 246, 0.1)", border: "1px solid rgba(139, 92, 246, 0.4)", borderRadius: "8px", padding: "15px 25px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "20px" }}>
+        <div style={{ fontSize: "2.5rem" }}>⌨️</div>
+        <div>
+          <h4 style={{ margin: "0 0 8px 0", color: "#c4b5fd", fontSize: "1.1rem" }}>Guía Rápida de Atajos (No sueltes el teclado al escribir)</h4>
+          <div style={{ display: "flex", gap: "30px", color: "#e2e8f0" }}>
+            <span><kbd style={kbdStyle}>Ctrl</kbd> + <kbd style={kbdStyle}>Espacio</kbd> ➔ Pausar / Reproducir</span>
+            <span><kbd style={kbdStyle}>Ctrl</kbd> + <kbd style={kbdStyle}>⬅️</kbd> <kbd style={kbdStyle}>➡️</kbd> ➔ Atrasar / Adelantar 5s</span>
           </div>
         </div>
+      </div>
 
-        {/* ÁREA DE TEXTO */}
-        <textarea
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          placeholder="Escriba la transcripción aquí..."
-          style={{
-            flex: 1, 
-            minHeight: "150px", // 🛡️ Más bajo para permitir que el modal se pueda encoger más
-            padding: "24px 30px", 
-            backgroundColor: "#ffffff",
-            color: "#000000",
-            border: "1px solid #ccc",
-            borderRadius: "6px",
-            fontSize: "15px",
-            lineHeight: "1.8",
-            resize: "none", // 🛡️ CLAVE: Quitamos su redimensión propia. Ahora obedece a la ventana.
-            overflowY: "auto" // 🛡️ Si escriben muchísimo, le sale su propia barra de scroll
-          }}
-        />
+      <div style={{ padding: "15px", backgroundColor: "#111418", borderRadius: "8px", border: "1px solid #333", marginBottom: "20px", display: "flex", gap: "20px", alignItems: "center" }}>
+        <audio ref={audioRef} src={audioUrl} controls style={{ flex: 1 }} />
+        <button onClick={() => audioRef.current && (audioRef.current.playbackRate = 1.0)} style={{ ...btnEstilo, background: "#1e293b", color: "#fbbf24", border: "1px solid #475569" }}>1.0x Normal</button>
+        <button onClick={() => audioRef.current && (audioRef.current.playbackRate = 1.5)} style={{ ...btnEstilo, background: "#1e293b", color: "#fbbf24", border: "1px solid #475569" }}>1.5x Rápido</button>
+      </div>
 
-        {/* CONTROLES INFERIORES */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px" }}>
-          
-          <button
-            onClick={() => setTexto("ESTUDIO RADIOLÓGICO NORMAL:\n\nNo se observan alteraciones pleuropulmonares ni cardiovasculares agudas.\nEstructuras óseas sin lesiones aparentes.\nImpresión Diagnóstica: Estudio dentro de límites normales.")}
-            style={{
-              padding: "10px 15px",
-              backgroundColor: "#f59e0b",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: "bold",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
-            }}
-          >
-            📄 Cargar Plantilla Normal
-          </button>
+      <textarea
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        placeholder="Comience a transcribir el dictado aquí..."
+        style={{ flex: 1, padding: "30px", backgroundColor: "#ffffff", color: "#0f172a", border: "2px solid #8b5cf6", borderRadius: "8px", fontSize: "16px", lineHeight: "1.8", resize: "none", marginBottom: "20px" }}
+      />
 
-          <div className="modal-actions" style={{ margin: 0, padding: 0, gap: "15px", display: "flex" }}>
-            <button className="btn cancelar" onClick={onClose} style={{ padding: "10px 20px" }}>Cerrar</button>
-            <button className="btn guardar" onClick={handleGuardar} style={{ padding: "10px 20px" }}>Guardar Transcripción</button>
-          </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <button onClick={() => setTexto("ESTUDIO RADIOLÓGICO NORMAL:\n\nNo se observan alteraciones pleuropulmonares ni cardiovasculares agudas.\nEstructuras óseas sin lesiones aparentes.\nImpresión Diagnóstica: Estudio dentro de límites normales.")} style={{ ...btnEstilo, backgroundColor: "#f59e0b", color: "#fff" }}>📄 Cargar Plantilla Normal</button>
+        <div style={{ display: "flex", gap: "15px" }}>
+          <button onClick={() => window.close()} style={{ ...btnEstilo, backgroundColor: "#334155", color: "#fff" }}>❌ Descartar Cambios</button>
+          <button onClick={handleGuardar} style={{ ...btnEstilo, backgroundColor: "#10b981", color: "#fff" }}>✅ Guardar Transcripción</button>
         </div>
-
       </div>
     </div>
   );

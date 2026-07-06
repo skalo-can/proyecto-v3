@@ -94,6 +94,8 @@ export default function TablaPacientes({
             const estaSeleccionado = seleccionados.includes(p.id);
             const estiloMod = obtenerEstiloModalidad(mReal);
 
+            const estaDesbloqueado = !!estudiosAutorizados[p.id] || p.estado_pacs === "Tomado";
+
             return (
               <tr 
                 key={p.id} 
@@ -142,20 +144,22 @@ export default function TablaPacientes({
                         onClick={() => abrirModuloDictado(p.id)}
                         style={{
                           ...styles.iconFlujoBase, 
-                          color: "#ef4444", 
-                          backgroundColor: "rgba(239,68,68,0.1)", 
-                          border: "1px solid rgba(239,68,68,0.2)", 
-                          cursor: "pointer",
+                          // 🔥 LÓGICA VISUAL DINÁMICA (VERDE = LISTO, ROJO = BLOQUEADO)
+                          color: estaDesbloqueado ? "#10b981" : "#ef4444", 
+                          backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", 
+                          border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", 
+                          cursor: estaDesbloqueado ? "pointer" : "not-allowed",
                           padding: "6px 12px",
                           borderRadius: "4px",
                           fontWeight: "bold",
                           display: "flex",
                           alignItems: "center",
-                          gap: "6px"
+                          gap: "6px",
+                          transition: "all 0.3s ease" // Transición suave al autorizar
                         }}
-                        title="Iniciar Dictado Médico (Grabación Nueva)"
+                        title={estaDesbloqueado ? "Abrir Dictador en Pantalla Secundaria" : "Estudio Bloqueado. Requiere Autorización (Botón Azul 🔄)"}
                       >
-                        🎙️ Grabar
+                        {estaDesbloqueado ? "🎙️ Grabar" : "🔒 Bloqueado"}
                       </button>
                     )}
 
