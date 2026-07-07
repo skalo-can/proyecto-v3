@@ -93,7 +93,8 @@ def autenticar_usuario(db: Session, email: str, password: str) -> Optional[Usuar
     if not usuario:
         return None
 
-    if not verify_password(password, usuario.password_hash):
+    # Corregido: Llamar a usuario.password en lugar de usuario.password_hash
+    if not verify_password(password, usuario.password):
         return None
 
     return usuario

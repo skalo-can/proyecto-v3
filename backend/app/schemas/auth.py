@@ -15,7 +15,7 @@ Incluye:
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from datetime import date
-from typing import Optional
+from typing import Optional, Dict
 
 
 # ---------------------------------------------------------
@@ -98,6 +98,7 @@ class UsuarioLoginResponse(BaseModel):
     nombre: str
     rol: str
     activo: bool
+    permisos: Optional[Dict[str, bool]] = {} # Corregido: Ahora viajan al frontend
 
     model_config = ConfigDict(
         from_attributes=True,

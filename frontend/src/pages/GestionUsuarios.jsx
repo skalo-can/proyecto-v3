@@ -2,20 +2,61 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './GestionUsuarios.css';
 
+// =========================================================
+// NUEVA MATRIZ DE PERMISOS DEFINITIVA MI_PACS
+// =========================================================
 const PERMISOS_POR_DEFECTO = {
-    superadmin: { atender_pacientes: true, reprocesar_dicom: true, notificar_critico: true, importar_medios: true, modificar_estudio: true, quemar_cd_dvd: true, subir_adjuntos: true, ver_worklist: true, escribir_informe: true, firma_electronica: true, solicitar_retoma: true, acceso_ia: true, validar_previo: true, exportar_key_images: true, consultar_historial: true, ver_pacientes: true, correccion_ortografica: true, envio_multicanal: true, gestionar_plantillas: true, escuchar_audio: true, crear_orden: true, validar_datos: true, gestionar_agenda: true, recaudo_pagos: true, entregar_resultados: true, estado_nodos_dicom: true, logs_sistema: true, configurar_aetitles: true, limpieza_cache: true, auditar_cuentas: true, ver_tarifas: true, liquidar_honorarios: true, generar_rips: true },
-    admin: { atender_pacientes: true, reprocesar_dicom: true, ver_pacientes: true, crear_orden: true, gestionar_agenda: true, entregar_resultados: true, logs_sistema: true },
-    tecnologo: { atender_pacientes: true, reprocesar_dicom: true, notificar_critico: true, importar_medios: true, modificar_estudio: true, quemar_cd_dvd: true, subir_adjuntos: true },
-    radiologo: { ver_worklist: true, escribir_informe: true, firma_electronica: true, solicitar_retoma: true, acceso_ia: true, validar_previo: true, exportar_key_images: true, consultar_historial: true, ver_pacientes: true },
-    medico: { ver_pacientes: true, consultar_historial: true, entregar_resultados: true, acceso_ia: true },
-    transcriptor: { ver_pacientes: true, correccion_ortografica: true, envio_multicanal: true, gestionar_plantillas: true, escuchar_audio: true },
-    recepcion: { crear_orden: true, validar_datos: true, gestionar_agenda: true, recaudo_pagos: true, entregar_resultados: true },
-    it_biomedica: { estado_nodos_dicom: true, logs_sistema: true, configurar_aetitles: true, limpieza_cache: true },
-    
-    /* 🔥 NUEVOS ROLES MAESTROS AGREGADOS */
-    auxiliar: { ver_pacientes: true, consultar_historial: true, entregar_resultados: true, auditar_cuentas: true, ver_tarifas: true },
-    invitado: { ver_pacientes: true, consultar_historial: true, ver_worklist: true },
-    paciente: { ver_pacientes: true, entregar_resultados: true } 
+    superadmin: { 
+        ver_lista_pacientes: true, desbloquear_pacientes: true, editar_datos_pacientes: true, 
+        grabar_dictado: true, transcribir: true, escuchar_dictado: true, verificar_informe: true, 
+        firmar_informe: true, ver_pdf: true, ver_documentos_adjuntos: true, entregar_resultados: true, 
+        importar_archivos: true, exportar_archivos: true, gestion_usuarios: true, modificar_usuarios: true, 
+        activar_desactivar_usuarios: true, recepcion_ris: true, ver_estadisticas: true, 
+        configuracion_mipacs: true, ciclo_vida_backups: true, configurar_tags_dicom: true, 
+        reporte_cobro_glosas: true, auditoria_sistema: true, logs_email: true, logs_whatsapp: true, 
+        resetear_sistema: true, panel_productividad: true, ver_visor_dicom: true, gestionar_plantillas: true, 
+        generar_enlaces_seguros: true, acceso_ia: true 
+    },
+    admin: { 
+        ver_lista_pacientes: true, editar_datos_pacientes: true, ver_pdf: true, entregar_resultados: true, 
+        gestion_usuarios: true, modificar_usuarios: true, activar_desactivar_usuarios: true, 
+        recepcion_ris: true, ver_estadisticas: true, reporte_cobro_glosas: true, auditoria_sistema: true, 
+        panel_productividad: true, generar_enlaces_seguros: true 
+    },
+    tecnologo: { 
+        ver_lista_pacientes: true, editar_datos_pacientes: true, ver_documentos_adjuntos: true, 
+        importar_archivos: true, exportar_archivos: true, recepcion_ris: true, configurar_tags_dicom: true, 
+        ver_visor_dicom: true 
+    },
+    radiologo: { 
+        ver_lista_pacientes: true, grabar_dictado: true, escuchar_dictado: true, verificar_informe: true, 
+        firmar_informe: true, ver_pdf: true, ver_documentos_adjuntos: true, ver_visor_dicom: true, 
+        gestionar_plantillas: true, acceso_ia: true 
+    },
+    medico: { 
+        ver_lista_pacientes: true, ver_pdf: true, entregar_resultados: true, ver_visor_dicom: true 
+    },
+    transcriptor: { 
+        ver_lista_pacientes: true, transcribir: true, escuchar_dictado: true, ver_documentos_adjuntos: true, 
+        gestionar_plantillas: true 
+    },
+    recepcion: { 
+        ver_lista_pacientes: true, editar_datos_pacientes: true, entregar_resultados: true, 
+        recepcion_ris: true, reporte_cobro_glosas: true, generar_enlaces_seguros: true 
+    },
+    it_biomedica: { 
+        configuracion_mipacs: true, ciclo_vida_backups: true, configurar_tags_dicom: true, 
+        auditoria_sistema: true, logs_email: true, logs_whatsapp: true, resetear_sistema: true 
+    },
+    auxiliar: { 
+        ver_lista_pacientes: true, entregar_resultados: true, ver_pdf: true, generar_enlaces_seguros: true 
+    },
+    invitado: { 
+        ver_lista_pacientes: true, ver_pdf: true 
+    },
+    paciente: { 
+        ver_pdf: true, entregar_resultados: true 
+    } 
 };
 
 // Generamos la lista de todos los permisos únicos para la matriz

@@ -29,12 +29,14 @@ def crear_usuario(db: Session, usuario: UsuarioCreate) -> Usuario:
     if existente:
         raise ValueError("El correo ya está registrado en el sistema.")
 
-    # Crear instancia del modelo
+    # Crear instancia del modelo (Corregido password y agregados username/permisos)
     nuevo_usuario = Usuario(
         nombre=usuario.nombre,
+        username=usuario.username if hasattr(usuario, 'username') else usuario.email.split('@')[0],
         email=usuario.email,
         rol=usuario.rol,
-        password_hash=get_password_hash(usuario.password),
+        permisos=getattr(usuario, 'permisos', {}),
+        password=get_password_hash(usuario.password),
         activo=True
     )
 

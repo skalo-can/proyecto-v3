@@ -46,6 +46,13 @@ def construir_reporte_pdf(datos_estudio, ruta_salida):
         # Combinar (renderizar) la plantilla con los datos
         html_renderizado = plantilla.render(datos_estudio)
 
+        # --- CORRECCIÓN INYECTADA AQUÍ ---
+        # Extraer el directorio final de ruta_salida y asegurar su creación
+        directorio_salida = os.path.dirname(ruta_salida)
+        if not os.path.exists(directorio_salida):
+            os.makedirs(directorio_salida, exist_ok=True)
+        # ---------------------------------
+
         # Generar el PDF y guardarlo en la ruta indicada
         HTML(string=html_renderizado).write_pdf(ruta_salida)
 

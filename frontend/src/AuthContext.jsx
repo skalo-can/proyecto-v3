@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from "react"; // 👈 ¡Inyectado 'React,' al inicio!
+import React, { createContext, useContext, useState, useEffect } from "react"; 
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
-  const [user, setUser] = useState({ username: "", rol: "" });
+  const [user, setUser] = useState({ username: "", rol: "", permisos: {} }); // Estado inicial actualizado
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -12,7 +12,11 @@ export function AuthProvider({ children }) {
     const savedUser = localStorage.getItem("user");
     if (savedToken && savedUser) {
       setToken(savedToken);
-      try { setUser(JSON.parse(savedUser)); } catch (e) { setUser({ username: "", rol: "" }); }
+      try { 
+        setUser(JSON.parse(savedUser)); 
+      } catch (e) { 
+        setUser({ username: "", rol: "", permisos: {} }); 
+      }
     }
     setLoading(false);
   }, []);
@@ -21,7 +25,8 @@ export function AuthProvider({ children }) {
     const normalizedUser = { 
       ...userData, 
       username: userData.nombre || userData.email,
-      rol: userData.rol // Nos aseguramos de capturar el rol del backend
+      rol: userData.rol,
+      permisos: userData.permisos || {} // Corregido: Ahora se guardan los permisos
     };
     localStorage.setItem("token", newToken);
     localStorage.setItem("user", JSON.stringify(normalizedUser));
@@ -33,7 +38,7 @@ export function AuthProvider({ children }) {
     localStorage.clear();
     sessionStorage.clear();
     setToken(null);
-    setUser({ username: "", rol: "" });
+    setUser({ username: "", rol: "", permisos: {} });
   };
 
   return (
