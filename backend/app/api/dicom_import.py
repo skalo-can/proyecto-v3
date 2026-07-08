@@ -37,6 +37,15 @@ router = APIRouter(tags=["Importación DICOM"])
 # Variable de control global para el ciclo de vida del explorador nativo
 explorador_bloqueo = False
 
+# 🆕 MATRIZ GLOBAL DE SEGUIMIENTO: Permite al frontend auditar la ingesta en tiempo real
+ESTADO_IMPORTACION = {
+    "en_progreso": False,
+    "exitosos": 0,
+    "fallidos": 0,
+    "total_detectados": 0,
+    "finalizado": False
+}
+
 # Rutas clínicas unificadas del sistema PACS
 BASE_DIR = Path(__file__).resolve().parents[2]  # backend/
 STATIC_DIR = BASE_DIR / "static"
@@ -180,10 +189,18 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
 
 
 def tarea_fondo_importacion_recursiva(ruta_origen: str):
+    global ESTADO_IMPORTACION
     print(f"\n🚀 [MOTOR] ¡Iniciando escaneo masivo de archivos en: {ruta_origen}!")
     db = SessionLocal()
     conteo_exitosos = 0
     conteo_errores = 0
+    
+    # Sincronizar estado inicial de la tarea asíncrona
+    ESTADO_IMPORTACION["en_progreso"] = True
+    ESTADO_IMPORTACION["finalizado"] = False
+    ESTADO_IMPORTACION["exitosos"] = 0
+    ESTADO_IMPORTACION["fallidos"] = 0
+    
     try:
         for root, dirs, files in os.walk(ruta_origen):
             for file in files:
@@ -194,17 +211,24 @@ def tarea_fondo_importacion_recursiva(ruta_origen: str):
                         res = procesar_un_archivo_dicom_manual(db, file_path)
                         if res and res.get("status") == "success":
                             conteo_exitosos += 1
+                            # Alimentar variable global dinámicamente para el polling
+                            ESTADO_IMPORTACION["exitosos"] = conteo_exitosos
                             print(" -> ✅ ¡GUARDADO EN BD!")
                             db.commit()
                         else:
                             conteo_errores += 1
+                            ESTADO_IMPORTACION["fallidos"] = conteo_errores
                             print(f" -> ⚠️ Omitido")
                     except Exception as e:
                         conteo_errores += 1
+                        ESTADO_IMPORTACION["fallidos"] = conteo_errores
                         print(f" -> ❌ Error: {str(e)}")
                         db.rollback()
+                        
         print(f"\n🏁 [INGESTA FINALIZADA] Exitosos: {conteo_exitosos} | Fallidos: {conteo_errores}\n")
+        ESTADO_IMPORTACION["finalizado"] = True
     finally:
+        ESTADO_IMPORTACION["en_progreso"] = False
         db.close()
 
 
@@ -226,7 +250,7 @@ def importar_desde_disco_manual(
     usuario=Depends(obtener_usuario_actual)  # 🔐 Reestablecemos el candado de sesión
 ):
     """Abre el explorador de Windows nativo de forma segura validando el Token del Superusuario."""
-    global explorador_bloqueo
+    global explorador_bloqueo, ESTADO_IMPORTACION
     
     # Validamos jerarquía admitiendo el rol sin fricción de mayúsculas
     rol_usuario = getattr(usuario, "rol", "").lower()
@@ -266,6 +290,13 @@ def importar_desde_disco_manual(
         for f in files:
             if "." not in f or f.lower().endswith(".dcm"):
                 conteo_archivos += 1
+                
+    # Inicializar la estructura de auditoría para el navegador
+    ESTADO_IMPORTACION["total_detectados"] = conteo_archivos
+    ESTADO_IMPORTACION["exitosos"] = 0
+    ESTADO_IMPORTACION["fallidos"] = 0
+    ESTADO_IMPORTACION["finalizado"] = False
+    ESTADO_IMPORTACION["en_progreso"] = True
         
     background_tasks.add_task(tarea_fondo_importacion_recursiva, ruta_final)
     
@@ -275,6 +306,19 @@ def importar_desde_disco_manual(
         "archivos_detectados": conteo_archivos,
         "ruta_processed": ruta_final
     }
+
+
+# =====================================================================
+# 🆕 NUEVO ENDPOINT: CONSULTOR DE ESTADO DE INGESTA EN TIEMPO REAL
+# =====================================================================
+@router.get("/importacion-fisica/estado")
+def obtener_estado_importacion(usuario=Depends(obtener_usuario_actual)):
+    """
+    Retorna el conteo dinámico de la ingesta para que el navegador
+    pueda lanzar avisos y contadores precisos en la pantalla.
+    """
+    global ESTADO_IMPORTACION
+    return ESTADO_IMPORTACION
 
 
 @router.post("/pacientes/importar")

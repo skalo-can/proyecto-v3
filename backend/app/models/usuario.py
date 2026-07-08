@@ -7,7 +7,7 @@ Corregido para compatibilidad con esquemas de FastAPI y matriz de permisos JSON.
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON, func
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.hybrid import hybrid_property  # 👈 Incorporado para compatibilidad de atributos
+from sqlalchemy.ext.hybrid import hybrid_property
 from app.core.database import Base
 
 class Usuario(Base):
@@ -23,28 +23,27 @@ class Usuario(Base):
     # ---------------------------------------------------------
     id = Column(Integer, primary_key=True, index=True, doc="ID interno del usuario")
     
-    nombre = Column(String(150), nullable=False, doc="Nombre completo del colaborador")
+    nombre = Column(String(150), nullable=False, doc="Nombre completo y apellidos del colaborador")
     
     username = Column(String(50), unique=True, nullable=False, index=True, doc="Nombre de usuario para login")
     
     email = Column(String(150), unique=True, nullable=True, index=True, doc="Correo electrónico opcional")
 
-    # Aumentado a 255 para soportar hashes seguros (bcrypt/argon2)
     password = Column(String(255), nullable=False, doc="Contraseña encriptada (Hash)")
 
     # ---------------------------------------------------------
-    # Rol y Matriz de Permisos
+    # Rol, Registro Médico y Matriz de Permisos
     # ---------------------------------------------------------
-    # Lo dejamos flexible para aceptar: superadmin, admin, tecnologo, radiologo, etc.
     rol = Column(String(50), nullable=False, doc="Rol institucional del usuario")
 
-    # Almacena la matriz de booleanos de permisos enviada desde el Frontend
+    # 🆕 NUEVA COLUMNA: Almacena el Registro Médico del profesional (solo radiólogos/médicos)
+    registro_medico = Column(String(50), nullable=True, default="", doc="Registro Médico / Cédula Profesional")
+
     permisos = Column(JSON, default={}, doc="Matriz de permisos específicos por usuario")
 
     # ---------------------------------------------------------
     # Estado y Auditoría (Sincronizado con esquemas Pydantic)
     # ---------------------------------------------------------
-    # IMPORTANTE: Mantener 'is_active' para evitar ResponseValidationError
     is_active = Column(Boolean, default=True, nullable=False, doc="Estado de acceso al sistema")
 
     creado_en = Column(
@@ -63,7 +62,6 @@ class Usuario(Base):
     # ---------------------------------------------------------
     # Relaciones
     # ---------------------------------------------------------
-    # Asegúrate de que el modelo 'Medico' tenga el back_populates correspondiente
     medico = relationship(
         "Medico", 
         back_populates="usuario", 
@@ -72,7 +70,7 @@ class Usuario(Base):
     )  
 
     # ---------------------------------------------------------
-    # Puentes de Compatibilidad (¡La Solución al Error 500!)
+    # Puentes de Compatibilidad
     # ---------------------------------------------------------
     @hybrid_property
     def activo(self) -> bool:

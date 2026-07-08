@@ -62,6 +62,10 @@ export default function TablaPacientes({
           <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("modalidad")}>
             MODALIDAD {renderIconoOrden("modalidad")}
           </th>
+          {/* 🔥 NUEVA CABECERA: ESTUDIO / PROCEDIMIENTO */}
+          <th style={{ ...styles.thStyle, cursor: 'pointer', color: '#fbbf24' }} onClick={() => solicitarOrdenamiento("descripcion")}>
+            ESTUDIO / PROCEDIMIENTO {renderIconoOrden("descripcion")}
+          </th>
           <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("departamento")}>
             DEPTO. {renderIconoOrden("departamento")}
           </th>
@@ -72,7 +76,8 @@ export default function TablaPacientes({
       <tbody>
         {pacientes.length === 0 ? (
           <tr>
-            <td colSpan="16" style={styles.waitingState}>
+            {/* 🔥 ACTUALIZADO a colSpan 17 por la nueva columna */}
+            <td colSpan="17" style={styles.waitingState}>
               <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📡</div>
               <p style={{ margin: 0, fontWeight: 'bold' }}>No se localizaron registros coincidentes.</p>
             </td>
@@ -90,6 +95,9 @@ export default function TablaPacientes({
             const mReal = p.modalidad || p.tipo_estudio || "CR";
             const fechaReal = p.fecha_estudio || p.fecha || "S/F"; 
             const horaReal = p.hora_estudio || "00:00";
+            
+            // 🔥 EXTRACCIÓN DE LA DESCRIPCIÓN DEL ESTUDIO
+            const descripcionReal = p.descripcion || p.study_description || p.procedimiento || "Sin descripción DICOM";
 
             const estaSeleccionado = seleccionados.includes(p.id);
             const estiloMod = obtenerEstiloModalidad(mReal);
@@ -136,15 +144,12 @@ export default function TablaPacientes({
                 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
                   <div style={styles.containerFlujo}>
-                    {/* 🛡️ CONTROL DE ACCIONES SEPARADO Y BLINDADO POR ESTADO REAL */}
-                    
                     {/* ESTADO 1: PACIENTE DISPONIBLE PARA GRABACIÓN */}
                     {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && (
                       <button 
                         onClick={() => abrirModuloDictado(p.id)}
                         style={{
                           ...styles.iconFlujoBase, 
-                          // 🔥 LÓGICA VISUAL DINÁMICA (VERDE = LISTO, ROJO = BLOQUEADO)
                           color: estaDesbloqueado ? "#10b981" : "#ef4444", 
                           backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", 
                           border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", 
@@ -155,7 +160,7 @@ export default function TablaPacientes({
                           display: "flex",
                           alignItems: "center",
                           gap: "6px",
-                          transition: "all 0.3s ease" // Transición suave al autorizar
+                          transition: "all 0.3s ease" 
                         }}
                         title={estaDesbloqueado ? "Abrir Dictador en Pantalla Secundaria" : "Estudio Bloqueado. Requiere Autorización (Botón Azul 🔄)"}
                       >
@@ -229,7 +234,6 @@ export default function TablaPacientes({
                           ✅ Completado
                         </span>
                         
-                        {/* 🚀 BOTÓN VISOR PDF INYECTADO AQUÍ */}
                         <button 
                           onClick={() => abrirPDF(idReal)}
                           style={{
@@ -276,6 +280,12 @@ export default function TablaPacientes({
                     {mReal}
                   </span>
                 </td>
+                
+                {/* 🔥 NUEVA CELDA: ESTUDIO / PROCEDIMIENTO */}
+                <td style={{ ...styles.tdStyle, color: '#f8fafc', fontWeight: '500', fontSize: '0.85rem' }}>
+                  {descripcionReal}
+                </td>
+
                 <td style={styles.tdStyle}>{p.departamento || "Radiología"}</td>
                 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>

@@ -1,0 +1,163 @@
+/* =========================================================
+   ESTRUCTURA PRINCIPAL DEL MÓDULO DE EXPORTACIÓN
+========================================================= */
+.exportar-page-wrapper {
+    padding: 20px;
+    color: #fff;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.config-header {
+    margin-bottom: 20px;
+}
+
+.config-card {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+}
+
+/* Efecto de foco en el buscador de cédula */
+.form-group-export input:focus {
+    outline: none;
+    border-color: #fbbf24 !important;
+    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
+    transition: all 0.3s ease;
+}
+
+/* Scrollbar personalizado para la tabla de resultados */
+.tabla-resultados-exportacion {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.tabla-resultados-exportacion::-webkit-scrollbar {
+    width: 8px;
+}
+
+.tabla-resultados-exportacion::-webkit-scrollbar-track {
+    background: #0f172a; 
+}
+
+.tabla-resultados-exportacion::-webkit-scrollbar-thumb {
+    background: #334155; 
+    border-radius: 4px;
+}
+
+.tabla-resultados-exportacion::-webkit-scrollbar-thumb:hover {
+    background: #475569; 
+}
+
+/* Botón principal de exportación */
+.btn-exportar-nucleo:disabled {
+    opacity: 0.6;
+}
+
+.btn-exportar-nucleo:not(:disabled):hover {
+    background-color: #059669 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* =========================================================
+   MODAL PERSISTENTE DE FINALIZACIÓN (ALTO CONTRASTE)
+========================================================= */
+.modal-overlay-persistencia {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.modal-caja-exito {
+    background-color: #1e293b; 
+    border: 2px solid #10b981;  
+    border-radius: 12px;
+    padding: 40px;
+    width: 450px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+}
+
+.modal-icono {
+    font-size: 3.5rem;
+    margin-bottom: 15px;
+}
+
+.modal-caja-exito h2 {
+    color: #10b981 !important; 
+    margin: 0 0 12px 0;
+    font-size: 1.6rem;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+.modal-caja-exito p {
+    color: #f1f5f9 !important; 
+    font-size: 1rem;
+    margin-bottom: 30px;
+    font-weight: 500;
+}
+
+.modal-estadisticas {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 35px;
+    background-color: #0f172a; 
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat-valor {
+    font-size: 2.2rem;
+    font-weight: 800;
+}
+
+.stat-item.exitoso .stat-valor { 
+    color: #4ade80 !important; 
+}
+
+.stat-item.fallido .stat-valor { 
+    color: #f87171 !important; 
+}
+
+.stat-label {
+    color: #94a3b8 !important; 
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+.btn-entendido {
+    background-color: #fbbf24 !important; 
+    color: #000000 !important;             
+    font-weight: 800;
+    border: none;
+    padding: 14px 35px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
+}
+
+.btn-entendido:hover {
+    background-color: #f59e0b !important; 
+    transform: scale(1.03);
+}

@@ -22,6 +22,7 @@ async def crear_perfil(data: dict, db: Session = Depends(get_db)):
         username=data.get('username'),
         email=data.get('email'), 
         rol=data.get('rol'),
+        registro_medico=data.get('registro_medico', ""),
         permisos=data.get('permisos', {}),
         password=hashed_password, 
         is_active=True
@@ -52,6 +53,7 @@ async def actualizar_usuario(usuario_id: int, data: dict, db: Session = Depends(
     usuario.username = data.get('username', usuario.username)
     usuario.email = data.get('email', usuario.email)
     usuario.rol = data.get('rol', usuario.rol)
+    usuario.registro_medico = data.get('registro_medico', usuario.registro_medico)
     usuario.is_active = data.get('is_active', usuario.is_active)
     usuario.permisos = data.get('permisos', usuario.permisos)
 
@@ -74,9 +76,6 @@ def cambiar_estado_usuario(usuario_id: int, activo: bool, db: Session = Depends(
     db.commit()
     return {"status": "success", "activo": activo}
 
-# =========================================================
-# ✅ NUEVO: ENDPOINT DE ELIMINACIÓN (SOLUCIONA ERROR 405)
-# =========================================================
 @router.delete("/{usuario_id}")
 async def eliminar_usuario(usuario_id: int, db: Session = Depends(get_db)):
     """
@@ -87,7 +86,6 @@ async def eliminar_usuario(usuario_id: int, db: Session = Depends(get_db)):
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
-    # 🛡️ PROTECCIÓN MAESTRA: Evitar eliminar el soporte del sistema
     if usuario.username.upper() == "SKALO":
         raise HTTPException(
             status_code=400, 

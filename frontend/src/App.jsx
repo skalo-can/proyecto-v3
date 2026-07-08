@@ -27,6 +27,8 @@ import TecnologoConsole from "./pages/TecnologoConsole";
 import GestionUsuarios from "./pages/GestionUsuarios";
 import BackupConfigPage from "./pages/BackupConfigPage";
 import { PortalPaciente } from "./components/PortalPaciente/PortalPaciente";
+import ImportarPage from './pages/ImportarPage';
+import ExportarPage from './pages/ExportarPage';
 
 // 🚀 IMPORTACIONES PARA MÓDULOS MULTIMONITOR
 import ModalDictadoHardware from "./pages/ModalDictadoHardware";
@@ -155,7 +157,10 @@ export default function App() {
         <Route path="/productividad" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'invitado']}><Productividad /></ProtectedRoute></Layout>} />
 
         {/* OTRAS RUTAS */}
-        <Route path="/configuracion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><SystemConfig onOpenDicom={openDicom} /></ProtectedRoute></Layout>} />
+        {/* 🚀 NUEVOS MÓDULOS DE INGESTA Y EXPORTACIÓN */}
+        <Route path="/importar" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin']}><ImportarPage /></ProtectedRoute></Layout>} />
+        <Route path="/exportar" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin']}><ExportarPage /></ProtectedRoute></Layout>} />
+
         <Route path="/config-mapeo" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><ConfigMapeoPage /></ProtectedRoute></Layout>} />
         <Route path="/auditoria" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><AuditoriaPage /></ProtectedRoute></Layout>} />
         <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'recepcion']}><RecepcionPage /></ProtectedRoute></Layout>} />
@@ -177,4 +182,4 @@ export default function App() {
       <DicomConfigModal isOpen={showDicomModal} onClose={() => setShowDicomModal(false)} />
     </BrowserRouter>
   );
-}
+} 

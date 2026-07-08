@@ -29,12 +29,13 @@ def crear_usuario(db: Session, usuario: UsuarioCreate) -> Usuario:
     if existente:
         raise ValueError("El correo ya está registrado en el sistema.")
 
-    # Crear instancia del modelo (Corregido password y agregados username/permisos)
+    # Crear instancia del modelo con registro médico incluido
     nuevo_usuario = Usuario(
         nombre=usuario.nombre,
         username=usuario.username if hasattr(usuario, 'username') else usuario.email.split('@')[0],
         email=usuario.email,
         rol=usuario.rol,
+        registro_medico=getattr(usuario, 'registro_medico', ""),
         permisos=getattr(usuario, 'permisos', {}),
         password=get_password_hash(usuario.password),
         activo=True

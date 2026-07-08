@@ -63,7 +63,8 @@ const PERMISOS_POR_DEFECTO = {
 const TODOS_LOS_PERMISOS = Array.from(new Set(Object.values(PERMISOS_POR_DEFECTO).flatMap(obj => Object.keys(obj))));
 
 export default function GestionUsuarios() {
-    const [userForm, setUserForm] = useState({ id: null, nombre: '', username: '', email: '', password: '', rol: '' });
+    // 🆕 ESTADO ACTUALIZADO: Incluye registro_medico
+    const [userForm, setUserForm] = useState({ id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '' });
     const [permisos, setPermisos] = useState({}); 
     const [usuarios, setUsuarios] = useState([]);
     const [selectedUsers, setSelectedUsers] = useState({});
@@ -90,7 +91,8 @@ export default function GestionUsuarios() {
     };
 
     const seleccionarParaEditar = (u) => {
-        setUserForm({ id: u.id, nombre: u.nombre, username: u.username, email: u.email || '', password: '', rol: u.rol });
+        // 🆕 RECUPERACIÓN ACTUALIZADA: Carga el registro médico al editar
+        setUserForm({ id: u.id, nombre: u.nombre, username: u.username, email: u.email || '', password: '', rol: u.rol, registro_medico: u.registro_medico || '' });
         setPermisos(u.permisos || {});
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -113,7 +115,7 @@ export default function GestionUsuarios() {
                 await axios.post('http://localhost:8000/api/usuarios/crear-perfil', payload);
                 alert("✅ Colaborador creado con éxito");
             }
-            setUserForm({ id: null, nombre: '', username: '', email: '', password: '', rol: '' });
+            setUserForm({ id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '' });
             setPermisos({});
             setVerPassword(false);
             fetchUsuarios();
@@ -141,7 +143,7 @@ export default function GestionUsuarios() {
             try {
                 for (let id of ids) { await axios.delete(`http://localhost:8000/api/usuarios/${id}`); }
                 alert("🗑️ Usuarios eliminados");
-                setUserForm({ id: null, nombre: '', username: '', email: '', password: '', rol: '' });
+                setUserForm({ id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '' });
                 setPermisos({}); 
                 setSelectedUsers({}); 
                 setVerPassword(false);
@@ -163,6 +165,16 @@ export default function GestionUsuarios() {
                         <div className="field-group"><label>NOMBRE COMPLETO</label><input value={userForm.nombre} onChange={e => setUserForm({...userForm, nombre: e.target.value})} /></div>
                         <div className="field-group"><label>USERNAME</label><input value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} /></div>
                         <div className="field-group"><label>EMAIL INST.</label><input value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} /></div>
+                        
+                        {/* 🆕 NUEVO CAMPO: REGISTRO MÉDICO EN LA INTERFAZ */}
+                        <div className="field-group">
+                            <label>REGISTRO MÉDICO (Opcional)</label>
+                            <input 
+                                placeholder="Ej. RM-12345" 
+                                value={userForm.registro_medico} 
+                                onChange={e => setUserForm({...userForm, registro_medico: e.target.value})} 
+                            />
+                        </div>
                         
                         <div className="field-group">
                             <label>NUEVA PASSWORD {userForm.id && "(OPCIONAL)"}</label>

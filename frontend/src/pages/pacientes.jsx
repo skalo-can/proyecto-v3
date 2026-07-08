@@ -19,7 +19,6 @@ export default function Pacientes() {
   const [pacientes, setPacientes] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [seleccionados, setSeleccionados] = useState([]);
-  const [importando, setImportando] = useState(false);
   
   const [sortBy, setSortBy] = useState("fecha"); 
   const [sortOrder, setSortOrder] = useState("desc"); 
@@ -221,57 +220,6 @@ export default function Pacientes() {
     }
   };
 
-  const handleExportarSeleccionados = async () => {
-    if (seleccionados.length === 0) return;
-    alert(`📦 Exportando (${seleccionados.length}) estudios seleccionados.`);
-    setSeleccionados([]);
-  };
-
-  const handleImportarDiscoExterno = async () => {
-    let tokenCrudo = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
-    const tokenLimpio = tokenCrudo.replace(/['"]+/g, '').trim();
-    
-    if (!tokenLimpio) { 
-      alert("🔒 Sesión Inválida. Por favor, inicia sesión de nuevo."); 
-      return; 
-    }
-    
-    setImportando(true);
-    try {
-      const response = await fetch("http://localhost:8000/api/importacion-fisica/disco-externo", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${tokenLimpio}`
-        }
-      });
-      
-      const data = await response.json().catch(() => null);
-      
-      if (response.ok && data?.status === "success") {
-        alert(`🚀 ¡Lectura de Disco Exitosa!\nSe detectaron ${data.archivos_detectados} archivos DICOM. Se están procesando en segundo plano sin congelar el sistema.`);
-        cargarDatos(); 
-        
-        let intentos = 0;
-        const intervaloRefresco = setInterval(() => {
-          cargarDatos();
-          intentos++;
-          if (intentos >= 5) { 
-            clearInterval(intervaloRefresco); 
-          }
-        }, 3000); 
-
-      } else {
-        alert(`❌ Error en el servidor PACS: ${data?.detail || "Fallo interno."}`);
-      }
-    } catch (error) {
-      console.error("Error de red en importación:", error);
-      alert("❌ Error de comunicación con la API.");
-    } finally {
-      setImportando(false);
-    }
-  };
-
   // 🚀 VENTANAS INDEPENDIENTES MULTIMONITOR
   const abrirModuloDictado = (pacienteId) => {
     const pac = pacientes.find(p => p.id === pacienteId);
@@ -346,28 +294,6 @@ export default function Pacientes() {
               <span style={styles.valContador}>{pacientes.length}</span>
             </div>
           </div>
-        </div>
-
-        <div style={styles.barraMedios}>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button 
-              onClick={handleImportarDiscoExterno} 
-              disabled={importando} 
-              className="btn-importar-pacs"
-              style={{ ...styles.btnMediosImport, backgroundColor: importando ? '#475569' : '#2563eb' }}
-            >
-              {importando ? "⏳ PROCESANDO RUTA EXTERNA..." : "📥 IMPORTAR (CD/USB/PC)"}
-            </button>        
-            <button 
-              disabled={seleccionados.length === 0} 
-              onClick={handleExportarSeleccionados} 
-              className="btn-exportar-pacs"
-              style={{ ...styles.btnMediosExport, backgroundColor: seleccionados.length > 0 ? '#10b981' : '#334155' }}
-            >
-              {seleccionados.length > 0 ? `📥 EXPORTAR ESTUDIOS (${seleccionados.length})` : "Anular Selección (0)"}
-            </button>
-          </div>
-          <span style={styles.subLabel}>Estación de Gestión de Archivos Externos (Inyección Directa por Hardware)</span>
         </div>
         
         <FiltrosPacientes filtros={filtros} handleFiltroChange={handleFiltroChange} setFiltroRapido={setFiltroRapido} modalitiesLista={modalitiesLista} cargarDatos={cargarDatos} loading={loading} />

@@ -102,6 +102,18 @@ export default function Sidebar({ isOpen, onClose }) {
             </Link>
           )}
 
+          {/* 🚀 NUEVOS BOTONES DE HARDWARE: Solo Admin y Superadmin */}
+          {isAdmin && (
+            <>
+              <Link to="/importar" className={`sidebar-link ${isActive("/importar") ? "active" : ""}`} onClick={onClose}>
+                <span className="icon">💿</span> Importar CD / USB
+              </Link>
+              <Link to="/exportar" className={`sidebar-link ${isActive("/exportar") ? "active" : ""}`} onClick={onClose}>
+                <span className="icon">📦</span> Exportar Estudios
+              </Link>
+            </>
+          )}          
+
           <div className="sidebar-divider"></div>
 
           {/* Administración: Solo Admin, Superadmin e hilos para Auxiliar */}

@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect, or_
 import os
+from pathlib import Path
 from app.core.database import get_db
 from app.models.estudio import Estudio 
-from app.models.ris_orden import RISOrden 
+from app.core.auth import obtener_usuario_actual
 from app.services.generador_pdf import construir_reporte_pdf 
 
 router = APIRouter(prefix="/estudios", tags=["Estudios"])
@@ -59,64 +60,77 @@ def marcar_estudio_atendido_endpoint(identificador: str, data: dict, db: Session
 
 
 # =====================================================================
-# ✅ ENDPOINT: COLECTOR Y GENERADOR DE REPORTES FIRMADOS (CORREGIDO)
+# ✅ ENDPOINT: COLECTOR INTELIGENTE Y GENERADOR DE PDF BLINDADO
 # =====================================================================
 @router.post("/{estudio_id}/firmar")
-async def firmar_estudio_endpoint(estudio_id: int, data: dict, db: Session = Depends(get_db)):
+async def firmar_estudio_endpoint(
+    estudio_id: int, 
+    data: dict, 
+    db: Session = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)  # 🔐 Atrapamos al médico real en sesión
+):
     """
     Endpoint clínico para procesar la firma del radiólogo.
-    Recopila los datos del estudio y escribe el PDF en la ruta absoluta estática correcta.
+    Fuerza el uso de los datos visuales del frontend y del usuario logueado.
     """
-    # 1. Buscar el estudio en la base de datos
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
     if not estudio:
         raise HTTPException(status_code=404, detail="Estudio clínico no encontrado.")
 
-    # 2. CAPTURAR EL ID REAL DEL PACIENTE (Ej: 36164737 en lugar de 8)
-    id_real_paciente = data.get("identificacion") or data.get("documento") or data.get("id_paciente")
-    if not id_real_paciente and hasattr(estudio, "paciente") and estudio.paciente:
-        id_real_paciente = getattr(estudio.paciente, "identificacion", str(estudio_id))
-    elif not id_real_paciente:
-        id_real_paciente = str(estudio_id)
+    # 1. PRIORIDAD ABSOLUTA: Datos enviados por el Frontend (Lo que el usuario ve en pantalla)
+    id_real = data.get("identificacion") or data.get("id_paciente") or data.get("documento")
+    nombre_real = data.get("nombre_paciente") or data.get("paciente_nombre") or data.get("paciente")
+    
+    # 2. RESPALDO: Extraer de la base de datos si el frontend no los envió
+    paciente = getattr(estudio, "paciente", None)
+    if not id_real and paciente:
+        id_real = paciente.identificacion
+    if not nombre_real and paciente:
+        nombre_real = f"{paciente.primer_nombre} {paciente.primer_apellido}".strip()
+        
+    # 3. ÚLTIMO RECURSO DE CONTINGENCIA
+    id_real = str(id_real) if id_real else str(estudio_id)
+    nombre_real = nombre_real if nombre_real else "PACIENTE ANÓNIMO"
 
-    # 3. Extraer la información requerida por la plantilla Jinja2
+    # 4. DATOS DEL RADIÓLOGO (Automático desde la sesión, ignora campos vacíos de React)
+    nombre_medico = f"Dr(a). {usuario.nombre}" if hasattr(usuario, "nombre") else "Radiólogo de Turno"
+    registro_medico = getattr(usuario, "registro_medico", "RM-NO-REGISTRADO")
+    
+    texto_diagnostico = data.get("texto_diagnostico") or data.get("informe") or "Estudio validado sin texto adjunto."
+
     datos_informe = {
-        "nombre_paciente": data.get("nombre_paciente") or getattr(estudio, "nombre_paciente", "PACIENTE ANÓNIMO"),
-        "id_paciente": id_real_paciente,
+        "nombre_paciente": nombre_real.upper(),
+        "id_paciente": id_real,
         "fecha_estudio": getattr(estudio, "fecha_estudio", "N/A"),
         "modalidad": getattr(estudio, "modalidad", "DX"),
-        "texto_diagnostico": data.get("texto_diagnostico", "Estudio revisado y validado sin plantilla de texto adjunta."),
-        "nombre_medico": data.get("nombre_medico") or "Radiólogo de Turno",
-        "registro_medico": data.get("registro_medico") or "RM-MIPACS"
+        "texto_diagnostico": texto_diagnostico,
+        "nombre_medico": nombre_medico.upper(),
+        "registro_medico": registro_medico.upper()
     }
 
-    # 4. CALCULAMOS LA RUTA ABSOLUTA (CORREGIDA: Subiendo 2 niveles para salir de 'app')
-    directorio_api = os.path.dirname(os.path.abspath(__file__))
-    ruta_estaticos_real = os.path.abspath(os.path.join(directorio_api, "..", "..", "static", "pdf_reports"))
+    # 5. RUTA ABSOLUTA BLINDADA (Siempre guardará en backend/static/pdf_reports)
+    directorio_base = Path(__file__).resolve().parents[2]
+    ruta_estaticos_real = directorio_base / "static" / "pdf_reports"
+    ruta_estaticos_real.mkdir(parents=True, exist_ok=True)
     
-    # Aseguramos que la carpeta exista
-    if not os.path.exists(ruta_estaticos_real):
-        os.makedirs(ruta_estaticos_real, exist_ok=True)
-    
-    # Construimos el nombre exacto del archivo que el Frontend consumirá
-    nombre_pdf = f"Reporte_{id_real_paciente}.pdf"
-    ruta_final_pdf = os.path.join(ruta_estaticos_real, nombre_pdf)
+    nombre_pdf = f"Reporte_{id_real}.pdf"
+    ruta_final_pdf = ruta_estaticos_real / nombre_pdf
 
-    # 5. Compilar el reporte en PDF usando Weasyprint
-    exito = construir_reporte_pdf(datos_informe, ruta_final_pdf)
+    # 6. COMPILAR PDF FÍSICO
+    exito = construir_reporte_pdf(datos_informe, str(ruta_final_pdf))
 
     if not exito:
         raise HTTPException(status_code=500, detail="Error interno al compilar el archivo PDF del reporte.")
 
-    # 6. Actualizar el estado del estudio en el PACS
+    # 7. ACTUALIZAR ESTADO DE LA ORDEN CLÍNICA
     try:
         estudio.estado = "firmado"
         db.commit()
         return {
             "status": "success", 
-            "message": "Informe firmado y PDF generado correctamente",
+            "message": "Informe firmado correctamente",
             "pdf_url": f"/static/pdf_reports/{nombre_pdf}"
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al actualizar estado en base de datos: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al actualizar estado en PACS: {str(e)}")

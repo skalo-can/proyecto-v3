@@ -55,36 +55,51 @@
     outline: none;
 }
 
-/* 3. MATRIZ GLOBAL (CORREGIDA PARA VISIBILIDAD TOTAL) */
+/* =========================================================
+   3. MATRIZ DE PERMISOS - DISEÑO ADAPTATIVO
+========================================================= */
+
 .permisos-container-master {
     display: grid;
-    /* Ajuste fino de columnas para evitar scroll */
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 6px; /* Espacio mínimo necesario */
-    background: #0b0e11;
+    /* Crea columnas dinámicas que se ajustan solas; mínimo 200px de ancho */
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    background-color: rgba(0, 0, 0, 0.2);
     padding: 15px;
-    border-radius: 10px;
-    border: 1px solid #222;
-    /* Eliminamos el scroll lateral y vertical */
-    overflow: hidden; 
+    border-radius: 8px;
+    border: 1px solid #333;
 }
 
 .permiso-label {
     display: flex;
-    align-items: center;
+    align-items: flex-start; /* Mantiene el checkbox arriba si el texto usa dos líneas */
     gap: 8px;
-    font-size: 0.65rem; /* Letra un poco más pequeña para ganar espacio */
-    padding: 5px 8px;
-    border-radius: 4px;
-    background: #161b22;
-    color: #e2e8f0;
-    font-weight: 500;
-    white-space: nowrap; /* Evita que el texto salte de línea */
+    font-size: 0.75rem; /* Letra un poco más pequeña y elegante */
+    color: #e5e5e5;
+    background-color: #242424;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    
+    /* LA MAGIA PARA QUE NO SE SALGA DEL MARCO */
+    word-wrap: break-word;
+    white-space: normal; /* Permite saltos de línea automáticos */
+    line-height: 1.3;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.permiso-label:hover {
+    border-color: #fbbf24; /* Resalta en amarillo maestro al pasar el mouse */
+    background-color: #2a2a2a;
 }
 
 .permiso-label input[type="checkbox"] {
-    accent-color: #38bdf8;
-    transform: scale(0.9); /* Checkbox ligeramente más pequeño */
+    flex-shrink: 0; /* Impide que el checkbox se encoja o se aplaste */
+    margin: 0;
+    margin-top: 1px; /* Alineación visual perfecta con la primera línea de texto */
+    cursor: pointer;
 }
 
 /* 4. BOTONES DE ACCIÓN (Alineación Perfecta) */

@@ -1,0 +1,103 @@
+/* =========================================================
+   MODAL PERSISTENTE DE FINALIZACIÓN (CON ALTO CONTRASTE)
+========================================================= */
+.modal-overlay-persistencia {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.modal-caja-exito {
+    background-color: #1e293b; /* Fondo azul grisáceo oscuro elegante */
+    border: 2px solid #10b981;  /* Borde verde brillante */
+    border-radius: 12px;
+    padding: 40px;
+    width: 450px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+}
+
+.modal-icono {
+    font-size: 3.5rem;
+    margin-bottom: 15px;
+}
+
+.modal-caja-exito h2 {
+    color: #10b981 !important; /* Verde esmeralda brillante e inmutable */
+    margin: 0 0 12px 0;
+    font-size: 1.6rem;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+.modal-caja-exito p {
+    color: #f1f5f9 !important; /* Blanco crema de alta legibilidad */
+    font-size: 1rem;
+    margin-bottom: 30px;
+    font-weight: 500;
+}
+
+.modal-estadisticas {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 35px;
+    background-color: #0f172a; /* Fondo interno negro azulado para resaltar números */
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat-valor {
+    font-size: 2.2rem;
+    font-weight: 800;
+}
+
+.stat-item.exitoso .stat-valor { 
+    color: #4ade80 !important; /* Verde pastel brillante */
+}
+
+.stat-item.fallido .stat-valor { 
+    color: #f87171 !important; /* Rojo pastel brillante */
+}
+
+.stat-label {
+    color: #94a3b8 !important; /* Gris claro sutil para las etiquetas */
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+.btn-entendido {
+    background-color: #fbbf24 !important; /* Botón amarillo MI_PACS para mantener la estética */
+    color: #000000 !important;             /* Texto negro puro para contraste perfecto */
+    font-weight: 800;
+    border: none;
+    padding: 14px 35px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
+}
+
+.btn-entendido:hover {
+    background-color: #f59e0b !important; /* Tono más oscuro al pasar el mouse */
+    transform: scale(1.03);
+}
