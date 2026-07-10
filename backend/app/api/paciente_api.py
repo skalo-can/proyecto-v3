@@ -6,17 +6,19 @@ Optimizado con controladores de excepción CORS para el Modo Maestro y control d
 
 import os
 import shutil
-import subprocess  # 🚀 Nuevo import para aislar el Explorador de Windows
+import subprocess  
+from pathlib import Path  
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import date, datetime
-from typing import List, Union
+from typing import List, Union, Optional  
 from pydantic import BaseModel
 
 from app.core.database import get_db
+from app.core.auth import obtener_usuario_actual  # 🚀 AQUÍ ESTÁ LA IMPORTACIÓN QUE FALTABA
 from app.models.paciente import Paciente
-from app.models.estudio import Estudio  # 🛡️ Inyección relacional para la consulta dinámica
+from app.models.estudio import Estudio  
 
 from app.schemas.paciente import (
     PacienteCreate,
@@ -30,6 +32,7 @@ from app.services.paciente_service import (
     actualizar_paciente,
     eliminar_paciente
 )
+from app.services.generador_pdf import construir_reporte_pdf  
 
 # 🚀 DEFINICIÓN DEL ROUTER
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
@@ -237,11 +240,6 @@ def guardar_transcripcion(paciente_id: int, datos: TranscripcionInput, db: Sessi
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-    
-class FirmaInput(BaseModel):
-    informe_final: str
-    medico_firma: str
-    registro_medico: str
 
 @router.get("/{paciente_id}/obtener-transcripcion")
 def obtener_transcripcion(paciente_id: int, db: Session = Depends(get_db)):
@@ -249,21 +247,91 @@ def obtener_transcripcion(paciente_id: int, db: Session = Depends(get_db)):
     texto_informe = getattr(estudio, "informe_texto", "") if estudio else ""
     return {"informe_texto": texto_informe, "informe_text": texto_informe, "texto": texto_informe}
 
+# =========================================================
+# 🔥 GENERACIÓN DE PDF, FIRMA Y RECHAZO
+# =========================================================
+BASE_DIR = Path(__file__).resolve().parent.parent.parent 
+STATIC_PDF_PATH = BASE_DIR / "static" / "pdf_reports"
+STATIC_PDF_PATH.mkdir(parents=True, exist_ok=True)
+
+class FirmaInput(BaseModel):
+    informe_final: str
+    medico_firma: Optional[str] = ""
+    registro_medico: Optional[str] = ""
+    aprobado: bool = True             # 🚀 Nuevo: Saber si el médico acepta
+    nota_rechazo: Optional[str] = ""  # 🚀 Nuevo: Razón del rechazo
+
 @router.post("/{paciente_id}/firmar-informe")
-def firmar_informe(paciente_id: int, datos: FirmaInput, db: Session = Depends(get_db)):
+def firmar_informe(
+    paciente_id: int, 
+    datos: FirmaInput, 
+    db: Session = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)  
+):
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
     if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
+    
+    paciente_db = estudio.paciente
+    
     try:
+        # ❌ FLUJO DE RECHAZO (Devolver al transcriptor)
+        if not datos.aprobado:
+            estudio.informe_texto = datos.informe_final
+            estudio.estado_pacs = "Dictado"  # Vuelve atrás en el flujo
+            
+            # Guardamos la nota para que la vea la secretaria/transcriptor en la base de datos
+            # (Asegúrate de que tu modelo 'estudio' tenga un campo para esto en el futuro)
+            if hasattr(estudio, "nota_medico"):
+                setattr(estudio, "nota_medico", datos.nota_rechazo) 
+                
+            setattr(estudio, "esta_firmado", False)
+            db.commit()
+            return {
+                "status": "success", 
+                "message": "Estudio devuelto a transcripción para correcciones.",
+                "pdf_path": None
+            }
+
+        # ✅ FLUJO DE APROBACIÓN (Firma normal)
+        nombre_medico_final = datos.medico_firma.strip() if datos.medico_firma else f"{getattr(usuario, 'primer_nombre', '')} {getattr(usuario, 'primer_apellido', '')}".strip()
+        rm_final = datos.registro_medico.strip() if datos.registro_medico else getattr(usuario, "registro_medico", "SIN REGISTRO MÉDICO")
+
+        if not nombre_medico_final: 
+            nombre_medico_final = "Médico Radiólogo"
+
         estudio.informe_texto = datos.informe_final
         estudio.estado_pacs = "Firmado"
         setattr(estudio, "esta_firmado", True)
         setattr(estudio, "tiene_transcripcion", True)
         setattr(estudio, "tiene_dictado", False)
+        
+        identificacion = paciente_db.identificacion or paciente_db.id
+        
+        datos_para_pdf = {
+            "nombre_paciente": f"{paciente_db.primer_nombre} {paciente_db.primer_apellido}",
+            "id_paciente": identificacion,
+            "fecha_estudio": estudio.fecha_estudio.strftime("%Y-%m-%d") if estudio.fecha_estudio else "S/F",
+            "modalidad": getattr(estudio, "tipo_estudio", getattr(estudio, "modalidad", "CR")),
+            "texto_diagnostico": datos.informe_final,
+            "nombre_medico": nombre_medico_final,
+            "registro_medico": rm_final 
+        }
+
+        nombre_archivo = f"Reporte_{identificacion}.pdf"
+        ruta_fisica_salida = os.path.join(str(STATIC_PDF_PATH), nombre_archivo)
+
+        construir_reporte_pdf(datos_para_pdf, ruta_fisica_salida)
         db.commit()
-        return {"status": "success", "message": "Informe firmado digitalmente."}
+        
+        return {
+            "status": "success", 
+            "message": "Informe firmado digitalmente y PDF generado.",
+            "pdf_path": f"/static/pdf_reports/{nombre_archivo}"
+        }
+        
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error en el proceso: {str(e)}")
 
 
 # =========================================================
@@ -282,12 +350,7 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
 
         unidad_destino = None
 
-        # ----------------------------------------------------
-        # RUTA 1: EXPLORADOR DE WINDOWS (Aislado en Subproceso)
-        # ----------------------------------------------------
         if datos.modo_destino == "EXPLORADOR":
-            # 🚀 BLINDAJE: Ejecutamos la ventana en un proceso de Python invisible aparte 
-            # para evitar que FastAPI (Uvicorn) colapse con el error de Tcl_AsyncDelete
             codigo_tk = (
                 "import tkinter as tk; "
                 "from tkinter import filedialog; "
@@ -299,7 +362,6 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
             )
             
             try:
-                # Llama a python y espera la respuesta del usuario en la ventana
                 resultado = subprocess.check_output(["python", "-c", codigo_tk], text=True, stderr=subprocess.DEVNULL)
                 carpeta_seleccionada = resultado.strip()
             except Exception:
@@ -311,11 +373,8 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
             unidad_destino = os.path.join(carpeta_seleccionada, "MI_PACS_EXPORT")
             os.makedirs(unidad_destino, exist_ok=True)
 
-        # ----------------------------------------------------
-        # RUTA 2: AUTO-DETECCIÓN CD/DVD
-        # ----------------------------------------------------
         elif datos.modo_destino == "CD_DVD":
-            letras_unidades = [f"{chr(i)}:" for i in range(68, 91)] # De D: a Z:
+            letras_unidades = [f"{chr(i)}:" for i in range(68, 91)]
             
             for letra in letras_unidades:
                 ruta_base = f"{letra}\\"
@@ -336,29 +395,31 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
             if not unidad_destino:
                 raise ValueError("No se detectó ningún CD o DVD grabable insertado.")
 
-        # ----------------------------------------------------
-        # EXTRACCIÓN Y COPIADO
-        # ----------------------------------------------------
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         carpeta_lote = os.path.join(unidad_destino, f"Lote_Diagnostico_{timestamp}")
         os.makedirs(carpeta_lote, exist_ok=True)
 
         estudios_procesados = 0
 
-        for est_id in datos.estudios_ids:
-            # 🔥 CORRECCIÓN: Buscamos únicamente por el ID exacto
-            estudio_db = db.query(Estudio).filter(Estudio.id == est_id).first()
+        for item_id in datos.estudios_ids:
+            paciente_db = db.query(Paciente).filter(Paciente.id == item_id).first()
 
-            if not estudio_db:
+            if not paciente_db or not paciente_db.estudios:
                 continue
 
-            paciente_db = estudio_db.paciente
-            nombre_paciente = f"{paciente_db.primer_nombre}_{paciente_db.primer_apellido}".replace(" ", "_")
+            estudio_db = paciente_db.estudios[0]
+
+            p_nombre = (paciente_db.primer_nombre or "").strip()
+            p_apellido = (paciente_db.primer_apellido or "").strip()
+            nombre_paciente = f"{p_nombre}_{p_apellido}".replace(" ", "_")
+            if not nombre_paciente or nombre_paciente == "_":
+                nombre_paciente = "PACIENTE_DESCONOCIDO"
             
-            carpeta_paciente = os.path.join(carpeta_lote, f"{nombre_paciente}_ID{estudio_db.id}")
+            identificacion = paciente_db.identificacion or paciente_db.id
+            
+            carpeta_paciente = os.path.join(carpeta_lote, f"{nombre_paciente}_ID{identificacion}")
             os.makedirs(carpeta_paciente, exist_ok=True)
 
-            # --- DICOM ---
             ruta_dicom_origen = getattr(estudio_db, "ruta_archivos", getattr(estudio_db, "ruta_dicom", None))
             if not ruta_dicom_origen:
                 ruta_dicom_origen = os.path.join(os.getcwd(), "dicom_storage", str(paciente_db.id), str(estudio_db.id))
@@ -371,9 +432,7 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
             else:
                 os.makedirs(carpeta_dicom_destino, exist_ok=True) 
 
-            # --- PDF ---
-            id_real = paciente_db.identificacion or getattr(paciente_db, "id_paciente", paciente_db.id)
-            pdf_nombre = f"Reporte_{id_real}.pdf"
+            pdf_nombre = f"Reporte_{identificacion}.pdf"
             ruta_pdf_origen = os.path.join(os.getcwd(), "static", "pdf_reports", pdf_nombre)
             
             if os.path.exists(ruta_pdf_origen):
@@ -383,7 +442,6 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
 
             estudios_procesados += 1
 
-        # --- VISOR LITE ---
         if datos.incluir_visor:
             ruta_visor_origen = os.path.join(os.getcwd(), "static", "visor_portable")
             carpeta_visor_destino = os.path.join(carpeta_lote, "MI_PACS_Visor_Lite")

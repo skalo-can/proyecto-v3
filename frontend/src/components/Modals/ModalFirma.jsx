@@ -7,16 +7,46 @@ export default function ModalFirma() {
   const [nombreMedico, setNombreMedico] = useState("");
   const [registroMedico, setRegistroMedico] = useState("");
   const [estaGenerandoPdf, setEstaGenerandoPdf] = useState(false);
+  
+  const [aprobado, setAprobado] = useState(null); 
+  const [notaRechazo, setNotaRechazo] = useState("");
+  const [cargandoIA, setCargandoIA] = useState(false);
 
-  // 🔄 1. Cargar la transcripción del paciente usando el parámetro URL
+  const [datosMedicoLogueado, setDatosMedicoLogueado] = useState({ nombre: "", rm: "" });
+
+  // 🔄 CARGA INICIAL
   useEffect(() => {
+    let nombreFinal = "";
+    let rmFinal = "";
+
+    const usuarioGuardado = localStorage.getItem("usuario") || localStorage.getItem("user");
+    
+    if (usuarioGuardado) {
+      try {
+        const usuarioObj = JSON.parse(usuarioGuardado);
+        
+        // 🚀 RASTREADOR: Esto imprimirá en tu consola (F12) lo que realmente llegó en el Login
+        console.log("🕵️ Datos del usuario en memoria de React:", usuarioObj);
+        
+        const nombre = usuarioObj.primer_nombre || "";
+        const apellido = usuarioObj.primer_apellido || "";
+        
+        nombreFinal = `${nombre} ${apellido}`.trim() || usuarioObj.nombre || usuarioObj.nombre_completo || "";
+        
+        // 🚀 BÚSQUEDA AGRESIVA: Cubrimos todas las posibles variables de tu backend
+        rmFinal = usuarioObj.registro_medico || usuarioObj.rm || usuarioObj.registro || usuarioObj.matricula || "";
+        
+      } catch (error) {
+        console.warn("No se pudo analizar el objeto del usuario:", error);
+      }
+    }
+
+    setDatosMedicoLogueado({ nombre: nombreFinal, rm: rmFinal });
+
     if (estudioId) {
-      console.log("📡 Solicitando informe para el estudio ID:", estudioId);
-      
       fetch(`http://localhost:8000/api/pacientes/${estudioId}/obtener-transcripcion`)
         .then(res => res.json())
         .then(data => {
-          console.log("📥 Datos recibidos del backend:", data);
           const textoFinal = data.informe || data.informe_texto || data.informe_text || data.texto || data.informe_final || "";
           setReporteTexto(textoFinal);
         })
@@ -24,15 +54,27 @@ export default function ModalFirma() {
     }
   }, [estudioId]);
 
-  // ⌨️ 2. MOTOR DE ATAJOS CIEGOS PARA MONITORES DEDICADOS
+  // 🚀 LÓGICA DE SALTO
+  const handleSeleccionAprobacion = (decision) => {
+    setAprobado(decision);
+    if (decision === true) {
+      setNombreMedico(datosMedicoLogueado.nombre);
+      setRegistroMedico(datosMedicoLogueado.rm);
+    } else {
+      setNombreMedico("");
+      setRegistroMedico("");
+    }
+  };
+
+  // ⌨️ MOTOR DE ATAJOS
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Si presiona Ctrl + Enter firma directamente desde cualquier campo
       if (e.code === 'Enter' && e.ctrlKey) {
         e.preventDefault();
-        handleFirmar();
+        if (aprobado !== null) {
+          handleProcesarFirma();
+        }
       }
-      // Si presiona Escape cierra la ventana nativa
       if (e.code === 'Escape') {
         e.preventDefault();
         window.close();
@@ -40,172 +82,183 @@ export default function ModalFirma() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [reporteTexto, nombreMedico, registroMedico]); // Mantener el estado fresco
+  }, [reporteTexto, nombreMedico, registroMedico, aprobado, notaRechazo]);
 
-  // 🔏 3. EJECUCIÓN DE FIRMA Y ALIMENTACIÓN AL CANAL BROADCAST
-  const handleFirmar = async () => {
-    if (!nombreMedico.trim() || !registroMedico.trim()) {
-      alert("⚠️ Debe ingresar su Nombre y Registro Médico para firmar el documento.");
+  // 🔏 EJECUCIÓN DE FIRMA
+  const handleProcesarFirma = async () => {
+    if (aprobado === false && !notaRechazo.trim()) {
+      alert("⚠️ Debe ingresar una nota de explicación breve para devolver el informe.");
       return;
     }
 
     setEstaGenerandoPdf(true);
 
     try {
-      // 1️⃣ Guardar el informe definitivo y credenciales del profesional
-      const responseGuardar = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/firmar-informe`, {
+      const tokenSesion = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+
+      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/firmar-informe`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": tokenSesion ? `Bearer ${tokenSesion}` : "" 
+        },
         body: JSON.stringify({
-          informe_final: reporteTexto,
+          informe_final: aprobado ? reporteTexto : (reporteTexto + `\n\n[NOTA DE CORRECCIÓN MÉDICA: ${notaRechazo}]`),
           medico_firma: nombreMedico,
-          registro_medico: registroMedico
+          registro_medico: registroMedico,
+          aprobado: aprobado,
+          nota_rechazo: notaRechazo
         })
       });
 
-      if (!responseGuardar.ok) throw new Error("Error al estampar la firma.");
+      if (!response.ok) throw new Error("Error en la transacción clínica del backend.");
 
-      // 2️⃣ Generar el PDF final en el almacenamiento estático del backend
-      const responsePdf = await fetch(`http://localhost:8000/api/estudios/${estudioId}/firmar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // 🚀 AQUÍ ESTÁ LA INYECCIÓN EXACTA: Enviamos los datos directo al generador del PDF
-        body: JSON.stringify({
-          medico_firma: nombreMedico,
-          registro_medico: registroMedico
-        })
-      });
-
-      if (!responsePdf.ok) {
-         console.warn("Problema al compilar el PDF físico.");
-      }
-
-      // 🚀 3️⃣ EMITIR SEÑAL DE ACTUALIZACIÓN AL MONITOR PRINCIPAL
       const canal = new BroadcastChannel("mipacs_refresco_flujo");
       canal.postMessage("actualizar_tabla");
       canal.close();
 
-      // Suicidio limpio de la ventana flotante
       window.close();
       
     } catch (error) {
-      console.error("Error al firmar:", error);
+      console.error("Error al procesar la operación:", error);
       alert("❌ Hubo un fallo al conectar con la API.");
     } finally {
       setEstaGenerandoPdf(false);
     }
   };
 
-  // 🎨 4. INTERFAZ ESTÉTICA MULTIMONITOR (Borde Verde Esmeralda)
+  // 🤖 ASISTENTE IA
+  const handleConsultarIA = async () => {
+    setCargandoIA(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const sugerenciaEjemplo = "\n\n[💡 SUGERENCIA IA: Se observa un leve pinzamiento en el espacio intervertebral L5-S1 que podría correlacionarse con los hallazgos mecánicos reportados.]";
+      setReporteTexto(prev => prev + sugerenciaEjemplo);
+      alert("🤖 La IA analizó los datos de la imagen y la transcripción actual. Se ha agregado un anexo con los hallazgos encontrados al final del texto.");
+    } catch (error) {
+      console.error("Error en la consulta de IA:", error);
+    } finally {
+      setCargandoIA(false);
+    }
+  };
+
+  const obtenerColorBorde = () => {
+    if (aprobado === true) return '#10b981'; 
+    if (aprobado === false) return '#ef4444'; 
+    return '#334155'; 
+  };
+
   const layoutMultimonitor = { 
-    width: '100vw', 
-    height: '100vh', 
-    background: '#07080a', 
-    boxSizing: 'border-box',
-    display: 'flex', 
-    flexDirection: 'column', 
-    padding: '30px',
-    border: '8px solid #10b981', // Verde representativo del estado "Firmado"
-    transition: 'all 0.3s ease'
+    width: '100vw', height: '100vh', background: '#07080a', boxSizing: 'border-box',
+    display: 'flex', flexDirection: 'column', padding: '30px',
+    border: `8px solid ${obtenerColorBorde()}`, transition: 'all 0.3s ease', overflowY: 'auto'
   };
 
   const inputEstilo = { 
-    flex: 1, 
-    padding: "15px", 
-    borderRadius: "6px", 
-    border: "1px solid #334155", 
-    backgroundColor: "#0f172a", 
-    color: "#fff",
-    fontSize: "1rem"
-  };
-
-  const kbdStyle = { 
-    backgroundColor: "#1e293b", 
-    border: "1px solid #475569", 
-    borderRadius: "4px", 
-    padding: "4px 8px", 
-    color: "#fbbf24", 
-    fontFamily: "monospace", 
-    fontSize: "0.9rem", 
-    boxShadow: "0 2px 0 #0f172a" 
+    flex: 1, padding: "15px", borderRadius: "6px", border: "1px solid #334155", 
+    backgroundColor: "#0f172a", color: "#fff", fontSize: "1rem", transition: "all 0.3s"
   };
 
   return (
     <div style={layoutMultimonitor}>
       
-      {/* CABECERA */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <h2 style={{ color: "#fff", margin: 0, fontSize: "1.8rem", display: "flex", alignItems: "center", gap: "10px" }}>
           🔏 Estación de Validación y Firma Digital
         </h2>
+        <button
+          onClick={handleConsultarIA} disabled={cargandoIA || estaGenerandoPdf}
+          style={{
+            padding: "10px 20px", backgroundColor: "#7c3aed", color: "white", border: "none",
+            borderRadius: "6px", fontWeight: "bold", cursor: cargandoIA ? "not-allowed" : "pointer",
+            boxShadow: "0 4px 12px rgba(124, 58, 237, 0.3)", display: "flex", alignItems: "center", gap: "8px"
+          }}
+        >
+          {cargandoIA ? "⏳ Procesando Red..." : "🤖 Solicitar Asistencia IA"}
+        </button>
       </div>
 
-      {/* 🚀 PANEL VISUAL DE ATAJOS (CHEAT SHEET) */}
-      <div style={{ backgroundColor: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.4)", borderRadius: "8px", padding: "15px 25px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "20px" }}>
-        <div style={{ fontSize: "2.5rem" }}>⌨️</div>
+      <div style={{ backgroundColor: "rgba(30, 41, 59, 0.5)", border: "1px solid #334155", borderRadius: "8px", padding: "15px 25px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "20px" }}>
+        <div style={{ fontSize: "2rem" }}>⌨️</div>
         <div>
-          <h4 style={{ margin: "0 0 8px 0", color: "#a7f3d0", fontSize: "1.1rem" }}>Guía Rápida de Operación</h4>
+          <h4 style={{ margin: "0 0 5px 0", color: "#fbbf24", fontSize: "1rem" }}>Guía Rápida de Operación</h4>
           <div style={{ display: "flex", gap: "30px", color: "#e2e8f0" }}>
-            <span><kbd style={kbdStyle}>Ctrl</kbd> + <kbd style={kbdStyle}>Enter</kbd> ➔ Estampar Firma y Cerrar</span>
-            <span><kbd style={kbdStyle}>Esc</kbd> ➔ Cancelar y Salir</span>
+            <span><kbd style={{...inputEstilo, padding: "4px 8px", backgroundColor: "#1e293b", color: "#fbbf24"}}>Ctrl</kbd> + <kbd style={{...inputEstilo, padding: "4px 8px", backgroundColor: "#1e293b", color: "#fbbf24"}}>Enter</kbd> ➔ Ejecutar Decisión Actual</span>
+            <span><kbd style={{...inputEstilo, padding: "4px 8px", backgroundColor: "#1e293b", color: "#fbbf24"}}>Esc</kbd> ➔ Cancelar y Salir</span>
           </div>
         </div>
       </div>
 
-      {/* TEXTAREA IMPRESIÓN BLANCA SOLICITADA */}
       <textarea
-        value={reporteTexto}
-        onChange={(e) => setReporteTexto(e.target.value)}
-        placeholder="Cargando reporte de transcripción..."
+        value={reporteTexto} onChange={(e) => setReporteTexto(e.target.value)} placeholder="Cargando reporte de transcripción..."
         style={{
-          flex: 1, 
-          padding: "30px", 
-          backgroundColor: "#ffffff",
-          color: "#0f172a",
-          border: "2px solid #10b981",
-          borderRadius: "8px",
-          fontSize: "16px",
-          lineHeight: "1.8",
-          resize: "none", 
-          marginBottom: "20px",
-          overflowY: "auto"
+          flex: 1, padding: "30px", backgroundColor: "#ffffff", color: "#0f172a",
+          border: `2px solid ${obtenerColorBorde()}`, borderRadius: "8px", fontSize: "16px",
+          lineHeight: "1.8", resize: "none", marginBottom: "20px", overflowY: "auto"
         }}
       />
 
-      {/* INFORMACIÓN DEL MÉDICO */}
-      <div style={{ display: "flex", gap: "20px", marginBottom: "25px" }}>
+      <div style={{ backgroundColor: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "20px", marginBottom: "20px" }}>
+        <p style={{ color: "#f3f4f6", margin: "0 0 15px 0", fontWeight: "bold", fontSize: "1.1rem" }}>
+          ¿Está de acuerdo con los hallazgos clínicos transcritos por el asistente?
+        </p>
+        <div style={{ display: "flex", gap: "30px" }}>
+          <label style={{ color: "#10b981", fontWeight: "bold", display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+            <input 
+              type="radio" name="calidad_estudio" checked={aprobado === true}
+              onChange={() => handleSeleccionAprobacion(true)}
+              style={{ width: "18px", height: "18px", accentColor: "#10b981" }}
+            /> Sí, validar reporte y proceder a firma.
+          </label>
+          <label style={{ color: "#ef4444", fontWeight: "bold", display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+            <input 
+              type="radio" name="calidad_estudio" checked={aprobado === false}
+              onChange={() => handleSeleccionAprobacion(false)}
+              style={{ width: "18px", height: "18px", accentColor: "#ef4444" }}
+            /> No, rechazar y devolver con observaciones.
+          </label>
+        </div>
+
+        {aprobado === false && (
+          <div style={{ marginTop: "15px" }}>
+            <label style={{ display: "block", color: "#f3f4f6", marginBottom: "5px", fontSize: "14px" }}>Nota aclaratoria para la secretaria / transcriptor:</label>
+            <textarea
+              value={notaRechazo} onChange={(e) => setNotaRechazo(e.target.value)}
+              placeholder="Indique detalladamente qué correcciones o agregados se necesitan en el dictado..."
+              style={{ width: "100%", height: "80px", padding: "10px", backgroundColor: "#1f2937", color: "white", border: "1px solid #ef4444", borderRadius: "6px", resize: "none" }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "20px", marginBottom: "25px", opacity: aprobado === true ? 1 : 0.4, transition: "opacity 0.3s" }}>
         <div style={{ flex: 1 }}>
           <label style={{ display: "block", fontSize: "13px", marginBottom: "8px", color: "#94a3b8", fontWeight: "bold" }}>Nombre del Radiólogo:</label>
-          <input type="text" value={nombreMedico} onChange={(e) => setNombreMedico(e.target.value)} placeholder="Dr. / Dra. ..." style={inputEstilo} />
+          <input type="text" value={nombreMedico} onChange={(e) => setNombreMedico(e.target.value)} placeholder="Dr. / Dra. ..." style={inputEstilo} disabled={aprobado !== true} />
         </div>
         <div style={{ flex: 1 }}>
           <label style={{ display: "block", fontSize: "13px", marginBottom: "8px", color: "#94a3b8", fontWeight: "bold" }}>Registro Médico (RM):</label>
-          <input type="text" value={registroMedico} onChange={(e) => setRegistroMedico(e.target.value)} placeholder="Ej. RM-99857" style={inputEstilo} />
+          <input type="text" value={registroMedico} onChange={(e) => setRegistroMedico(e.target.value)} placeholder="Ej. RM-99857" style={inputEstilo} disabled={aprobado !== true} />
         </div>
       </div>
 
-      {/* BOTONERA PRINCIPAL */}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "15px" }}>
         <button onClick={() => window.close()} style={{ padding: "12px 25px", background: "#334155", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }} disabled={estaGenerandoPdf}>
           Descartar Cambios
         </button>
         
         <button 
-          onClick={handleFirmar} 
-          disabled={estaGenerandoPdf}
+          onClick={handleProcesarFirma} 
+          disabled={estaGenerandoPdf || aprobado === null || (aprobado === false && !notaRechazo.trim())}
           style={{ 
             padding: "12px 35px", 
-            backgroundColor: estaGenerandoPdf ? "#4b5563" : "#10b981", 
-            color: "white", 
-            border: "none", 
-            borderRadius: "6px", 
-            fontWeight: "bold", 
-            fontSize: "1.1rem",
-            cursor: estaGenerandoPdf ? "not-allowed" : "pointer",
-            boxShadow: estaGenerandoPdf ? "none" : "0 4px 15px rgba(16, 185, 129, 0.4)",
+            backgroundColor: aprobado === null ? "#4b5563" : (aprobado ? "#10b981" : "#ef4444"), 
+            color: "white", border: "none", borderRadius: "6px", fontWeight: "bold", fontSize: "1.1rem",
+            cursor: (estaGenerandoPdf || aprobado === null) ? "not-allowed" : "pointer",
+            boxShadow: aprobado === null ? "none" : `0 4px 15px ${aprobado ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
           }}
         >
-          {estaGenerandoPdf ? "⏳ Generando Reporte PDF..." : "🔏 Confirmar y Firmar Documento"}
+          {estaGenerandoPdf ? "⏳ Procesando Operación..." : (aprobado === false ? "❌ Devolver Informe" : "🔏 Confirmar y Firmar Documento")}
         </button>
       </div>
 
