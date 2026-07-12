@@ -67,8 +67,11 @@ def parse_fecha_nacimiento(dicom_birth_date: str | None) -> date:
         return date(1900, 1, 1)
 
 
-def generar_thumbnail(dicom_path: Path, thumbnail_path: Path):
-    """Genera una miniatura PNG de alta fidelidad desde la matriz de pixeles DICOM."""
+def generar_thumbnail(dicom_path: Path, nombre_base: str, subcarpeta: str) -> str | None:
+    """
+    Genera una miniatura PNG de alta fidelidad desde la matriz de pixeles DICOM.
+    Organiza el archivo en subcarpetas jerárquicas YYYY/MM/DD.
+    """
     try:
         ds = dcmread(dicom_path, force=True)
         if "PixelData" not in ds:
@@ -82,8 +85,15 @@ def generar_thumbnail(dicom_path: Path, thumbnail_path: Path):
 
         img = Image.fromarray(arr.astype(np.uint8))
         img.thumbnail((256, 256))
+
+        # Crear dinámicamente el árbol de directorios YYYY/MM/DD
+        carpeta_destino = THUMBS_DIR / subcarpeta
+        carpeta_destino.mkdir(parents=True, exist_ok=True)
+
+        thumbnail_path = carpeta_destino / f"{nombre_base}.png"
         img.save(thumbnail_path)
-        return str(thumbnail_path)
+        
+        return f"/static/thumbnails/{subcarpeta}/{nombre_base}.png"
     except Exception as e:
         print(f"⚠️ Thumbnail Omitido: {e}")
         return None
@@ -119,6 +129,7 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
                 primer_apellido=primer_apellido,
                 fecha_nacimiento=fecha_nacimiento
             )
+            db.query(Paciente)
             db.add(paciente)
             db.commit()
             db.refresh(paciente)
@@ -146,6 +157,8 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
                 uid=study_uid
             )
             estudio = crear_estudio(db, data)
+        else:
+            fecha_estudio = estudio.fecha_estudio
 
         # 3. Guardar Estructura en Almacenamiento Unificado
         accession_number = getattr(ds, "AccessionNumber", study_uid)
@@ -158,8 +171,13 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
 
         shutil.copy2(str(archivo_path), str(destino_final))
 
-        thumbnail_path = THUMBS_DIR / f"{sop_uid}.png"
-        generar_thumbnail(destino_final, thumbnail_path)
+        # Formatear la subcarpeta usando la fecha real del estudio clínico
+        subcarpeta_fecha = f"{fecha_estudio.year}/{fecha_estudio.month:02d}/{fecha_estudio.day:02d}"
+        
+        # Generar thumbnail indexado por la ruta jerárquica
+        thumbnail_url = generar_thumbnail(destino_final, str(sop_uid), subcarpeta_fecha)
+        if not thumbnail_url:
+            thumbnail_url = f"/static/thumbnails/{subcarpeta_fecha}/{sop_uid}.png"
 
         metadata = {
             "Modality": getattr(ds, "Modality", "DX"),
@@ -175,7 +193,7 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
                 estudio_id=estudio.id,
                 ruta_archivo=str(destino_final),
                 dicom_metadata=metadata,
-                thumbnail=f"/static/thumbnails/{sop_uid}.png",
+                thumbnail=thumbnail_url,
                 fecha_subida=datetime.utcnow()
             )
             db.add(imagen)
@@ -216,6 +234,7 @@ def tarea_fondo_importacion_recursiva(ruta_origen: str):
                             print(" -> ✅ ¡GUARDADO EN BD!")
                             db.commit()
                         else:
+                            conteo_errors = True
                             conteo_errores += 1
                             ESTADO_IMPORTACION["fallidos"] = conteo_errores
                             print(f" -> ⚠️ Omitido")
@@ -237,7 +256,7 @@ def subproceso_abrir_explorador(resultado_compartido: dict):
     root.withdraw()
     root.attributes('-topmost', True)
     ruta = filedialog.askdirectory(title="MI_PACS — Seleccione la carpeta origen de estudios DICOM")
-    resultado_compartido["ruta_seleccionada"] = ruta
+    resultado_compartido["ruta_seleccionada"] = route = ruta
     root.destroy()
 
 

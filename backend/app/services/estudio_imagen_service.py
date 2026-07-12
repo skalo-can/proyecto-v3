@@ -34,27 +34,43 @@ os.makedirs(THUMB_DIR, exist_ok=True)
 
 
 # ---------------------------------------------------------
+# GENERACIÓN DE SUB-RUTAS (ARQUITECTURA ESCALABLE)
+# ---------------------------------------------------------
+def obtener_ruta_jerarquica() -> str:
+    """Devuelve una ruta en formato YYYY/MM/DD para evitar cuellos de botella."""
+    hoy = datetime.now()
+    return f"{hoy.year}/{hoy.month:02d}/{hoy.day:02d}"
+
+
+# ---------------------------------------------------------
 # MINIATURAS PARA IMÁGENES NO DICOM
 # ---------------------------------------------------------
-def generar_thumbnail(image_path: Path, filename: str) -> str:
+def generar_thumbnail(image_path: Path, nombre_base: str, subcarpeta: str) -> str:
     """
     Genera una miniatura PNG de 200x200 px para imágenes no DICOM.
-    Retorna la URL pública.
+    La guarda en la estructura jerárquica YYYY/MM/DD.
     """
-    thumb_filename = f"{filename}.png"
-    thumb_path = THUMB_DIR / thumb_filename
+    # Crear la subcarpeta jerárquica si no existe
+    carpeta_destino = THUMB_DIR / subcarpeta
+    os.makedirs(carpeta_destino, exist_ok=True)
+
+    thumb_filename = f"{nombre_base}.png"
+    thumb_path = carpeta_destino / thumb_filename
 
     with Image.open(image_path) as img:
         img.thumbnail((200, 200))
         img.save(thumb_path, "PNG")
 
-    return f"/static/thumbnails/{thumb_filename}"
+    return f"/static/thumbnails/{subcarpeta}/{thumb_filename}"
 
 
 # ---------------------------------------------------------
 # MINIATURA PARA DICOM
 # ---------------------------------------------------------
-def generar_thumbnail_dicom(dicom_path: Path, filename: str) -> str | None:
+def generar_thumbnail_dicom(dicom_path: Path, nombre_base: str, subcarpeta: str) -> str | None:
+    """
+    Extrae la imagen del DICOM y la guarda en la estructura jerárquica YYYY/MM/DD.
+    """
     try:
         ds = pydicom.dcmread(str(dicom_path), force=True)
 
@@ -65,11 +81,15 @@ def generar_thumbnail_dicom(dicom_path: Path, filename: str) -> str | None:
         img = Image.fromarray(arr)
         img.thumbnail((200, 200))
 
-        thumb_filename = f"{filename}.png"
-        thumb_path = THUMB_DIR / thumb_filename
+        # Crear la subcarpeta jerárquica si no existe
+        carpeta_destino = THUMB_DIR / subcarpeta
+        os.makedirs(carpeta_destino, exist_ok=True)
+
+        thumb_filename = f"{nombre_base}.png"
+        thumb_path = carpeta_destino / thumb_filename
         img.save(thumb_path, "PNG")
 
-        return f"/static/thumbnails/{thumb_filename}"
+        return f"/static/thumbnails/{subcarpeta}/{thumb_filename}"
 
     except Exception as e:
         print("❌ Error generando thumbnail DICOM:", e)
@@ -99,16 +119,12 @@ def extraer_metadata_dicom(path: Path) -> dict:
 # ---------------------------------------------------------
 async def save_image_and_register(db: Session, estudio_id: int, file: UploadFile | object) -> EstudioImagen:
     """
-    file puede ser:
-    - UploadFile (frontend)
-    - FakeUpload (procesador DICOM)
+    Guarda el archivo y usa la arquitectura escalable para el thumbnail.
     """
-
-    # Crear carpeta del estudio
+    # Crear carpeta del estudio (DICOMs originales)
     estudio_dir = DICOMS_BASE / f"estudio_{estudio_id}"
     estudio_dir.mkdir(parents=True, exist_ok=True)
 
-    # Nombre único
     ext = file.filename.split(".")[-1].lower()
     if ext not in ["png", "jpg", "jpeg", "dcm"]:
         raise HTTPException(status_code=400, detail="Formato no permitido")
@@ -116,20 +132,29 @@ async def save_image_and_register(db: Session, estudio_id: int, file: UploadFile
     new_filename = f"{uuid.uuid4()}.{ext}"
     file_path = estudio_dir / new_filename
 
-    # Guardar archivo físico
+    # Guardar archivo físico original
     contenido = await file.read()
     with open(file_path, "wb") as f:
         f.write(contenido)
 
-    # Metadata y thumbnail
+    # Variables para metadata y thumbnail
     dicom_metadata = None
     thumbnail_url = None
+    
+    # Obtener la ruta jerárquica (YYYY/MM/DD)
+    subcarpeta_fecha = obtener_ruta_jerarquica()
 
     if ext == "dcm":
         dicom_metadata = extraer_metadata_dicom(file_path)
-        thumbnail_url = generar_thumbnail_dicom(file_path, new_filename)
+        # ESTA ES LA MAGIA: Intentamos usar el StudyInstanceUID real como nombre
+        uid_estudio = dicom_metadata.get("StudyInstanceUID")
+        # Si no tiene UID (raro pero posible), usamos un UUID
+        nombre_thumb = uid_estudio if uid_estudio else str(uuid.uuid4())
+        
+        thumbnail_url = generar_thumbnail_dicom(file_path, nombre_thumb, subcarpeta_fecha)
     else:
-        thumbnail_url = generar_thumbnail(file_path, new_filename)
+        nombre_thumb = str(uuid.uuid4())
+        thumbnail_url = generar_thumbnail(file_path, nombre_thumb, subcarpeta_fecha)
 
     # Registrar en BD
     try:
@@ -147,9 +172,7 @@ async def save_image_and_register(db: Session, estudio_id: int, file: UploadFile
         db.commit()
         db.refresh(imagen)
 
-        # URL pública para el frontend
         imagen.url = ruta_publica
-
         return imagen
 
     except SQLAlchemyError as e:
@@ -175,15 +198,11 @@ def obtener_imagenes_por_estudio(db: Session, estudio_id: int):
 import shutil
 
 def eliminar_carpeta_estudio(estudio_id: int):
+    # Eliminar DICOMs originales
     estudio_dir = DICOMS_BASE / f"estudio_{estudio_id}"
-
     if estudio_dir.exists():
         shutil.rmtree(estudio_dir, ignore_errors=True)
 
-    # Eliminar thumbnails asociados
-    for filename in os.listdir(THUMB_DIR):
-        if f"{estudio_id}" in filename:
-            try:
-                os.remove(THUMB_DIR / filename)
-            except:
-                pass
+    # NOTA: Los thumbnails ahora están en estructura YYYY/MM/DD y la eliminación
+    # definitiva se hará vía Base de Datos con una política de retención (ej. 15 años).
+    # La eliminación individual por nombre ya no se recomienda aquí para mantener el rendimiento.

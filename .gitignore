@@ -69,3 +69,5 @@ backend/static/reportes/
 backend/static/reportes/**
 backend/static/transcripciones/
 backend/static/transcripciones/**
+
+.env

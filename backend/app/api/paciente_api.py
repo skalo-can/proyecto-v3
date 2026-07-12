@@ -5,20 +5,30 @@ Optimizado con controladores de excepción CORS para el Modo Maestro y control d
 """
 
 import os
+from dotenv import load_dotenv
 import shutil
-import subprocess  
+import subprocess 
+import glob
 from pathlib import Path  
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 from datetime import date, datetime
 from typing import List, Union, Optional  
 from pydantic import BaseModel
 
+import pydicom
+import numpy as np
+from PIL import Image
+from google import genai
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+
 from app.core.database import get_db
-from app.core.auth import obtener_usuario_actual  # 🚀 AQUÍ ESTÁ LA IMPORTACIÓN QUE FALTABA
+from app.core.auth import obtener_usuario_actual
 from app.models.paciente import Paciente
-from app.models.estudio import Estudio  
+from app.models.estudio import Estudio
+
+from app.models.estudio_imagen import EstudioImagen
 
 from app.schemas.paciente import (
     PacienteCreate,
@@ -34,9 +44,15 @@ from app.services.paciente_service import (
 )
 from app.services.generador_pdf import construir_reporte_pdf  
 
-# 🚀 DEFINICIÓN DEL ROUTER
+# 🚀 DEFINICIÓN DEL ROUTER Y DIRECTORIOS
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
 security = HTTPBearer()
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent 
+STATIC_THUMBNAILS_PATH = BASE_DIR / "static" / "thumbnails"
+STATIC_PDF_PATH = BASE_DIR / "static" / "pdf_reports"
+STATIC_PDF_PATH.mkdir(parents=True, exist_ok=True)
+
 
 # ---------------------------------------------------------
 # LISTAR PACIENTES (TABLA PRINCIPAL CON ORDENAMIENTO MULTIVARIABLE)
@@ -170,9 +186,10 @@ def listar(
             return f"{item['fecha_estudio']} {item['hora_estudio']}"
 
     es_descendente = (order == "desc")
-    lista_mapeada.sort(key=obtener_llave_orden, reverse=es_descendente)
+    lista_mapeada.sort(key=obtener_orden_llave if 'obtener_orden_llave' in locals() else obtener_llave_orden, reverse=es_descendente)
         
     return lista_mapeada
+
 
 # ---------------------------------------------------------
 # ENDPOINTS REST COMPLETOS (CRUD)
@@ -223,6 +240,7 @@ def reabrir_flujo_estudio(paciente_id: int, control: PacienteFlujoAdminUpdate, d
     db.commit()
     return {"status": "success", "message": "Flujo reabierto con éxito."}
 
+
 class TranscripcionInput(BaseModel):
     informe: str
 
@@ -247,19 +265,16 @@ def obtener_transcripcion(paciente_id: int, db: Session = Depends(get_db)):
     texto_informe = getattr(estudio, "informe_texto", "") if estudio else ""
     return {"informe_texto": texto_informe, "informe_text": texto_informe, "texto": texto_informe}
 
+
 # =========================================================
 # 🔥 GENERACIÓN DE PDF, FIRMA Y RECHAZO
 # =========================================================
-BASE_DIR = Path(__file__).resolve().parent.parent.parent 
-STATIC_PDF_PATH = BASE_DIR / "static" / "pdf_reports"
-STATIC_PDF_PATH.mkdir(parents=True, exist_ok=True)
-
 class FirmaInput(BaseModel):
     informe_final: str
     medico_firma: Optional[str] = ""
     registro_medico: Optional[str] = ""
-    aprobado: bool = True             # 🚀 Nuevo: Saber si el médico acepta
-    nota_rechazo: Optional[str] = ""  # 🚀 Nuevo: Razón del rechazo
+    aprobado: bool = True              
+    nota_rechazo: Optional[str] = ""  
 
 @router.post("/{paciente_id}/firmar-informe")
 def firmar_informe(
@@ -277,10 +292,7 @@ def firmar_informe(
         # ❌ FLUJO DE RECHAZO (Devolver al transcriptor)
         if not datos.aprobado:
             estudio.informe_texto = datos.informe_final
-            estudio.estado_pacs = "Dictado"  # Vuelve atrás en el flujo
-            
-            # Guardamos la nota para que la vea la secretaria/transcriptor en la base de datos
-            # (Asegúrate de que tu modelo 'estudio' tenga un campo para esto en el futuro)
+            estudio.estado_pacs = "Dictado"
             if hasattr(estudio, "nota_medico"):
                 setattr(estudio, "nota_medico", datos.nota_rechazo) 
                 
@@ -461,3 +473,80 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fallo del Motor Físico: {str(e)}")
+
+# =========================================================
+# 🤖 ASISTENTE DE DIAGNÓSTICO CON INTELIGENCIA ARTIFICIAL (PRODUCCIÓN BLINDADA)
+# =========================================================
+class IARequest(BaseModel):
+    texto_actual: str
+
+@router.post("/{paciente_id}/asistencia-ia")
+def asistencia_ia(
+    paciente_id: int, 
+    datos: IARequest, 
+    db: Session = Depends(get_db)
+):
+    # 1. CAPA DE INTEGRIDAD RELACIONAL (Carga estricta y segura)
+    try:
+        # Validar existencia del estudio
+        estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+        if not estudio: 
+            raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
+
+        # Validar existencia de la ruta en la base de datos
+        imagen_db = db.query(EstudioImagen).filter(EstudioImagen.estudio_id == estudio.id).first()
+        if not imagen_db or not imagen_db.thumbnail:
+            raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
+
+        # Construir y validar la ruta física absoluta
+        ruta_relativa = imagen_db.thumbnail.lstrip("/")
+        imagen_a_usar = BASE_DIR / ruta_relativa
+
+        if not imagen_a_usar.exists():
+            raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
+
+        # Apertura segura
+        img = Image.open(imagen_a_usar)
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fallo técnico al cargar la imagen: {str(e)}")
+
+    # 2. CAPA DE SEGURIDAD CLÍNICA (Filtro Anti-Malapraxis en el Prompt)
+    try:
+        load_dotenv()
+        api_key_gemini = os.getenv("GEMINI_API_KEY")
+        client = genai.Client(api_key=api_key_gemini)
+        
+        modalidad_esperada = estudio.tipo_estudio or "No especificada"
+        descripcion_esperada = estudio.descripcion or "No especificada"
+        
+        prompt = f"""
+        INSTRUCCIÓN CRÍTICA DE SEGURIDAD MÉDICA — TOLERANCIA CERO A ERRORES DE IDENTIDAD.
+        Eres un radiólogo experto encargado de la auditoría final de calidad. Antes de evaluar el texto del informe, debes ejecutar de forma obligatoria un protocolo estricto de correspondencia anatómica.
+
+        DATOS REGISTRADOS EN LA BASE DE DATOS DEL SISTEMA:
+        - Modalidad técnica configurada: {modalidad_esperada}
+        - Región anatómica declarada: {descripcion_esperada}
+        
+        INFORME PRELIMINAR DEL TRANSCRIPTOR:
+        "{datos.texto_actual}"
+
+        PROTOCOLOS DE CONTROL DE RIESGO:
+        1. VALIDACIÓN VISUAL OBLIGATORIA: Analiza los píxeles de la imagen proporcionada. Si la estructura anatómica visible NO coincide con la región declarada en el sistema ({descripcion_esperada}), debes asumir inmediatamente que hay un cruce de archivos o un error de indexación en el servidor.
+        
+        2. ACCIÓN ANTE MISMATCH (ABORTAR): Si la validación anatómica falla (por ejemplo, ves un cráneo/columna pero el estudio dice ser un Tórax), tienes estrictamente prohibido realizar cualquier análisis clínico. Debes responder única y exclusivamente con este mensaje de alerta estructurado:
+           "[💡 SUGERENCIA IA: 🚨 ERROR CRÍTICO DE SEGURIDAD: Se ha detectado una falta de correspondencia anatómica. La imagen visualizada en el servidor no coincide con la descripción de '{descripcion_esperada}' registrada para este estudio. Por favor, suspenda la firma y reporte este caso al administrador del PACS para verificar la integridad del archivo DICOM.]"
+        
+        3. ACCIÓN ANTE COINCIDENCIA (PROCESAR): Si la imagen coincide plenamente con la región anatómica declarada, procede a evaluar el informe preliminar del transcriptor de forma normal. Comienza tu respuesta con "[💡 SUGERENCIA IA: " y ciérrala con "]". Sé conciso y directo.
+        """
+        
+        response = client.models.generate_content(
+            model='gemini-3.5-flash', 
+            contents=[img, prompt]
+        )
+        return {"sugerencia": response.text}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fallo en el motor de análisis clínico automatizado: {str(e)}")

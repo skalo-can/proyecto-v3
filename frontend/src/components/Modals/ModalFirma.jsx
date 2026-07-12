@@ -127,16 +127,35 @@ export default function ModalFirma() {
     }
   };
 
-  // 🤖 ASISTENTE IA
+// 🤖 4. ASISTENTE DE DIAGNÓSTICO AVANZADO CON INTEGRACIÓN IA (VERSIÓN REAL)
   const handleConsultarIA = async () => {
     setCargandoIA(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const sugerenciaEjemplo = "\n\n[💡 SUGERENCIA IA: Se observa un leve pinzamiento en el espacio intervertebral L5-S1 que podría correlacionarse con los hallazgos mecánicos reportados.]";
-      setReporteTexto(prev => prev + sugerenciaEjemplo);
-      alert("🤖 La IA analizó los datos de la imagen y la transcripción actual. Se ha agregado un anexo con los hallazgos encontrados al final del texto.");
+      const tokenSesion = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+      
+      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/asistencia-ia`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": tokenSesion ? `Bearer ${tokenSesion}` : ""
+        },
+        body: JSON.stringify({ texto_actual: reporteTexto }) // Enviamos el texto actual a la IA
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Fallo de conexión con la IA");
+      }
+
+      const data = await response.json();
+      
+      // Agregamos la respuesta real de la IA al final de la caja de texto
+      const sugerenciaIA = `\n\n${data.sugerencia}`;
+      setReporteTexto(prev => prev + sugerenciaIA);
+      
     } catch (error) {
       console.error("Error en la consulta de IA:", error);
+      alert(`❌ Error al invocar la IA: ${error.message}`);
     } finally {
       setCargandoIA(false);
     }
