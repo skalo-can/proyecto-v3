@@ -76,7 +76,6 @@ export default function TablaPacientes({
       <tbody>
         {pacientes.length === 0 ? (
           <tr>
-            {/* 🔥 ACTUALIZADO a colSpan 17 por la nueva columna */}
             <td colSpan="17" style={styles.waitingState}>
               <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📡</div>
               <p style={{ margin: 0, fontWeight: 'bold' }}>No se localizaron registros coincidentes.</p>
@@ -110,8 +109,8 @@ export default function TablaPacientes({
                 onClick={() => toggleSeleccionarPaciente(p.id)}
                 style={{ 
                   ...styles.trStyle, 
-                  backgroundColor: estaSeleccionado ? "#1e222b" : "#111418",
-                  borderLeft: estaSeleccionado ? "4px solid #fbbf24" : "4px solid transparent"
+                  backgroundColor: estaSeleccionado ? "#1e222b" : (p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418"), // Fila ligeramente rojiza si está rechazada
+                  borderLeft: estaSeleccionado ? "4px solid #fbbf24" : (p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent")
                 }}
               >
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
@@ -125,6 +124,7 @@ export default function TablaPacientes({
                   <span style={{ 
                     ...styles.badge, 
                     backgroundColor: 
+                      p.estado_pacs === "Rechazado" ? "#ef4444" : // 🔥 NUEVO COLOR ROJO PARA RECHAZADOS
                       p.estado_pacs === "Entregado" ? "#a855f7" : 
                       p.estado_pacs === "Firmado" ? "#10b981" : 
                       p.estado_pacs === "Transcrito" ? "#2563eb" : 
@@ -144,6 +144,14 @@ export default function TablaPacientes({
                 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
                   <div style={styles.containerFlujo}>
+                    
+                    {/* 🔥 ESTADO 0: PACIENTE RECHAZADO POR CALIDAD */}
+                    {p.estado_pacs === "Rechazado" && (
+                      <span style={{ color: "#ef4444", fontWeight: "bold", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }} title="El radiólogo solicitó repetir esta imagen por baja calidad.">
+                        🛑 Repetir Toma
+                      </span>
+                    )}
+
                     {/* ESTADO 1: PACIENTE DISPONIBLE PARA GRABACIÓN */}
                     {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && (
                       <button 

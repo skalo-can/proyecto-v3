@@ -20,7 +20,7 @@ export default function ModalDictadoHardware({ isWindow }) {
     detenerGrabacionHardware
   } = useAudioRecorder();
 
-  // 2. 🚀 CORREGIDO: Carga directa por ID para evitar que la pantalla se congele
+  // 2. Carga directa por ID para evitar que la pantalla se congele
   useEffect(() => {
     if (pacienteId) {
       fetch(`http://localhost:8000/api/pacientes/${pacienteId}`)
@@ -29,7 +29,6 @@ export default function ModalDictadoHardware({ isWindow }) {
           return res.json();
         })
         .then(data => {
-          // Si el backend devuelve el objeto directo del paciente, lo inyectamos de golpe
           setPaciente(data);
         })
         .catch(err => console.error("Error al cargar datos del paciente", err));
@@ -56,6 +55,39 @@ export default function ModalDictadoHardware({ isWindow }) {
     }
   };
 
+  // 🚀 NUEVA LÓGICA: Rechazo Técnico por Calidad de Imagen
+  const handleRechazoTecnico = async () => {
+    const motivo = window.prompt("🚨 CONTROL DE CALIDAD PACS:\nEscriba el motivo detallado del rechazo de la imagen (Esta nota será visible para el tecnólogo):");
+    
+    if (!motivo) return; 
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteId}/rechazar-estudio-imagen`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ nota_rechazo: motivo })
+      });
+
+      if (response.ok) {
+        alert("🛑 Estudio rebotado a adquisición de imágenes con éxito.");
+        
+        // Refrescamos la tabla del panel principal
+        const canalRefresco = new BroadcastChannel("mipacs_refresco_flujo");
+        canalRefresco.postMessage("actualizar_tabla");
+        canalRefresco.close();
+        
+        window.close(); // Cerramos el visor
+      } else {
+        alert("❌ No se pudo procesar el rechazo en el servidor.");
+      }
+    } catch (error) {
+      console.error("Error al rechazar:", error);
+      alert("❌ Error de comunicación con la API.");
+    }
+  };
+
   // 4. Lógica de Finalización y Descarte
   const onGuardar = async () => {
     if (!paciente) return;
@@ -71,12 +103,10 @@ export default function ModalDictadoHardware({ isWindow }) {
           body: formData
         });
         
-        // 🚀 AVISAR AL MONITOR PRINCIPAL ANTES DE CERRAR
         const canal = new BroadcastChannel("mipacs_refresco_flujo");
         canal.postMessage("actualizar_tabla");
         canal.close();
 
-        // Al guardar con éxito, la ventana se cierra limpiamente. 
         window.close(); 
       } catch (err) {
         alert("Error al enviar el audio al servidor.");
@@ -86,7 +116,7 @@ export default function ModalDictadoHardware({ isWindow }) {
 
   const onDescartar = () => {
     detenerGrabacionHardware(true);
-    window.close(); // Cierra la ventana del segundo monitor de inmediato sin guardar nada
+    window.close(); 
   };
 
   const alternarPausaReanudar = () => {
@@ -185,6 +215,7 @@ export default function ModalDictadoHardware({ isWindow }) {
   const btnControl = { background: '#1e293b', border: '1px solid #475569', color: '#fbbf24', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', margin: '5px' };
   const btnAccion = { background: '#334155', color: '#fff', border: 'none', padding: '15px 30px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' };
   const btnGuardar = { background: '#10b981', color: '#fff', border: 'none', padding: '15px 30px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' };
+  const btnRechazar = { background: '#ef4444', color: '#fff', border: 'none', padding: '15px 30px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }; // Nuevo botón
 
   return (
     <div style={layoutMultimonitor}>
@@ -209,9 +240,15 @@ export default function ModalDictadoHardware({ isWindow }) {
       <div style={{ width: '100%', maxWidth: '700px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
         {!grabacionIniciada ? (
           <>
-            <button style={btnInicio} onClick={() => { setGrabacionIniciada(true); iniciarGrabacionHardware(); }}>
-              ⏺️ INICIAR (Barra Espaciadora)
-            </button>
+            <div style={{ display: 'flex', gap: '20px' }}>
+              <button style={btnInicio} onClick={() => { setGrabacionIniciada(true); iniciarGrabacionHardware(); }}>
+                ⏺️ INICIAR (Barra Espaciadora)
+              </button>
+              <button style={{...btnRechazar, padding: '20px 40px', fontSize: '1.2rem'}} onClick={handleRechazoTecnico} title="Rechazar estudio sin grabar">
+                🛑 RECHAZAR IMAGEN
+              </button>
+            </div>
+            
             <div style={{ backgroundColor: "rgba(251, 191, 36, 0.1)", border: "1px solid rgba(251, 191, 36, 0.4)", borderRadius: "8px", padding: "15px", marginTop: "15px", display: "flex", alignItems: "center", gap: "15px", justifyContent: "center" }}>
               <div style={{ fontSize: "2rem" }}>⌨️</div>
               <div>
@@ -258,8 +295,9 @@ export default function ModalDictadoHardware({ isWindow }) {
       </div>
 
       {grabacionIniciada && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '700px', marginTop: '40px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', width: '100%', maxWidth: '700px', marginTop: '40px' }}>
           <button type="button" onClick={onDescartar} style={btnAccion}>❌ DESCARTAR (Esc)</button>
+          <button type="button" onClick={handleRechazoTecnico} style={btnRechazar} title="Detener y devolver estudio">🛑 RECHAZAR IMAGEN</button>
           <button type="button" onClick={onGuardar} style={btnGuardar}>✅ FINALIZAR (Enter)</button>
         </div>
       )}

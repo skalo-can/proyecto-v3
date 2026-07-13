@@ -63,6 +63,7 @@ def listar(
     fechaDesde: str = Query("2010-01-01"),
     fechaHasta: str = Query("2030-12-31"),
     modalidad: str = Query(None),
+    estado: str = Query(None),  # 🔥 NUEVO PARÁMETRO DE ESTADO CONTROLADO
     busqueda: str = Query(None),
     sort_by: str = Query("fecha"),  
     order: str = Query("desc"),      
@@ -79,6 +80,10 @@ def listar(
 
     if modalidad and modalidad.strip() != "":
         query = query.filter(Estudio.tipo_estudio == modalidad.strip())
+
+    # Filtro previo en base de datos si el estado almacenado coincide
+    if estado and estado.strip() != "":
+        query = query.filter(Estudio.estado_pacs == estado.strip())
 
     if busqueda and busqueda.strip() != "":
         termino = f"%{busqueda.strip()}%"
@@ -136,6 +141,8 @@ def listar(
             estado_actual = "Firmado"
         elif fue_entregado:
             estado_actual = "Entregado"
+        elif estado_bd == "Rechazado":          # 🔥 ¡NUEVA LÍNEA CRÍTICA! Evita que el sistema borre el rechazo
+            estado_actual = "Rechazado"    
         elif estado_bd == "Transcrito" or tiene_informe:
             estado_actual = "Transcrito"
         elif estado_bd == "Dictado" or tiene_audio:
@@ -147,6 +154,10 @@ def listar(
         if estado_bd != estado_actual:
             estudio_principal.estado_pacs = estado_actual
             db.commit()
+
+        # 🔥 FILTRADO EN CALIENTE: Si el usuario seleccionó un estado específico, validamos la consistencia dinámica
+        if estado and estado.strip() != "" and estado_actual != estado.strip():
+            continue
 
         lista_mapeada.append({
             "id": p.id,
@@ -186,7 +197,7 @@ def listar(
             return f"{item['fecha_estudio']} {item['hora_estudio']}"
 
     es_descendente = (order == "desc")
-    lista_mapeada.sort(key=obtener_orden_llave if 'obtener_orden_llave' in locals() else obtener_llave_orden, reverse=es_descendente)
+    lista_mapeada.sort(key=obtener_llave_orden, reverse=es_descendente)
         
     return lista_mapeada
 
@@ -550,3 +561,33 @@ def asistencia_ia(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fallo en el motor de análisis clínico automatizado: {str(e)}")
+    
+class RechazoImagenInput(BaseModel):
+    nota_rechazo: str
+
+@router.post("/{paciente_id}/rechazar-estudio-imagen")
+def rechazar_estudio_imagen(
+    paciente_id: int, 
+    datos: RechazoImagenInput, 
+    db: Session = Depends(get_db)  # <-- Eliminamos la exigencia estricta del token de usuario aquí
+):
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+    if not estudio: 
+        raise HTTPException(status_code=404, detail="Estudio no localizado")
+    
+    if not datos.nota_rechazo.strip():
+        raise HTTPException(status_code=400, detail="Debe proporcionar un motivo médico para el rechazo técnico.")
+
+    try:
+        estudio.estado_pacs = "Rechazado"
+        
+        # Guardamos la nota sin requerir el nombre del usuario logueado
+        if hasattr(estudio, "nota_medico"):
+            setattr(estudio, "nota_medico", f"🚨 RECHAZO TÉCNICO ({datetime.now().strftime('%Y-%m-%d')}): {datos.nota_rechazo.strip()}")
+        
+        db.commit()
+        return {"status": "success", "message": "Estudio marcado como Rechazado por control de calidad técnica."}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error en el guardado del rechazo: {str(e)}")

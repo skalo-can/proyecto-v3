@@ -37,8 +37,9 @@ export default function Pacientes() {
   const reproductorGlobalRef = useRef(null); 
   const hoyStr = new Date().toISOString().split('T')[0];
 
+  // 🔥 AQUÍ SE INYECTÓ EL NUEVO ESTADO: estado: ""
   const [filtros, setFiltros] = useState({ 
-    fechaDesde: "2020-01-01", fechaHasta: hoyStr, modalidad: "", busqueda: "" 
+    fechaDesde: "2020-01-01", fechaHasta: hoyStr, modalidad: "", busqueda: "", estado: "" 
   });
 
   // Consumo del Hook de Audio Aislado
@@ -47,10 +48,12 @@ export default function Pacientes() {
   // Solicitudes HTTP de Repositorio PACS
   const cargarDatos = useCallback(() => {
     setLoading(true);
+    // 🔥 AQUÍ SE INYECTÓ EL FILTRO DE ESTADO A LA URL
     const params = new URLSearchParams({
       fechaDesde: filtros.fechaDesde, 
       fechaHasta: filtros.fechaHasta, 
       modalidad: filtros.modalidad || "",
+      estado: filtros.estado || "",
       busqueda: filtros.busqueda || "",
       sort_by: sortBy,
       order: sortOrder
