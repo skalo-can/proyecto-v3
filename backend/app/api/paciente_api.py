@@ -19,6 +19,8 @@ import numpy as np
 from PIL import Image
 from google import genai
 
+from fastapi.responses import FileResponse
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -176,6 +178,7 @@ def listar(
             "hora_estudio": hora_final,
             "descripcion": descripcion_final,
             "estado_pacs": estado_actual,
+            "pdf_path": getattr(estudio_principal, "pdf_path", None), # <--- AGREGAR ESTA LÍNEA AQUÍ
             "flujo_clinico": {
                 "tiene_audio": tiene_audio or (estado_actual == "Dictado"),
                 "tiene_informe": tiene_informe,
@@ -291,8 +294,7 @@ class FirmaInput(BaseModel):
 def firmar_informe(
     paciente_id: int, 
     datos: FirmaInput, 
-    db: Session = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)  
+    db: Session = Depends(get_db)  # 🔥 ELIMINAMOS EL CANDADO DEL TOKEN AQUÍ
 ):
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
     if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
@@ -315,12 +317,9 @@ def firmar_informe(
                 "pdf_path": None
             }
 
-        # ✅ FLUJO DE APROBACIÓN (Firma normal)
-        nombre_medico_final = datos.medico_firma.strip() if datos.medico_firma else f"{getattr(usuario, 'primer_nombre', '')} {getattr(usuario, 'primer_apellido', '')}".strip()
-        rm_final = datos.registro_medico.strip() if datos.registro_medico else getattr(usuario, "registro_medico", "SIN REGISTRO MÉDICO")
-
-        if not nombre_medico_final: 
-            nombre_medico_final = "Médico Radiólogo"
+        # ✅ FLUJO DE APROBACIÓN (Firma normal usando los datos del formulario)
+        nombre_medico_final = datos.medico_firma.strip() if datos.medico_firma else "Médico Radiólogo"
+        rm_final = datos.registro_medico.strip() if datos.registro_medico else "SIN REGISTRO MÉDICO"
 
         estudio.informe_texto = datos.informe_final
         estudio.estado_pacs = "Firmado"
@@ -340,22 +339,63 @@ def firmar_informe(
             "registro_medico": rm_final 
         }
 
-        nombre_archivo = f"Reporte_{identificacion}.pdf"
-        ruta_fisica_salida = os.path.join(str(STATIC_PDF_PATH), nombre_archivo)
+        # 🔥 LA MAGIA DEL ILM PARA LOS PDFs: Partición por Año / Mes / Día
+        ahora = datetime.now()
+        año = str(ahora.year)
+        mes = f"{ahora.month:02d}"
+        dia = f"{ahora.day:02d}"
 
+        ruta_destino_fecha = STATIC_PDF_PATH / año / mes / dia
+        ruta_destino_fecha.mkdir(parents=True, exist_ok=True)
+
+        nombre_archivo = f"Reporte_{identificacion}.pdf"
+        ruta_fisica_salida = os.path.join(str(ruta_destino_fecha), nombre_archivo)
+
+        # Generar el PDF en su nueva ubicación organizada
         construir_reporte_pdf(datos_para_pdf, ruta_fisica_salida)
+        
+        # Guardamos la ruta relativa estructurada en la BD
+        ruta_pdf_relativa = f"/static/pdf_reports/{año}/{mes}/{dia}/{nombre_archivo}"
+        setattr(estudio, "pdf_path", ruta_pdf_relativa) 
+        
         db.commit()
         
         return {
             "status": "success", 
-            "message": "Informe firmado digitalmente y PDF generado.",
-            "pdf_path": f"/static/pdf_reports/{nombre_archivo}"
+            "message": "Informe firmado digitalmente y PDF estructurado generado.",
+            "pdf_path": ruta_pdf_relativa
         }
         
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error en el proceso: {str(e)}")
+    
+@router.get("/{paciente_id}/descargar-pdf")
+def descargar_pdf_paciente(paciente_id: int, db: Session = Depends(get_db)):
+    """
+    Escáner profundo infalible (Compatible con Windows/Linux): 
+    Busca el PDF en la estructura ILM.
+    """
+    paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
+    if not paciente:
+        raise HTTPException(status_code=404, detail="Paciente no localizado")
 
+    identificacion = paciente.identificacion or paciente.id
+    nombre_pdf = f"Reporte_{identificacion}.pdf"
+
+    # 1. Búsqueda profunda usando os.walk (Nunca falla en Windows)
+    import os
+    for raiz, directorios, archivos in os.walk(str(STATIC_PDF_PATH)):
+        if nombre_pdf in archivos:
+            ruta_exacta = os.path.join(raiz, nombre_pdf)
+            # El header 'inline' fuerza al navegador a abrirlo en vez de descargarlo
+            return FileResponse(
+                ruta_exacta, 
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"inline; filename={nombre_pdf}"}
+            )
+
+    raise HTTPException(status_code=404, detail=f"No se encontró el PDF: {nombre_pdf}")
 
 # =========================================================
 # 🔥 MOTOR FÍSICO DE EXPORTACIÓN (CD/DVD vs EXPLORADOR)

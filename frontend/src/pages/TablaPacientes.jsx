@@ -20,11 +20,10 @@ export default function TablaPacientes({
   abrirModalFirma 
 }) {
 
-  // 🚀 NUEVA FUNCIÓN: Abrir el PDF en una nueva pestaña
-  const abrirPDF = (idReal) => {
-    // Apunta a la carpeta estática del backend que expusimos en main.py
-    const urlPDF = `http://localhost:8000/static/pdf_reports/Reporte_${idReal}.pdf`;
-    window.open(urlPDF, "_blank", "noopener,noreferrer");
+// 🚀 NUEVA FUNCIÓN: Solicita el PDF directamente al radar del backend
+  const abrirPDF = (pacienteDbId) => {
+    const urlPDF = `http://localhost:8000/api/pacientes/${pacienteDbId}/descargar-pdf`;
+    window.open(urlPDF, "_blank");
   };
 
   return (
@@ -243,7 +242,7 @@ export default function TablaPacientes({
                         </span>
                         
                         <button 
-                          onClick={() => abrirPDF(idReal)}
+                          onClick={() => abrirPDF(p.id)}
                           style={{
                             padding: "4px 10px",
                             backgroundColor: "#334155",

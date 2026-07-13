@@ -236,36 +236,63 @@ def startup_event():
         inicializar_scheduler()
 
 # ---------------------------------------------------------
-# RECEPCIÓN DE AUDIO DE DICTADO MEDICO (FRONTEND)
+# RECEPCIÓN DE AUDIO DE DICTADO MEDICO (FRONTEND) - OPTIMIZADO CON ILM (AÑO/MES/DIA)
 # ---------------------------------------------------------
 from fastapi.responses import FileResponse
+from datetime import datetime
 
 @app.get("/api/pacientes/{paciente_id}/audio")
 async def obtener_audio_paciente(paciente_id: int):
-    directorio_audios = os.path.join(static_dir, "audios_dictado")
-    ruta_archivo = os.path.join(directorio_audios, f"dictado_{paciente_id}.wav")
-    
-    if os.path.exists(ruta_archivo):
-        return FileResponse(ruta_archivo, media_type="audio/wav")
-    else:
-        raise HTTPException(status_code=404, detail="Archivo de audio no encontrado")
+    # Ya no leemos desde la carpeta estática "sorda", ahora le preguntamos a la base de datos dónde lo guardó
+    db = SessionLocal()
+    try:
+        estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+        if not estudio or not getattr(estudio, "audio_path", None):
+            # Fallback a la ruta legacy por si es un paciente viejo antes de la actualización
+            directorio_audios = os.path.join(static_dir, "audios_dictado")
+            ruta_legacy = os.path.join(directorio_audios, f"dictado_{paciente_id}.wav")
+            if os.path.exists(ruta_legacy):
+                return FileResponse(ruta_legacy, media_type="audio/wav")
+            raise HTTPException(status_code=404, detail="Archivo de audio no encontrado")
+        
+        # Le quitamos el '/static/' del inicio porque la ruta física real comienza desde la variable static_dir
+        ruta_relativa = estudio.audio_path.replace("/static/", "", 1) 
+        ruta_fisica = os.path.join(static_dir, ruta_relativa)
+        
+        if os.path.exists(ruta_fisica):
+            return FileResponse(ruta_fisica, media_type="audio/wav")
+        else:
+            raise HTTPException(status_code=404, detail="Archivo de audio físico no localizado")
+            
+    finally:
+        db.close()
 
 @app.post("/api/pacientes/{paciente_id}/guardar-audio")
 async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)):
-    # Definimos la variable localmente dentro del scope de la función
     pid = paciente_id 
     try:
-        # 1. Crear carpeta
-        directorio_audios = os.path.join(static_dir, "audios_dictado")
+        # 1. 🔥 Partición por Año / Mes / Día
+        ahora = datetime.now()
+        año = str(ahora.year)
+        mes = f"{ahora.month:02d}"
+        dia = f"{ahora.day:02d}"
+
+        # 2. Crear las subcarpetas físicas (static/audios_dictado/2026/07/12/)
+        directorio_audios = os.path.join(static_dir, "audios_dictado", año, mes, dia)
         os.makedirs(directorio_audios, exist_ok=True)
         
-        # 2. Guardar archivo
-        nombre_archivo = f"dictado_{pid}.wav"
+        # 3. Guardar archivo con un nombre único basado en timestamp
+        timestamp = ahora.strftime("%H%M%S")
+        nombre_archivo = f"dictado_{pid}_{timestamp}.wav"
         ruta_archivo = os.path.join(directorio_audios, nombre_archivo)
+        
         with open(ruta_archivo, "wb") as f:
             f.write(await audio.read())
             
-        # 3. Persistencia en BD
+        # 4. Construir la ruta relativa que el servidor web necesita (ej. /static/audios_dictado/2026/07/12/dictado_34_143000.wav)
+        ruta_relativa = f"/static/audios_dictado/{año}/{mes}/{dia}/{nombre_archivo}"
+            
+        # 5. Persistencia en BD
         db = SessionLocal()
         try:
             registro = db.query(Paciente).filter(Paciente.id == pid).first()
@@ -275,9 +302,16 @@ async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)
             estudio = db.query(Estudio).filter(Estudio.paciente_id == pid).first()
             if estudio:
                 estudio.estado_pacs = "Dictado"
+                # Usamos el auto-parcheo que creaste. Si audio_path no existe, migrará, si existe, lo guardará
+                if hasattr(estudio, "audio_path"):
+                    estudio.audio_path = ruta_relativa
+                else:
+                    setattr(estudio, "audio_path", ruta_relativa) 
+                    
+                setattr(estudio, "tiene_dictado", True)
             
             db.commit()
-            print(f"✅ ÉXITO: Paciente {pid} actualizado.")
+            print(f"✅ ÉXITO: Audio guardado con ILM y Paciente {pid} actualizado.")
         except Exception as db_err:
             db.rollback()
             print(f"❌ ERROR BD: {db_err}")

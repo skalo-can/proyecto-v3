@@ -2,6 +2,7 @@
 audio_dictado_api.py — MI_PACS
 ---------------------------------------------------------
 Gestión clínica de audio dictado asociado a un estudio.
+(Optimizado con ILM y partición temporal YYYY/MM/DD para backups)
 """
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
@@ -17,15 +18,13 @@ from app.core.roles import requiere_rol
 
 from app.models.estudio import Estudio
 
-
 router = APIRouter(prefix="/estudios", tags=["Audio dictado"])
 
-
 # ---------------------------------------------------------
-# RUTA BASE PARA AUDIO CLÍNICO
+# RUTA BASE PARA AUDIO CLÍNICO (Alineada con tu carpeta estática)
 # ---------------------------------------------------------
-AUDIO_BASE_PATH = Path("evidencia_audio")
-AUDIO_BASE_PATH.mkdir(exist_ok=True)
+# Apuntamos a la carpeta estática para que el frontend pueda reproducirlos por red
+AUDIO_BASE_PATH = Path("static") / "audios_dictado"
 
 
 # ---------------------------------------------------------
@@ -40,17 +39,12 @@ async def upload_audio_endpoint(
 ):
     """
     Sube un archivo de audio (.wav o .mp3) asociado a un estudio clínico.
-
-    Seguridad MI_PACS:
-    - Solo médicos y técnicos pueden subir audio.
-    - El audio forma parte de la evidencia clínica del estudio.
+    Implementa almacenamiento jerárquico (ILM) para optimización de backups.
     """
 
     requiere_rol(usuario, ["medico", "tecnico"])
 
-    # -----------------------------------------------------
     # 1. Validar estudio
-    # -----------------------------------------------------
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
 
     if not estudio:
@@ -59,9 +53,7 @@ async def upload_audio_endpoint(
             detail=f"Estudio {estudio_id} no encontrado."
         )
 
-    # -----------------------------------------------------
     # 2. Validar extensión del archivo
-    # -----------------------------------------------------
     if not archivo.filename.lower().endswith((".wav", ".mp3")):
         raise HTTPException(
             status_code=400,
@@ -69,38 +61,43 @@ async def upload_audio_endpoint(
         )
 
     # -----------------------------------------------------
-    # 3. Crear carpeta del estudio
+    # 🔥 LA MAGIA DEL ILM: Partición por Año / Mes / Día
     # -----------------------------------------------------
-    estudio_folder = AUDIO_BASE_PATH / f"estudio_{estudio_id}"
-    estudio_folder.mkdir(exist_ok=True)
+    ahora = datetime.now()
+    año = str(ahora.year)
+    mes = f"{ahora.month:02d}"
+    dia = f"{ahora.day:02d}"
 
-    # -----------------------------------------------------
-    # 4. Generar nombre de archivo con timestamp
-    # -----------------------------------------------------
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Crear la ruta física en el disco: static/audios_dictado/YYYY/MM/DD
+    ruta_jerarquica = AUDIO_BASE_PATH / año / mes / dia
+    ruta_jerarquica.mkdir(parents=True, exist_ok=True)
+
+    # Generar nombre limpio con timestamp
+    timestamp = ahora.strftime("%H%M%S")
     extension = archivo.filename.split(".")[-1].lower()
-    file_path = estudio_folder / f"audio_{timestamp}.{extension}"
+    nombre_limpio = f"dictado_estudio_{estudio_id}_{timestamp}.{extension}"
+    
+    file_path = ruta_jerarquica / nombre_limpio
 
-    # -----------------------------------------------------
-    # 5. Guardar archivo físicamente
-    # -----------------------------------------------------
+    # 5. Guardar archivo físicamente en su carpeta diaria
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(archivo.file, buffer)
 
     # -----------------------------------------------------
-    # 6. Actualizar estudio clínico
+    # 6. Actualizar estudio clínico con la RUTA RELATIVA
     # -----------------------------------------------------
-    estudio.reporte_audio_path = str(file_path)
+    # Guardamos la ruta que usará el Frontend para el tag <audio src="...">
+    ruta_relativa = f"/static/audios_dictado/{año}/{mes}/{dia}/{nombre_limpio}"
+    
+    estudio.reporte_audio_path = ruta_relativa
     estudio.reporte_estado = "borrador"
     db.commit()
     db.refresh(estudio)
 
-    # -----------------------------------------------------
     # 7. Respuesta clínica
-    # -----------------------------------------------------
     return JSONResponse({
-        "message": "Audio guardado correctamente.",
-        "path": str(file_path),
+        "message": "Audio estructurado por fecha guardado correctamente.",
+        "path": ruta_relativa,
         "estudio_id": estudio_id,
         "estado_reporte": estudio.reporte_estado
     })
