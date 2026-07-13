@@ -338,12 +338,12 @@ def firmar_informe(
             "nombre_medico": nombre_medico_final,
             "registro_medico": rm_final 
         }
-
-        # 🔥 LA MAGIA DEL ILM PARA LOS PDFs: Partición por Año / Mes / Día
-        ahora = datetime.now()
-        año = str(ahora.year)
-        mes = f"{ahora.month:02d}"
-        dia = f"{ahora.day:02d}"
+        # 🔥 LA MAGIA DEL ILM PARA LOS PDFs: Partición por Año / Mes / Día ORIGINAL DEL ESTUDIO
+        fecha_referencia = estudio.fecha_estudio if estudio.fecha_estudio else datetime.now()
+        
+        año = str(fecha_referencia.year)
+        mes = f"{fecha_referencia.month:02d}"
+        dia = f"{fecha_referencia.day:02d}"
 
         ruta_destino_fecha = STATIC_PDF_PATH / año / mes / dia
         ruta_destino_fecha.mkdir(parents=True, exist_ok=True)

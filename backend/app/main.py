@@ -270,61 +270,57 @@ async def obtener_audio_paciente(paciente_id: int):
 @app.post("/api/pacientes/{paciente_id}/guardar-audio")
 async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)):
     pid = paciente_id 
+    db = SessionLocal() # 🚀 Abrimos la BD primero para saber la fecha real
+    
     try:
-        # 1. 🔥 Partición por Año / Mes / Día
-        ahora = datetime.now()
-        año = str(ahora.year)
-        mes = f"{ahora.month:02d}"
-        dia = f"{ahora.day:02d}"
+        # 1. Buscar el estudio para obtener su fecha original
+        estudio = db.query(Estudio).filter(Estudio.paciente_id == pid).first()
+        
+        # 🔥 EL FIX: Usar la fecha del estudio original, si no existe, usar la de hoy
+        fecha_referencia = estudio.fecha_estudio if (estudio and estudio.fecha_estudio) else datetime.now()
+        
+        año = str(fecha_referencia.year)
+        mes = f"{fecha_referencia.month:02d}"
+        dia = f"{fecha_referencia.day:02d}"
 
-        # 2. Crear las subcarpetas físicas (static/audios_dictado/2026/07/12/)
+        # 2. Crear las subcarpetas físicas (ej: static/audios_dictado/2020/04/15/)
         directorio_audios = os.path.join(static_dir, "audios_dictado", año, mes, dia)
         os.makedirs(directorio_audios, exist_ok=True)
         
-        # 3. Guardar archivo con un nombre único basado en timestamp
-        timestamp = ahora.strftime("%H%M%S")
+        # 3. Guardar archivo con un nombre único
+        timestamp = datetime.now().strftime("%H%M%S") # La hora exacta del dictado sí nos sirve para que no se sobreescriba
         nombre_archivo = f"dictado_{pid}_{timestamp}.wav"
         ruta_archivo = os.path.join(directorio_audios, nombre_archivo)
         
         with open(ruta_archivo, "wb") as f:
             f.write(await audio.read())
             
-        # 4. Construir la ruta relativa que el servidor web necesita (ej. /static/audios_dictado/2026/07/12/dictado_34_143000.wav)
+        # 4. Construir la ruta relativa
         ruta_relativa = f"/static/audios_dictado/{año}/{mes}/{dia}/{nombre_archivo}"
             
         # 5. Persistencia en BD
-        db = SessionLocal()
-        try:
-            registro = db.query(Paciente).filter(Paciente.id == pid).first()
-            if registro:
-                registro.estado_pacs = "Dictado"
-            
-            estudio = db.query(Estudio).filter(Estudio.paciente_id == pid).first()
-            if estudio:
-                estudio.estado_pacs = "Dictado"
-                # Usamos el auto-parcheo que creaste. Si audio_path no existe, migrará, si existe, lo guardará
-                if hasattr(estudio, "audio_path"):
-                    estudio.audio_path = ruta_relativa
-                else:
-                    setattr(estudio, "audio_path", ruta_relativa) 
-                    
-                setattr(estudio, "tiene_dictado", True)
-            
-            db.commit()
-            print(f"✅ ÉXITO: Audio guardado con ILM y Paciente {pid} actualizado.")
-        except Exception as db_err:
-            db.rollback()
-            print(f"❌ ERROR BD: {db_err}")
-        finally:
-            db.close()
+        registro = db.query(Paciente).filter(Paciente.id == pid).first()
+        if registro:
+            registro.estado_pacs = "Dictado"
+        
+        if estudio:
+            estudio.estado_pacs = "Dictado"
+            if hasattr(estudio, "audio_path"):
+                estudio.audio_path = ruta_relativa
+            else:
+                setattr(estudio, "audio_path", ruta_relativa) 
+                
+            setattr(estudio, "tiene_dictado", True)
+        
+        db.commit()
+        print(f"✅ ÉXITO: Audio guardado con ILM Histórico (Fecha Estudio: {año}/{mes}/{dia}).")
 
         await manager.notify_update()
         return {"status": "success"}
         
     except Exception as e:
+        db.rollback()
         print(f"❌ ERROR GENERAL: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/status")
-def status():
-    return {"message": "Sistema clínico funcionando correctamente"}
+    finally:
+        db.close()
