@@ -22,6 +22,11 @@ class UsuarioBase(BaseModel):
     email: Optional[str] = Field(None, example="usuario@mipacs.com")
     username: str = Field(..., example="skalo_maestro")
     rol: str = Field(..., description="Rol: superadmin | admin | tecnologo | radiologo | medico | recepcion")
+    
+    # 🔥 NUEVOS CAMPOS APROBADOS POR EL "CADENERO"
+    registro_medico: Optional[str] = Field(None, example="RM-12345")
+    es_urgenciologo: bool = Field(default=False, description="Flag para habilitar el flujo Fast-Track de Urgencias")
+
 
 # ---------------------------------------------------------
 # CREATE
@@ -47,6 +52,8 @@ class UsuarioUpdate(BaseModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     permisos: Optional[Dict[str, bool]] = None
+    registro_medico: Optional[str] = None
+    es_urgenciologo: Optional[bool] = None
 
 
 # ---------------------------------------------------------
@@ -83,5 +90,9 @@ class UsuarioListItem(BaseModel):
     rol: str
     is_active: bool  # <--- CRÍTICO: Debe ser is_active para que la tabla cargue
     permisos: Optional[Dict[str, bool]] = {}
+    
+    # 🔥 AQUI ESTABA EL BLOQUEO: Agregamos los campos para que lleguen a la tabla de React
+    registro_medico: Optional[str] = None
+    es_urgenciologo: bool = False
 
     model_config = ConfigDict(from_attributes=True)

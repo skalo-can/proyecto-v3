@@ -3,6 +3,9 @@ MI_PACS — Backend principal con Soporte de Notificaciones Real-Time
 ---------------------------------------------------------
 Optimizado con el Escudo Maestro de Migraciones Dinámicas Automáticas en Caliente.
 """
+import os
+import sqlite3
+
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,47 +77,50 @@ from app.services.scheduler_service import inicializar_scheduler
 
 
 # ---------------------------------------------------------
-# RUTINA MAESTRO: MIGRACIÓN AUTOMÁTICA EN CALIENTE (CERO DOWN-TIME)
+# RUTINA MAESTRO: MIGRACIÓN AUTOMÁTICA EN CALIENTE (SQLITE NATIVO)
 # ---------------------------------------------------------
 def auto_migrar_columnas_pacs():
     """
-    Inspecciona las columnas físicas de la tabla 'pacientes' en disco.
-    Si el código tiene nuevos campos que la BD hospitalaria no conoce,
-    los inyecta de forma transparente sin alterar los datos existentes.
+    Se conecta directamente al archivo de la base de datos saltándose SQLAlchemy
+    para garantizar que las columnas se creen sí o sí.
     """
-    # Forzamos la creación del archivo de base de datos base si no existiera
-    Base.metadata.create_all(bind=engine)
+    print("🛠️ Iniciando parcheo profundo de base de datos...")
     
-    # Abrimos una conexión limpia para inspeccionar el estado real del disco
-    with engine.connect() as conn:
-        inspector = inspect(conn)
-        columnas_existentes = [c["name"] for c in inspector.get_columns("pacientes")]
+    # Busca el archivo database.db exactamente en la carpeta donde está este script (app)
+    db_path = os.path.join(os.path.dirname(__file__), "database.db")
     
-    columnas_en_codigo = Paciente.__table__.columns
-    
-    # Abrimos una transacción directa sobre el motor de persistencia
-    with engine.begin() as conexion:
-        for columna in columnas_en_codigo:
-            if columna.name not in columnas_existentes:
-                print(f"🚀 [MIGRACIÓN AUTOMÁTICA RIS] Detectado nuevo campo clínico en el código: '{columna.name}'")
-                
-                tipo_sql = "TEXT"
-                if str(columna.type) == "INTEGER":
-                    tipo_sql = "INTEGER"
-                elif str(columna.type) == "BOOLEAN":
-                    tipo_sql = "BOOLEAN DEFAULT 1"
-                elif str(columna.type) == "DATE":
-                    tipo_sql = "DATE"
-                
-                conexion.execute(text(f"ALTER TABLE pacientes ADD COLUMN {columna.name} {tipo_sql}"))
-                print(f"✅ Campo '{columna.name}' unificado con éxito en la base de datos de producción.")
+    if not os.path.exists(db_path):
+        print("⚠️ Advertencia: No se encontró database.db en la ruta esperada.")
+        return
 
+    # Conexión directa y bruta al archivo
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
-# 🛡️ PROTECCIÓN DE ARRANQUE CRÍTICO: Ejecutamos el escudo antes que cualquier lógica de FastAPI
-try:
-    auto_migrar_columnas_pacs()
-except Exception as e:
-    print(f"⚠️ Alerta controlada durante el auto-parcheo de tablas: {e}")
+    # 1. Parche Usuarios
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN es_urgenciologo BOOLEAN DEFAULT 0")
+        print("✅ [SQLITE] Columna 'es_urgenciologo' forzada en usuarios.")
+    except sqlite3.OperationalError:
+        pass # Ignora en silencio si la columna ya se había creado
+        
+    # 2. Parches Estudios
+    try:
+        cursor.execute("ALTER TABLE estudios ADD COLUMN nota_urgencia TEXT")
+        print("✅ [SQLITE] Columna 'nota_urgencia' forzada en estudios.")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE estudios ADD COLUMN requiere_lectura_radiologo BOOLEAN DEFAULT 0")
+        print("✅ [SQLITE] Columna 'requiere_lectura_radiologo' forzada en estudios.")
+    except sqlite3.OperationalError:
+        pass
+
+    # Guardar cambios y cerrar la puerta
+    conn.commit()
+    conn.close()
+    print("🚀 Parcheo nativo finalizado. El sistema puede arrancar.")
 
 
 # ---------------------------------------------------------

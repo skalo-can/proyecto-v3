@@ -51,7 +51,9 @@ def login_endpoint(credenciales: dict, db: Session = Depends(get_db)):
             "nombre": usuario.nombre,
             "rol": usuario.rol,
             "is_active": usuario.is_active,
-            "registro_medico": getattr(usuario, "registro_medico", "") or "", # 🚀 EL ESLABÓN PERDIDO
+            "registro_medico": getattr(usuario, "registro_medico", "") or "", 
+            # 🔥 EL NUEVO SÚPER PODER EN EL TOKEN DE SESIÓN
+            "es_urgenciologo": getattr(usuario, "es_urgenciologo", False),
             "permisos": usuario.permisos # Enviamos la matriz de 25 botones
         }
     }

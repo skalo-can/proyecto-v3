@@ -25,7 +25,9 @@ async def crear_perfil(data: dict, db: Session = Depends(get_db)):
         registro_medico=data.get('registro_medico', ""),
         permisos=data.get('permisos', {}),
         password=hashed_password, 
-        is_active=True
+        is_active=True,
+        # 🔥 EL OFICINISTA AHORA GUARDA EL SUPERPODER
+        es_urgenciologo=data.get('es_urgenciologo', False) 
     )
     
     try:
@@ -56,6 +58,9 @@ async def actualizar_usuario(usuario_id: int, data: dict, db: Session = Depends(
     usuario.registro_medico = data.get('registro_medico', usuario.registro_medico)
     usuario.is_active = data.get('is_active', usuario.is_active)
     usuario.permisos = data.get('permisos', usuario.permisos)
+    
+    # 🔥 EL OFICINISTA AHORA ACTUALIZA EL SUPERPODER
+    usuario.es_urgenciologo = data.get('es_urgenciologo', usuario.es_urgenciologo)
 
     if data.get('password'):
         usuario.password = get_password_hash(data.get('password'))

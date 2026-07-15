@@ -63,8 +63,9 @@ const PERMISOS_POR_DEFECTO = {
 const TODOS_LOS_PERMISOS = Array.from(new Set(Object.values(PERMISOS_POR_DEFECTO).flatMap(obj => Object.keys(obj))));
 
 export default function GestionUsuarios() {
-    // 🆕 ESTADO ACTUALIZADO: Incluye registro_medico
-    const [userForm, setUserForm] = useState({ id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '' });
+    // 🚀 ESTADO ACTUALIZADO: Incluye registro_medico y es_urgenciologo
+    const estadoInicial = { id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '', es_urgenciologo: false };
+    const [userForm, setUserForm] = useState(estadoInicial);
     const [permisos, setPermisos] = useState({}); 
     const [usuarios, setUsuarios] = useState([]);
     const [selectedUsers, setSelectedUsers] = useState({});
@@ -81,18 +82,31 @@ export default function GestionUsuarios() {
 
     const cambiarRol = (nuevoRol) => {
         if (!nuevoRol) {
-            setUserForm(prev => ({ ...prev, rol: '' }));
+            setUserForm(prev => ({ ...prev, rol: '', es_urgenciologo: false }));
             setPermisos({});
             return;
         }
-        setUserForm(prev => ({ ...prev, rol: nuevoRol }));
+        
+        // Si cambian a un rol no médico, apagamos el flag de urgenciologo por seguridad
+        const esRolMedico = nuevoRol === 'medico' || nuevoRol === 'radiologo';
+        setUserForm(prev => ({ ...prev, rol: nuevoRol, es_urgenciologo: esRolMedico ? prev.es_urgenciologo : false }));
+        
         // Aquí cargamos los permisos automáticos según el rol elegido
         setPermisos({ ...PERMISOS_POR_DEFECTO[nuevoRol] });
     };
 
     const seleccionarParaEditar = (u) => {
-        // 🆕 RECUPERACIÓN ACTUALIZADA: Carga el registro médico al editar
-        setUserForm({ id: u.id, nombre: u.nombre, username: u.username, email: u.email || '', password: '', rol: u.rol, registro_medico: u.registro_medico || '' });
+        // 🚀 RECUPERACIÓN ACTUALIZADA: Carga el registro médico y el poder de urgenciologo al editar
+        setUserForm({ 
+            id: u.id, 
+            nombre: u.nombre, 
+            username: u.username, 
+            email: u.email || '', 
+            password: '', 
+            rol: u.rol, 
+            registro_medico: u.registro_medico || '',
+            es_urgenciologo: u.es_urgenciologo || false
+        });
         setPermisos(u.permisos || {});
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -106,6 +120,7 @@ export default function GestionUsuarios() {
             Object.keys(permisos).forEach(key => {
                 if (permisos[key] === true) permisosLimpios[key] = true;
             });
+            // El payload ya incluye automáticamente es_urgenciologo desde userForm
             const payload = { ...userForm, permisos: permisosLimpios };
 
             if (userForm.id) {
@@ -115,7 +130,7 @@ export default function GestionUsuarios() {
                 await axios.post('http://localhost:8000/api/usuarios/crear-perfil', payload);
                 alert("✅ Colaborador creado con éxito");
             }
-            setUserForm({ id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '' });
+            setUserForm(estadoInicial);
             setPermisos({});
             setVerPassword(false);
             fetchUsuarios();
@@ -143,7 +158,7 @@ export default function GestionUsuarios() {
             try {
                 for (let id of ids) { await axios.delete(`http://localhost:8000/api/usuarios/${id}`); }
                 alert("🗑️ Usuarios eliminados");
-                setUserForm({ id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '' });
+                setUserForm(estadoInicial);
                 setPermisos({}); 
                 setSelectedUsers({}); 
                 setVerPassword(false);
@@ -166,7 +181,6 @@ export default function GestionUsuarios() {
                         <div className="field-group"><label>USERNAME</label><input value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} /></div>
                         <div className="field-group"><label>EMAIL INST.</label><input value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} /></div>
                         
-                        {/* 🆕 NUEVO CAMPO: REGISTRO MÉDICO EN LA INTERFAZ */}
                         <div className="field-group">
                             <label>REGISTRO MÉDICO (Opcional)</label>
                             <input 
@@ -195,6 +209,22 @@ export default function GestionUsuarios() {
                                 ))}
                             </select>
                         </div>
+
+                        {/* 🔥 NUEVO: CASILLA DE URGENCIÓLOGO (Solo visible para médicos y radiólogos) */}
+                        {(userForm.rol === 'medico' || userForm.rol === 'radiologo') && (
+                            <div className="field-group" style={{ gridColumn: '1 / -1', backgroundColor: 'rgba(249, 115, 22, 0.1)', padding: '15px', borderRadius: '6px', border: '1px solid rgba(249, 115, 22, 0.4)', display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px' }}>
+                                <input 
+                                    type="checkbox" 
+                                    id="check-urgencias"
+                                    checked={userForm.es_urgenciologo}
+                                    onChange={e => setUserForm({...userForm, es_urgenciologo: e.target.checked})}
+                                    style={{ width: '22px', height: '22px', cursor: 'pointer', accentColor: '#f97316' }}
+                                />
+                                <label htmlFor="check-urgencias" style={{ margin: 0, color: '#f97316', fontSize: '1rem', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    🚨 Otorgar permisos de Urgenciología (Flujo Fast-Track de Emergencias)
+                                </label>
+                            </div>
+                        )}
                     </div>
 
                     {userForm.rol && (
@@ -241,7 +271,13 @@ export default function GestionUsuarios() {
                                         <td><input type="checkbox" checked={!!selectedUsers[u.id]} onChange={() => setSelectedUsers(prev => ({...prev, [u.id]: !prev[u.id]}))} /></td>
                                         <td style={{ color: '#ffffff' }}><strong>{u.nombre}</strong></td>
                                         <td style={{ color: '#ffffff', fontSize: '0.85rem' }}>{u.username}</td>
-                                        <td><span className="rol-badge" style={{ background: '#333', color: '#fbbf24', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>{u.rol.toUpperCase()}</span></td>
+                                        <td>
+                                            <span className="rol-badge" style={{ background: '#333', color: '#fbbf24', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                                {u.rol.toUpperCase()}
+                                                {/* 🔥 NUEVO: Icono de alarma en la tabla si el usuario tiene poderes de Urgenciologo */}
+                                                {u.es_urgenciologo && <span title="Permisos de Urgenciología Activos" style={{marginLeft: '6px', fontSize: '14px'}}>🚨</span>}
+                                            </span>
+                                        </td>
                                         <td><span style={{color: u.is_active ? '#10b981' : '#ef4444', fontWeight: 'bold'}}>{u.is_active ? '● OPERATIVO' : '○ BLOQUEADO'}</span></td>
                                         <td><button className="btn-editar-mini" style={{ background: '#ffffff', color: '#000000', fontWeight: 'bold', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => seleccionarParaEditar(u)}>EDITAR</button></td>
                                     </tr>

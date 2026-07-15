@@ -144,7 +144,11 @@ def listar(
         elif fue_entregado:
             estado_actual = "Entregado"
         elif estado_bd == "Rechazado":          # 🔥 ¡NUEVA LÍNEA CRÍTICA! Evita que el sistema borre el rechazo
-            estado_actual = "Rechazado"    
+            estado_actual = "Rechazado"
+        elif estado_bd == "Cancelado":          # 🔥 NUEVO: Protege el estudio abortado
+            estado_actual = "Cancelado"
+        elif estado_bd == "Urgencia":           # 🔥 ¡INTEGRACIÓN DE ESTADO DE URGENCIAS CLÍNICAS!
+            estado_actual = "Urgencia"
         elif estado_bd == "Transcrito" or tiene_informe:
             estado_actual = "Transcrito"
         elif estado_bd == "Dictado" or tiene_audio:
@@ -251,6 +255,8 @@ def reabrir_flujo_estudio(paciente_id: int, control: PacienteFlujoAdminUpdate, d
             if hasattr(estudio, "esta_firmado"): estudio.esta_firmado = False
             if hasattr(estudio, "audio_path"): estudio.audio_path = None
             if hasattr(estudio, "informe_texto"): estudio.informe_texto = None
+            if hasattr(estudio, "nota_urgencia"): estudio.nota_urgencia = None
+            if hasattr(estudio, "requiere_lectura_radiologo"): estudio.requiere_lectura_radiologo = False
     db.commit()
     return {"status": "success", "message": "Flujo reabierto con éxito."}
 
@@ -278,6 +284,35 @@ def obtener_transcripcion(paciente_id: int, db: Session = Depends(get_db)):
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
     texto_informe = getattr(estudio, "informe_texto", "") if estudio else ""
     return {"informe_texto": texto_informe, "informe_text": texto_informe, "texto": texto_informe}
+
+
+# ---------------------------------------------------------
+# 🚨 ENDPOINT DEL FLUJO DE URGENCIAS (SALA DE EMERGENCIAS)
+# ---------------------------------------------------------
+class NotaUrgenciaInput(BaseModel):
+    nota_urgencia: str
+    requiere_lectura: bool = True
+
+@router.post("/{paciente_id}/guardar-nota-urgencia")
+def guardar_nota_urgencia(paciente_id: int, datos: NotaUrgenciaInput, db: Session = Depends(get_db)):
+    """
+    Registra los hallazgos críticos del Urgenciólogo y marca el estudio en estado
+    'Urgencia' para alertar al radiólogo de que se requiere lectura oficial.
+    """
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+    if not estudio:
+        raise HTTPException(status_code=404, detail="Estudio clínico no localizado")
+    
+    try:
+        estudio.nota_urgencia = datos.nota_urgencia
+        estudio.estado_pacs = "Urgencia"
+        setattr(estudio, "requiere_lectura_radiologo", datos.requiere_lectura)
+        
+        db.commit()
+        return {"status": "success", "message": "Nota de evidencia clínica registrada en urgencias."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al guardar la nota clínica: {str(e)}")
 
 
 # =========================================================
@@ -631,3 +666,36 @@ def rechazar_estudio_imagen(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error en el guardado del rechazo: {str(e)}")
+    
+    # =========================================================
+# 🚫 CANCELACIÓN DEFINITIVA DE ESTUDIO (VÁLVULA DE ESCAPE)
+# =========================================================
+class CancelacionInput(BaseModel):
+    motivo_cancelacion: str
+
+@router.post("/{paciente_id}/cancelar-estudio")
+def cancelar_estudio_definitivo(paciente_id: int, datos: CancelacionInput, db: Session = Depends(get_db)):
+    """
+    Aborta el flujo de un estudio por limitaciones técnicas o traslado del paciente,
+    archivándolo permanentemente para no afectar la productividad.
+    """
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+    if not estudio: 
+        raise HTTPException(status_code=404, detail="Estudio no localizado")
+    
+    if not datos.motivo_cancelacion.strip():
+        raise HTTPException(status_code=400, detail="Debe proporcionar un motivo para la cancelación.")
+
+    try:
+        estudio.estado_pacs = "Cancelado"
+        
+        # Reutilizamos el campo de notas para guardar la evidencia legal de la cancelación
+        if hasattr(estudio, "nota_medico"):
+            setattr(estudio, "nota_medico", f"🚫 CANCELADO DEFINITIVO ({datetime.now().strftime('%Y-%m-%d')}): {datos.motivo_cancelacion.strip()}")
+        
+        db.commit()
+        return {"status": "success", "message": "Estudio abortado y archivado correctamente."}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al cancelar: {str(e)}")

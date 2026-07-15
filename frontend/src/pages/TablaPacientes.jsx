@@ -20,10 +20,35 @@ export default function TablaPacientes({
   abrirModalFirma 
 }) {
 
-// 🚀 NUEVA FUNCIÓN: Solicita el PDF directamente al radar del backend
+  // 🚀 NUEVA FUNCIÓN: Solicita el PDF directamente al radar del backend
   const abrirPDF = (pacienteDbId) => {
     const urlPDF = `http://localhost:8000/api/pacientes/${pacienteDbId}/descargar-pdf`;
     window.open(urlPDF, "_blank");
+  };
+
+  // 🚫 NUEVA FUNCIÓN: Válvula de escape para estudios irrecuperables
+  const handleCancelarEstudio = async (pacienteId) => {
+    const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio definitivamente.\nPor favor, escriba el motivo clínico o técnico (Ej: Traslado de paciente, Límite de peso, Claustrofobia, Falla de equipo):");
+    
+    if (!motivo || motivo.trim() === "") return; // Si cancela o deja vacío, abortamos la acción
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteId}/cancelar-estudio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ motivo_cancelacion: motivo })
+      });
+
+      if (response.ok) {
+        alert("✅ Estudio cancelado y archivado correctamente.");
+        window.location.reload(); // Recarga la pantalla para actualizar la tabla instantáneamente
+      } else {
+        alert("❌ Error al cancelar el estudio en el servidor.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("❌ Error de comunicación con la API.");
+    }
   };
 
   return (
@@ -61,14 +86,13 @@ export default function TablaPacientes({
           <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("modalidad")}>
             MODALIDAD {renderIconoOrden("modalidad")}
           </th>
-          {/* 🔥 NUEVA CABECERA: ESTUDIO / PROCEDIMIENTO */}
           <th style={{ ...styles.thStyle, cursor: 'pointer', color: '#fbbf24' }} onClick={() => solicitarOrdenamiento("descripcion")}>
             ESTUDIO / PROCEDIMIENTO {renderIconoOrden("descripcion")}
           </th>
           <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("departamento")}>
             DEPTO. {renderIconoOrden("departamento")}
           </th>
-          <th style={styles.thStyle}>EDITAR</th>
+          <th style={styles.thStyle}>ADMIN / EDITAR</th>
           <th style={styles.thStyle}>VISOR</th>
         </tr>
       </thead>
@@ -94,12 +118,10 @@ export default function TablaPacientes({
             const fechaReal = p.fecha_estudio || p.fecha || "S/F"; 
             const horaReal = p.hora_estudio || "00:00";
             
-            // 🔥 EXTRACCIÓN DE LA DESCRIPCIÓN DEL ESTUDIO
             const descripcionReal = p.descripcion || p.study_description || p.procedimiento || "Sin descripción DICOM";
 
             const estaSeleccionado = seleccionados.includes(p.id);
             const estiloMod = obtenerEstiloModalidad(mReal);
-
             const estaDesbloqueado = !!estudiosAutorizados[p.id] || p.estado_pacs === "Tomado";
 
             return (
@@ -108,8 +130,13 @@ export default function TablaPacientes({
                 onClick={() => toggleSeleccionarPaciente(p.id)}
                 style={{ 
                   ...styles.trStyle, 
-                  backgroundColor: estaSeleccionado ? "#1e222b" : (p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418"), // Fila ligeramente rojiza si está rechazada
-                  borderLeft: estaSeleccionado ? "4px solid #fbbf24" : (p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent")
+                  backgroundColor: estaSeleccionado ? "#1e222b" : 
+                                   p.estado_pacs === "Cancelado" ? "#0f172a" : // Fila oscura si está cancelado
+                                   p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", 
+                  borderLeft: estaSeleccionado ? "4px solid #fbbf24" : 
+                              p.estado_pacs === "Cancelado" ? "4px solid #475569" : 
+                              p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent",
+                  opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1 // Efecto visual de deshabilitado
                 }}
               >
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
@@ -123,12 +150,15 @@ export default function TablaPacientes({
                   <span style={{ 
                     ...styles.badge, 
                     backgroundColor: 
-                      p.estado_pacs === "Rechazado" ? "#ef4444" : // 🔥 NUEVO COLOR ROJO PARA RECHAZADOS
+                      p.estado_pacs === "Cancelado" ? "#171717" : // 🔥 NUEVO COLOR NEGRO PARA CANCELADOS
+                      p.estado_pacs === "Urgencia" ? "#f97316" :  // 🔥 RESTAURADO COLOR NARANJA URGENCIAS
+                      p.estado_pacs === "Rechazado" ? "#ef4444" : 
                       p.estado_pacs === "Entregado" ? "#a855f7" : 
                       p.estado_pacs === "Firmado" ? "#10b981" : 
                       p.estado_pacs === "Transcrito" ? "#2563eb" : 
                       p.estado_pacs === "Dictado" ? "#d97706" : 
-                      p.estado_pacs === "Tomado" ? "#3b82f6" : "#475569"
+                      p.estado_pacs === "Tomado" ? "#3b82f6" : "#475569",
+                    border: p.estado_pacs === "Cancelado" ? "1px solid #475569" : "none"
                   }}>
                     {p.estado_pacs || "Importado"}
                   </span>
@@ -144,11 +174,33 @@ export default function TablaPacientes({
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
                   <div style={styles.containerFlujo}>
                     
+                    {/* 🔥 ESTADO -1: ESTUDIO CANCELADO / ABORTADO */}
+                    {p.estado_pacs === "Cancelado" && (
+                      <span style={{ color: "#94a3b8", fontWeight: "bold", fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }} title="Estudio abortado por limitaciones técnicas o traslado.">
+                        🚫 Archivado
+                      </span>
+                    )}
+
                     {/* 🔥 ESTADO 0: PACIENTE RECHAZADO POR CALIDAD */}
                     {p.estado_pacs === "Rechazado" && (
                       <span style={{ color: "#ef4444", fontWeight: "bold", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }} title="El radiólogo solicitó repetir esta imagen por baja calidad.">
                         🛑 Repetir Toma
                       </span>
+                    )}
+
+                    {/* 🔥 ESTADO URGENCIAS: FAST-TRACK ACTIVO */}
+                    {p.estado_pacs === "Urgencia" && (
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }} title="Paciente atendido en urgencias. Pendiente de reporte oficial.">
+                          🚨 Urgencia
+                        </span>
+                        <button 
+                          onClick={() => abrirModuloDictado(p.id)} 
+                          style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}
+                        >
+                          🎙️ Oficial
+                        </button>
+                      </div>
                     )}
 
                     {/* ESTADO 1: PACIENTE DISPONIBLE PARA GRABACIÓN */}
@@ -288,7 +340,6 @@ export default function TablaPacientes({
                   </span>
                 </td>
                 
-                {/* 🔥 NUEVA CELDA: ESTUDIO / PROCEDIMIENTO */}
                 <td style={{ ...styles.tdStyle, color: '#f8fafc', fontWeight: '500', fontSize: '0.85rem' }}>
                   {descripcionReal}
                 </td>
@@ -297,8 +348,19 @@ export default function TablaPacientes({
                 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <button style={styles.btnEditar} onClick={() => abrirEditorPaciente(p)}>📝</button>
-                    <button style={styles.btnReabrir} onClick={() => handleReabrirFlujoEstudio(p)}>🔄</button>
+                    <button style={styles.btnEditar} onClick={() => abrirEditorPaciente(p)} title="Editar Datos del Paciente">📝</button>
+                    <button style={styles.btnReabrir} onClick={() => handleReabrirFlujoEstudio(p)} title="Reabrir Flujo / Resetear Estudio">🔄</button>
+                    
+                    {/* 🔥 BOTÓN ROJO DE CANCELACIÓN DEFINITIVA */}
+                    {p.estado_pacs !== "Cancelado" && p.estado_pacs !== "Firmado" && (
+                      <button 
+                        style={{ ...styles.btnReabrir, backgroundColor: '#ef4444', color: '#fff', border: 'none' }} 
+                        onClick={() => handleCancelarEstudio(p.id)} 
+                        title="Abortar/Cancelar Estudio Definitivamente"
+                      >
+                        🛑
+                      </button>
+                    )}
                   </div>
                 </td>
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>

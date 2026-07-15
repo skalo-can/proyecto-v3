@@ -5,10 +5,11 @@ Compatible con:
 - Procesador DICOM automático
 - Frontend moderno
 - API moderna
+- Flujo Dual de Urgencias (Fast-Track + Lectura Oficial)
 """
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, Date, Enum, ForeignKey
+from sqlalchemy import Integer, String, Date, Enum, ForeignKey, Boolean
 from datetime import date
 
 from app.core.database import Base
@@ -83,7 +84,23 @@ class Estudio(Base):
         String(50),
         default="Importado",
         nullable=True,
-        doc="Estado persistente del dictado médico (Importado, Dictado, etc.)"
+        doc="Estado persistente del dictado médico (Importado, Dictado, Urgencia, etc.)"
+    )
+
+    # ---------------------------------------------------------
+    # 🚨 CAMPOS DEL FLUJO DE URGENCIAS (FAST-TRACK)
+    # ---------------------------------------------------------
+    nota_urgencia: Mapped[str | None] = mapped_column(
+        String(2000),
+        nullable=True,
+        doc="Nota rápida de evidencia ingresada por el médico urgenciólogo"
+    )
+    
+    requiere_lectura_radiologo: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        doc="Bandera para evitar el cierre del ciclo hasta que el radiólogo dicte el informe oficial"
     )
 
     # ---------------------------------------------------------

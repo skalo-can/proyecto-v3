@@ -48,19 +48,20 @@ export default function FiltrosPacientes({
           </select>
         </div>
 
-        {/* 🔥 NUEVO FILTRO DE ESTADO OPERATIVO INYECTADO */}
+        {/* 🔥 FILTRO DE ESTADO OPERATIVO 100% SINCRONIZADO */}
         <div style={fGroup}>
           <label style={lStyle}>ESTADO</label>
-          <select name="estado" style={{ ...sStyle, minWidth: '120px' }} value={filtros.estado} onChange={handleFiltroChange}>
-            <option value="">Todos</option>
-            <option value="Rechazado">Rechazados 🛑</option>  {/* <-- REEMPLAZO AQUÍ */}
-            <option value="Tomado">Tomados</option>
-            <option value="Tomado">Tomados</option>
-            <option value="Importado">Importados</option>
-            <option value="Dictado">Dictado</option>
-            <option value="Transcrito">Transcrito</option>
-            <option value="Firmado">Firmado</option>
-            <option value="Entregado">Entregado</option>
+          <select name="estado" style={{ ...sStyle, minWidth: '135px' }} value={filtros.estado} onChange={handleFiltroChange}>
+            <option value="">-- Todos --</option>
+            <option value="Tomado">🔵 Tomado</option>
+            <option value="Importado">⚪ Importado</option>
+            <option value="Urgencia">🚨 Urgencia</option>
+            <option value="Dictado">🟠 Dictado</option>
+            <option value="Transcrito">🟣 Transcrito</option>
+            <option value="Firmado">🟢 Firmado</option>
+            <option value="Entregado">🔮 Entregado</option>
+            <option value="Rechazado">🛑 Rechazado</option>
+            <option value="Cancelado">⚫ Cancelado</option>
           </select>
         </div>
         

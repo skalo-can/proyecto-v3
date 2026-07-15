@@ -3,6 +3,7 @@ usuario.py — MI_PACS (Versión de Producción Unificada y Segura con JWT)
 --------------------------------------------------------------------------------
 Modelo SQLAlchemy consolidado para usuarios del sistema MI_PACS.
 Corregido para compatibilidad con esquemas de FastAPI y matriz de permisos JSON.
+Optimizado con superpermiso flag para flujo fast-track de Urgenciología.
 """
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON, func
@@ -40,6 +41,9 @@ class Usuario(Base):
     registro_medico = Column(String(50), nullable=True, default="", doc="Registro Médico / Cédula Profesional")
 
     permisos = Column(JSON, default={}, doc="Matriz de permisos específicos por usuario")
+
+    # 🔥 SUPERPERMISO DE ACCIÓN RÁPIDA: Transforma un perfil médico estándar en Urgenciólogo
+    es_urgenciologo = Column(Boolean, default=False, nullable=False, doc="Flag especial para médicos con nivel de Urgenciólogo (Bypass clínico)")
 
     # ---------------------------------------------------------
     # Estado y Auditoría (Sincronizado con esquemas Pydantic)
