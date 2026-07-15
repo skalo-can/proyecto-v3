@@ -37,7 +37,6 @@ export default function Pacientes() {
   const reproductorGlobalRef = useRef(null); 
   const hoyStr = new Date().toISOString().split('T')[0];
 
-  // 🔥 AQUÍ SE INYECTÓ EL NUEVO ESTADO: estado: ""
   const [filtros, setFiltros] = useState({ 
     fechaDesde: "2020-01-01", fechaHasta: hoyStr, modalidad: "", busqueda: "", estado: "" 
   });
@@ -48,7 +47,6 @@ export default function Pacientes() {
   // Solicitudes HTTP de Repositorio PACS
   const cargarDatos = useCallback(() => {
     setLoading(true);
-    // 🔥 AQUÍ SE INYECTÓ EL FILTRO DE ESTADO A LA URL
     const params = new URLSearchParams({
       fechaDesde: filtros.fechaDesde, 
       fechaHasta: filtros.fechaHasta, 
@@ -75,14 +73,14 @@ export default function Pacientes() {
     cargarDatos(); 
   }, [cargarDatos]);
 
-  // 📡 CANAL DE COMUNICACIÓN MULTIMONITOR (Recepción activa)
+  // 📡 CANAL DE COMUNICACIÓN MULTIMONITOR
   useEffect(() => {
     const canalRefresco = new BroadcastChannel("mipacs_refresco_flujo");
     
     canalRefresco.onmessage = (evento) => {
       if (evento.data === "actualizar_tabla") {
         console.log("🔄 Señal recibida. Refrescando datos de la tabla...");
-        cargarDatos(); // Ejecuta tu carga nativa de datos directamente
+        cargarDatos(); 
       }
     };
 
@@ -123,19 +121,45 @@ export default function Pacientes() {
     );
   };
 
+  // 🔥 NUEVO CEREBRO MATEMÁTICO DE FECHAS SEGURAS
   const setFiltroRapido = (tipo) => {
     const hoy = new Date();
-    const hoyStr = hoy.toISOString().split('T')[0];
-    setSeleccionados([]);
+    
+    // Función interna para formatear a YYYY-MM-DD sin problemas de zonas horarias
+    const formatearFecha = (fecha) => {
+      const year = fecha.getFullYear();
+      const month = String(fecha.getMonth() + 1).padStart(2, '0');
+      const day = String(fecha.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const hoyStrLocal = formatearFecha(hoy);
+    let desde = new Date();
+    let hastaStr = hoyStrLocal; // Por defecto las búsquedas terminan el día de hoy
+
+    setSeleccionados([]); 
     
     if (tipo === "HOY") {
-      setFiltros(prev => ({ ...prev, fechaDesde: hoyStr, fechaHasta: hoyStr }));
+      // 'desde' ya es hoy
     } else if (tipo === "AYER") {
-      const ayer = new Date();
-      ayer.setDate(hoy.getDate() - 1);
-      const ayerStr = ayer.toISOString().split('T')[0];
-      setFiltros(prev => ({ ...prev, fechaDesde: ayerStr, fechaHasta: ayerStr }));
+      desde.setDate(hoy.getDate() - 1);
+      hastaStr = formatearFecha(desde); // Si es ayer, el rango empieza y termina ayer
+    } else if (tipo === "SEMANA") {
+      desde.setDate(hoy.getDate() - 7);
+    } else if (tipo === "MES") {
+      desde.setMonth(hoy.getMonth() - 1);
+    } else if (tipo === "6_MESES") {
+      desde.setMonth(hoy.getMonth() - 6);
+    } else if (tipo === "1_ANO") {
+      desde.setFullYear(hoy.getFullYear() - 1);
+    } else if (tipo === "2_ANOS") {
+      desde.setFullYear(hoy.getFullYear() - 2);
     }
+
+    const desdeStr = formatearFecha(desde);
+    
+    // Actualiza los inputs de fecha (esto disparará useEffect y traerá los datos nuevos automáticamente)
+    setFiltros(prev => ({ ...prev, fechaDesde: desdeStr, fechaHasta: hastaStr }));
   };
 
   const abrirEditorPaciente = (paciente) => {
@@ -299,7 +323,7 @@ export default function Pacientes() {
           </div>
         </div>
         
-        <FiltrosPacientes filtros={filtros} handleFiltroChange={handleFiltroChange} setFiltroRapido={setFiltroRapido} modalitiesLista={modalitiesLista} cargarDatos={cargarDatos} loading={loading} />
+        <FiltrosPacientes filtros={filtros} handleFiltroChange={handleFiltroChange} setFiltroRapido={setFiltroRapido} cargarDatos={cargarDatos} loading={loading} />
       </header>
 
       <main style={styles.tableContainer}>

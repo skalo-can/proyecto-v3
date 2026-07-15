@@ -1,33 +1,55 @@
 import React from "react";
 
+// 🚀 LISTA MAESTRA DE MODALIDADES
+const MODALIDADES_MASTER = [
+  "CT - Tomografía", 
+  "MR - Resonancia", 
+  "DX - Flat Panel (Directo)", 
+  "CR - Casetes (Computarizado)", 
+  "US - Ecografía",
+  "MG - Mamografía",
+  "DXA - Densitometría",
+  "PET - PET Scan",
+  "RF - Arco en C (Fluoroscopía)",
+  "XA - Arco en C (Vascular)"
+];
+
 export default function FiltrosPacientes({
   filtros,
-  modalitiesLista,
   loading,
   handleFiltroChange,
   setFiltroRapido,
   cargarDatos
 }) {
   const filtrosBox = { background: '#1a1d21', padding: '15px', borderRadius: '10px', marginTop: '10px', border: '1px solid #222' };
-  const filtrosFlex = { display: 'flex', gap: '15px', alignItems: 'flex-end' };
+  const filtrosFlex = { display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' };
   const fGroup = { display: 'flex', flexDirection: 'column', gap: '4px' };
   const lStyle = { fontSize: '0.6rem', color: '#fbbf24', fontWeight: 'bold' };
   const iSearch = { background: '#000', color: '#fff', border: '1px solid #444', padding: '8px', borderRadius: '4px', fontSize: '0.8rem', height: '38px', width: '100%' };
   const sStyle = { background: '#000', color: '#fff', border: '1px solid #444', padding: '8px', borderRadius: '4px', fontSize: '0.8rem', height: '38px' };
-  const btnQuick = { background: '#334155', color: '#fbbf24', border: 'none', padding: '0 12px', borderRadius: '4px', cursor: 'pointer', height: '38px', fontSize: '0.7rem' };
+  
+  // Estilos de botones rápidos más compactos para que quepan bien
+  const btnQuick = { background: '#334155', color: '#fbbf24', border: 'none', padding: '0 8px', borderRadius: '4px', cursor: 'pointer', height: '38px', fontSize: '0.7rem', fontWeight: 'bold', transition: 'background 0.2s' };
+  const btnReset = { background: '#475569', color: '#f8fafc', border: 'none', padding: '0 8px', borderRadius: '4px', cursor: 'pointer', height: '38px', fontSize: '0.7rem', fontWeight: 'bold' };
   const btnBuscar = { background: '#2563eb', color: '#fff', border: 'none', padding: '0 20px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', height: '38px', fontSize: '0.75rem' };
 
   return (
     <div style={filtrosBox}>
       <div style={filtrosFlex}>
+        
+        {/* 🔥 NUEVOS BOTONES DE FILTRO RÁPIDO SEGUROS */}
         <div style={fGroup}>
           <label style={lStyle}>RÁPIDO</label>
-          <div style={{ display: 'flex', gap: '5px' }}>
+          <div style={{ display: 'flex', gap: '4px' }}>
             <button type="button" onClick={() => setFiltroRapido("HOY")} style={btnQuick}>HOY</button>
             <button type="button" onClick={() => setFiltroRapido("AYER")} style={btnQuick}>AYER</button>
+            <button type="button" onClick={() => setFiltroRapido("SEMANA")} style={btnQuick}>7 DÍAS</button>
+            <button type="button" onClick={() => setFiltroRapido("MES")} style={btnQuick}>1 MES</button>
+            <button type="button" onClick={() => setFiltroRapido("6_MESES")} style={btnQuick}>6 MESES</button>
+            <button type="button" onClick={() => setFiltroRapido("1_ANO")} style={btnQuick}>1 AÑO</button>
+            <button type="button" onClick={() => setFiltroRapido("2_ANOS")} style={btnQuick}>2 AÑOS</button>
           </div>
         </div>
-
         <div style={fGroup}>
           <label style={lStyle}>DESDE</label>
           <input type="date" name="fechaDesde" style={sStyle} value={filtros.fechaDesde} onChange={handleFiltroChange} />
@@ -42,13 +64,12 @@ export default function FiltrosPacientes({
           <label style={lStyle}>MODALIDAD</label>
           <select name="modalidad" style={sStyle} value={filtros.modalidad} onChange={handleFiltroChange}>
             <option value="">Todas</option>
-            {modalitiesLista.map(m => (
+            {MODALIDADES_MASTER.map(m => (
               <option key={m} value={m.split(' ')[0]}>{m}</option>
             ))}
           </select>
         </div>
 
-        {/* 🔥 FILTRO DE ESTADO OPERATIVO 100% SINCRONIZADO */}
         <div style={fGroup}>
           <label style={lStyle}>ESTADO</label>
           <select name="estado" style={{ ...sStyle, minWidth: '135px' }} value={filtros.estado} onChange={handleFiltroChange}>

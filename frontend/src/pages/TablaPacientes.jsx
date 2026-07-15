@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { obtenerEstiloModalidad } from "./modalidades";
 import { styles } from "./pacientesStyles"; // Se importarán desde el archivo de estilos centralizado
 
@@ -20,17 +20,26 @@ export default function TablaPacientes({
   abrirModalFirma 
 }) {
 
-  // 🚀 NUEVA FUNCIÓN: Solicita el PDF directamente al radar del backend
+  // 🚀 ESTADOS PARA LA SELECCIÓN TIPO WINDOWS (BROCHA Y SHIFT-CLICK)
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragMode, setDragMode] = useState(true); // true = marcando, false = desmarcando
+  const [lastIndex, setLastIndex] = useState(null);
+
+  // Escuchar cuando se suelta el mouse en cualquier parte de la pantalla para detener la "brocha"
+  useEffect(() => {
+    const stopDrag = () => setIsDragging(false);
+    window.addEventListener("mouseup", stopDrag);
+    return () => window.removeEventListener("mouseup", stopDrag);
+  }, []);
+
   const abrirPDF = (pacienteDbId) => {
     const urlPDF = `http://localhost:8000/api/pacientes/${pacienteDbId}/descargar-pdf`;
     window.open(urlPDF, "_blank");
   };
 
-  // 🚫 NUEVA FUNCIÓN: Válvula de escape para estudios irrecuperables
   const handleCancelarEstudio = async (pacienteId) => {
-    const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio definitivamente.\nPor favor, escriba el motivo clínico o técnico (Ej: Traslado de paciente, Límite de peso, Claustrofobia, Falla de equipo):");
-    
-    if (!motivo || motivo.trim() === "") return; // Si cancela o deja vacío, abortamos la acción
+    const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio definitivamente.\nPor favor, escriba el motivo clínico o técnico:");
+    if (!motivo || motivo.trim() === "") return; 
 
     try {
       const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteId}/cancelar-estudio`, {
@@ -41,13 +50,63 @@ export default function TablaPacientes({
 
       if (response.ok) {
         alert("✅ Estudio cancelado y archivado correctamente.");
-        window.location.reload(); // Recarga la pantalla para actualizar la tabla instantáneamente
+        window.location.reload(); 
       } else {
         alert("❌ Error al cancelar el estudio en el servidor.");
       }
     } catch (error) {
       console.error(error);
       alert("❌ Error de comunicación con la API.");
+    }
+  };
+
+  // 🔥 LÓGICA DE SELECCIÓN TIPO WINDOWS
+  const handleRowMouseDown = (e, index, id) => {
+    // Evitar que funcione si se hace clic en botones, inputs o enlaces
+    if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
+
+    // SHIFT + CLICK (Selección en bloque)
+    if (e.shiftKey && lastIndex !== null) {
+      // Evitar que el navegador intente sombrear texto al usar Shift
+      window.getSelection().removeAllRanges(); 
+
+      const start = Math.min(lastIndex, index);
+      const end = Math.max(lastIndex, index);
+      const rangeIds = pacientes.slice(start, end + 1).map(p => p.id);
+
+      const isSelecting = !seleccionados.includes(id);
+      if (isSelecting) {
+        const combined = new Set([...seleccionados, ...rangeIds]);
+        setSeleccionados(Array.from(combined));
+      } else {
+        setSeleccionados(seleccionados.filter(sId => !rangeIds.includes(sId)));
+      }
+      return; 
+    }
+
+    // CLIC NORMAL O INICIO DE ARRASTRE (BROCHA)
+    const isCurrentlySelected = seleccionados.includes(id);
+    const newMode = !isCurrentlySelected; // Si estaba marcado, el arrastre desmarcará (y viceversa)
+    
+    setDragMode(newMode);
+    setIsDragging(true);
+    setLastIndex(index);
+
+    if (newMode) {
+      setSeleccionados(prev => [...prev, id]);
+    } else {
+      setSeleccionados(prev => prev.filter(x => x !== id));
+    }
+  };
+
+  // EL MOUSE PASA POR ENCIMA DE OTRA FILA MIENTRAS SE MANTIENE EL CLIC PRESIONADO
+  const handleRowMouseEnter = (index, id) => {
+    if (!isDragging) return;
+
+    if (dragMode) {
+      setSeleccionados(prev => prev.includes(id) ? prev : [...prev, id]);
+    } else {
+      setSeleccionados(prev => prev.filter(x => x !== id));
     }
   };
 
@@ -105,7 +164,8 @@ export default function TablaPacientes({
             </td>
           </tr>
         ) : (
-          pacientes.map((p) => {
+          // 🔥 NOTA: SE AÑADIÓ EL `index` AL MAP
+          pacientes.map((p, index) => {
             const idReal = p.identificacion || p.id_paciente || p.id || "S/I";
             const primerNombre = p.primer_nombre || "";
             const segundoNombre = p.segundo_nombre || "-";
@@ -127,19 +187,27 @@ export default function TablaPacientes({
             return (
               <tr 
                 key={p.id} 
-                onClick={() => toggleSeleccionarPaciente(p.id)}
+                // 🚀 EVENTOS DE MOUSE PARA SELECCIÓN TIPO WINDOWS
+                onMouseDown={(e) => handleRowMouseDown(e, index, p.id)}
+                onMouseEnter={() => handleRowMouseEnter(index, p.id)}
                 style={{ 
                   ...styles.trStyle, 
                   backgroundColor: estaSeleccionado ? "#1e222b" : 
-                                   p.estado_pacs === "Cancelado" ? "#0f172a" : // Fila oscura si está cancelado
+                                   p.estado_pacs === "Cancelado" ? "#0f172a" : 
                                    p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", 
                   borderLeft: estaSeleccionado ? "4px solid #fbbf24" : 
                               p.estado_pacs === "Cancelado" ? "4px solid #475569" : 
                               p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent",
-                  opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1 // Efecto visual de deshabilitado
+                  opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1,
+                  // 🛑 ESTO MATA EL MOLESTO RESALTADO AZUL DE TEXTO DEL NAVEGADOR
+                  userSelect: "none", 
+                  WebkitUserSelect: "none", 
+                  MozUserSelect: "none", 
+                  msUserSelect: "none"
                 }}
               >
-                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
+                {/* AÑADIMOS onMouseDown a los interactivos para que no disparen la selección */}
+                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <input 
                     type="checkbox" 
                     checked={estaSeleccionado} 
@@ -150,8 +218,8 @@ export default function TablaPacientes({
                   <span style={{ 
                     ...styles.badge, 
                     backgroundColor: 
-                      p.estado_pacs === "Cancelado" ? "#171717" : // 🔥 NUEVO COLOR NEGRO PARA CANCELADOS
-                      p.estado_pacs === "Urgencia" ? "#f97316" :  // 🔥 RESTAURADO COLOR NARANJA URGENCIAS
+                      p.estado_pacs === "Cancelado" ? "#171717" : 
+                      p.estado_pacs === "Urgencia" ? "#f97316" :  
                       p.estado_pacs === "Rechazado" ? "#ef4444" : 
                       p.estado_pacs === "Entregado" ? "#a855f7" : 
                       p.estado_pacs === "Firmado" ? "#10b981" : 
@@ -171,149 +239,42 @@ export default function TablaPacientes({
                 <td style={{ ...styles.tdStyle, color: '#94a3b8', fontSize: '0.75rem', fontFamily: 'monospace' }}>{emailReal}</td>
                 <td style={{ ...styles.tdStyle, color: '#fbbf24', fontSize: '0.85rem', fontWeight: 'bold', fontFamily: 'monospace' }}>{telefonoReal}</td>
                 
-                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
+                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <div style={styles.containerFlujo}>
-                    
-                    {/* 🔥 ESTADO -1: ESTUDIO CANCELADO / ABORTADO */}
                     {p.estado_pacs === "Cancelado" && (
                       <span style={{ color: "#94a3b8", fontWeight: "bold", fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }} title="Estudio abortado por limitaciones técnicas o traslado.">
                         🚫 Archivado
                       </span>
                     )}
-
-                    {/* 🔥 ESTADO 0: PACIENTE RECHAZADO POR CALIDAD */}
                     {p.estado_pacs === "Rechazado" && (
                       <span style={{ color: "#ef4444", fontWeight: "bold", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }} title="El radiólogo solicitó repetir esta imagen por baja calidad.">
                         🛑 Repetir Toma
                       </span>
                     )}
-
-                    {/* 🔥 ESTADO URGENCIAS: FAST-TRACK ACTIVO */}
                     {p.estado_pacs === "Urgencia" && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                        <span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }} title="Paciente atendido en urgencias. Pendiente de reporte oficial.">
-                          🚨 Urgencia
-                        </span>
-                        <button 
-                          onClick={() => abrirModuloDictado(p.id)} 
-                          style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}
-                        >
-                          🎙️ Oficial
-                        </button>
+                        <span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }}>🚨 Urgencia</span>
+                        <button onClick={() => abrirModuloDictado(p.id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>🎙️ Oficial</button>
                       </div>
                     )}
-
-                    {/* ESTADO 1: PACIENTE DISPONIBLE PARA GRABACIÓN */}
                     {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && (
-                      <button 
-                        onClick={() => abrirModuloDictado(p.id)}
-                        style={{
-                          ...styles.iconFlujoBase, 
-                          color: estaDesbloqueado ? "#10b981" : "#ef4444", 
-                          backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", 
-                          border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", 
-                          cursor: estaDesbloqueado ? "pointer" : "not-allowed",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          fontWeight: "bold",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          transition: "all 0.3s ease" 
-                        }}
-                        title={estaDesbloqueado ? "Abrir Dictador en Pantalla Secundaria" : "Estudio Bloqueado. Requiere Autorización (Botón Azul 🔄)"}
-                      >
+                      <button onClick={() => abrirModuloDictado(p.id)} style={{ ...styles.iconFlujoBase, color: estaDesbloqueado ? "#10b981" : "#ef4444", backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", cursor: estaDesbloqueado ? "pointer" : "not-allowed", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }} title={estaDesbloqueado ? "Abrir Dictador" : "Bloqueado"}>
                         {estaDesbloqueado ? "🎙️ Grabar" : "🔒 Bloqueado"}
                       </button>
                     )}
-
-                    {/* ESTADO 2: PACIENTE YA DICTADO */}
                     {p.estado_pacs === "Dictado" && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                        <button 
-                          onClick={() => ejecutarPlayAudioTabla(p.id)}
-                          style={{
-                            ...styles.iconFlujoBase, 
-                            color: "#3b82f6", 
-                            backgroundColor: "rgba(59,130,246,0.15)", 
-                            border: "1px solid rgba(59,130,246,0.3)", 
-                            cursor: "pointer",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            fontWeight: "bold",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px"
-                          }}
-                          title="Reproducir Dictado del Médico"
-                        >
-                          🔊 Play
-                        </button>
-                        
-                        <button 
-                          onClick={() => abrirModalTranscriptor(p.id)}
-                          style={{
-                            padding: "6px 12px",
-                            backgroundColor: "#8b5cf6",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontWeight: "bold"
-                          }}
-                        >
-                          ✍️ Transcribir
-                        </button>
+                        <button onClick={() => ejecutarPlayAudioTabla(p.id)} style={{ ...styles.iconFlujoBase, color: "#3b82f6", backgroundColor: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>🔊 Play</button>
+                        <button onClick={() => abrirModalTranscriptor(p.id)} style={{ padding: "6px 12px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>✍️ Transcribir</button>
                       </div>
                     )}
-
-                    {/* ESTADO 3: PACIENTE YA TRANSCRITO */}
                     {p.estado_pacs === "Transcrito" && (
-                      <button 
-                        onClick={() => abrirModalFirma(p.id)}
-                        style={{
-                          padding: "6px 12px",
-                          backgroundColor: "#10b981",
-                          color: "#fff",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontWeight: "bold",
-                          boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)"
-                        }}
-                      >
-                        🔏 Validar y Firmar
-                      </button>
+                      <button onClick={() => abrirModalFirma(p.id)} style={{ padding: "6px 12px", backgroundColor: "#10b981", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}>🔏 Validar y Firmar</button>
                     )}
-
-                    {/* ESTADO 4: PACIENTE FIRMADO (Ciclo cerrado + Botón PDF) */}
                     {p.estado_pacs === "Firmado" && (
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center", gap: "4px" }}>
-                          ✅ Completado
-                        </span>
-                        
-                        <button 
-                          onClick={() => abrirPDF(p.id)}
-                          style={{
-                            padding: "4px 10px",
-                            backgroundColor: "#334155",
-                            color: "#fff",
-                            border: "1px solid #475569",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "12px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            transition: "background-color 0.2s"
-                          }}
-                          title="Ver Reporte PDF"
-                          onMouseEnter={(e) => e.target.style.backgroundColor = "#475569"}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = "#334155"}
-                        >
-                          📄 Ver PDF
-                        </button>
+                        <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center", gap: "4px" }}>✅ Completado</span>
+                        <button onClick={() => abrirPDF(p.id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>📄 Ver PDF</button>
                       </div>
                     )}
                   </div>
@@ -327,43 +288,23 @@ export default function TablaPacientes({
                 </td> 
                 <td style={styles.tdStyle}>{p.sexo || "M"}</td>
                 <td style={styles.tdStyle}>
-                  <span style={{
-                    ...styles.badge,
-                    backgroundColor: estiloMod.bg,
-                    color: estiloMod.color,
-                    border: estiloMod.border,
-                    padding: '6px 12px',
-                    fontSize: '0.75rem',
-                    boxShadow: `0 0 8px ${estiloMod.bg}` 
-                  }}>
-                    {mReal}
-                  </span>
+                  <span style={{ ...styles.badge, backgroundColor: estiloMod.bg, color: estiloMod.color, border: estiloMod.border, padding: '6px 12px', fontSize: '0.75rem', boxShadow: `0 0 8px ${estiloMod.bg}` }}>{mReal}</span>
                 </td>
                 
-                <td style={{ ...styles.tdStyle, color: '#f8fafc', fontWeight: '500', fontSize: '0.85rem' }}>
-                  {descripcionReal}
-                </td>
+                <td style={{ ...styles.tdStyle, color: '#f8fafc', fontWeight: '500', fontSize: '0.85rem' }}>{descripcionReal}</td>
 
                 <td style={styles.tdStyle}>{p.departamento || "Radiología"}</td>
                 
-                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
+                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button style={styles.btnEditar} onClick={() => abrirEditorPaciente(p)} title="Editar Datos del Paciente">📝</button>
                     <button style={styles.btnReabrir} onClick={() => handleReabrirFlujoEstudio(p)} title="Reabrir Flujo / Resetear Estudio">🔄</button>
-                    
-                    {/* 🔥 BOTÓN ROJO DE CANCELACIÓN DEFINITIVA */}
                     {p.estado_pacs !== "Cancelado" && p.estado_pacs !== "Firmado" && (
-                      <button 
-                        style={{ ...styles.btnReabrir, backgroundColor: '#ef4444', color: '#fff', border: 'none' }} 
-                        onClick={() => handleCancelarEstudio(p.id)} 
-                        title="Abortar/Cancelar Estudio Definitivamente"
-                      >
-                        🛑
-                      </button>
+                      <button style={{ ...styles.btnReabrir, backgroundColor: '#ef4444', color: '#fff', border: 'none' }} onClick={() => handleCancelarEstudio(p.id)} title="Abortar/Cancelar Estudio Definitivamente">🛑</button>
                     )}
                   </div>
                 </td>
-                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()}>
+                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <button style={styles.btnVisor}>ABRIR</button>
                 </td>
               </tr>
