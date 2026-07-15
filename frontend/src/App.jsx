@@ -6,7 +6,6 @@ import { useAuth } from "./AuthContext";
 // Componentes y Páginas
 import { Header } from "./components/Header";
 import Sidebar from "./components/Sidebar";
-import DicomConfigModal from "./components/DicomConfigModal";
 import Dashboard from "./components/Dashboard";
 import Pacientes from "./pages/pacientes";
 import Login from "./Login";
@@ -179,7 +178,6 @@ export default function App() {
         } />
       </Routes>
 
-      <DicomConfigModal isOpen={showDicomModal} onClose={() => setShowDicomModal(false)} />
     </BrowserRouter>
   );
 } 

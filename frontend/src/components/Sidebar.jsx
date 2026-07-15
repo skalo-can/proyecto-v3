@@ -1,4 +1,4 @@
-import React, { useState } from "react"; 
+import React, { useState, useEffect } from "react"; 
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx"; 
 import { FaUserPlus, FaUsersCog } from "react-icons/fa";
@@ -7,16 +7,38 @@ import "./Sidebar.css";
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
   const { user } = useAuth(); 
-  const [openAdmin, setOpenAdmin] = useState(false);
 
   const isActive = (path) => location.pathname === path;
 
-  // Identificación Maestra
+  // 🔥 LA SOLUCIÓN REVELADA POR TUS FOTOS: 
+  const rutasAdmin = [
+    "/gestion-usuarios", 
+    "/gestion-backups", 
+    "/config-mapeo", 
+    "/reporte-cobros", 
+    "/auditoria", 
+    "/email-logs", 
+    "/whatsapp-logs",
+    "/configuracion" 
+  ];
+
+  // 🧠 LA MAGIA: Es TRUE si incluye alguna ruta de admin, O si la URL es EXACTAMENTE la raíz "/"
+  const isAdminRoute = rutasAdmin.some(ruta => location.pathname.includes(ruta)) || location.pathname === "/";
+
+  const [openAdmin, setOpenAdmin] = useState(isAdminRoute);
+
+  // Mantiene la carpeta abierta automáticamente al navegar
+  useEffect(() => {
+    if (isAdminRoute) {
+      setOpenAdmin(true);
+    }
+  }, [location.pathname, isAdminRoute]);
+
+  // Roles y Permisos
   const currentUsername = user?.username?.trim().toUpperCase() || "";
   const isSkalo = currentUsername.includes("SKALO") || user?.rol === "superadmin";
   const isAdmin = user?.rol === "admin" || isSkalo;
   
-  // Definición de Roles Nuevos
   const isAuxiliar = user?.rol === "auxiliar";
   const isInvitado = user?.rol === "invitado";
   const isRecepcion = user?.rol === "recepcion";
@@ -32,15 +54,10 @@ export default function Sidebar({ isOpen, onClose }) {
     );
 
     if (confirmacion) {
-      const palabraMaestra = window.prompt(
-        "Para proceder, confirma escribiendo la palabra maestra (SKALO):"
-      );
+      const palabraMaestra = window.prompt("Para proceder, confirma escribiendo la palabra maestra (SKALO):");
 
       if (palabraMaestra?.trim().toUpperCase() === "SKALO") {
-        const passwordConfirm = window.prompt(
-          "🛡️ VERIFICACIÓN FINAL: Ingresa tu contraseña de acceso para autorizar el reseteo:"
-        );
-
+        const passwordConfirm = window.prompt("🛡️ VERIFICACIÓN FINAL: Ingresa tu contraseña de acceso para autorizar el reseteo:");
         if (!passwordConfirm) return;
 
         try {
@@ -83,26 +100,22 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         <nav className="sidebar-nav">
-          {/* Pacientes: Visible para todos los roles autorizados */}
           <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`} onClick={onClose}>
             <span className="icon">👥</span> Pacientes
           </Link>
 
-          {/* Recepción: Solo Admin, Superadmin y Recepción */}
           {(isAdmin || isRecepcion) && (
             <Link to="/recepcion" className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`} onClick={onClose}>
               <span className="icon"><FaUserPlus /></span> Recepción / RIS
             </Link>
           )}
 
-          {/* Estadísticas: Admin, Superadmin e Invitado (Gerente) */}
           {(isAdmin || isInvitado) && (
             <Link to="/estadisticas" className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`} onClick={onClose}>
               <span className="icon">📊</span> Estadísticas
             </Link>
           )}
 
-          {/* 🚀 NUEVOS BOTONES DE HARDWARE: Solo Admin y Superadmin */}
           {isAdmin && (
             <>
               <Link to="/importar" className={`sidebar-link ${isActive("/importar") ? "active" : ""}`} onClick={onClose}>
@@ -116,7 +129,6 @@ export default function Sidebar({ isOpen, onClose }) {
 
           <div className="sidebar-divider"></div>
 
-          {/* Administración: Solo Admin, Superadmin e hilos para Auxiliar */}
           {(isAdmin || isAuxiliar) && (
             <div className="sidebar-section">
               <button className="sidebar-link dropdown-toggle" onClick={() => setOpenAdmin(!openAdmin)}>
@@ -125,43 +137,41 @@ export default function Sidebar({ isOpen, onClose }) {
               
               {openAdmin && (
                 <div className="sidebar-submenu">
-                  {/* Gestión Usuarios: Solo Superadmin */}
+                  
                   {isSkalo && (
-                    <Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} onClick={onClose} style={{ color: '#6366f1', fontWeight: 'bold' }}>
+                    <Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} style={{ color: '#6366f1', fontWeight: 'bold' }}>
                       <span className="icon"><FaUsersCog /></span> Gestión Usuarios
                     </Link>
                   )}
 
+                  {/* 🔥 CORREGIDO: Apunta a la ruta real de tu pantalla (raíz "/") */}
                   {isSkalo && (
-                    <Link to="/configuracion" className="submenu-link" style={{ color: '#fbbf24', fontWeight: 'bold' }} onClick={onClose}>
+                    <Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>
                       ⚙️ Configuración MI_PACS
                     </Link>
                   )}
 
-                  {/* 🚀 NUEVO: Acceso al panel de control del ciclo de vida de los datos */}
                   {isSkalo && (
-                    <Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#10b981', fontWeight: 'bold' }} onClick={onClose}>
+                    <Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#10b981', fontWeight: 'bold' }}>
                       📦 Ciclo de Vida / Backups
                     </Link>
                   )}
 
                   {isSkalo && (
-                    <Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} onClick={onClose} style={{ color: '#1890ff', fontWeight: '500' }}>
+                    <Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#1890ff', fontWeight: '500' }}>
                       🏷️ Configurar Tags DICOM
                     </Link>
                   )}
 
-                  {/* Reporte Cobros: Admin, Superadmin y Auxiliar (para Glosas) */}
-                  <Link to="/reporte-cobros" className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`} onClick={onClose}>
+                  <Link to="/reporte-cobros" className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}>
                     📈 Reporte Cobros / Glosas
                   </Link>
 
-                  {/* Auditoría y Logs: Solo Admin/Superadmin */}
                   {isAdmin && (
                     <>
-                      <Link to="/auditoria" className={`submenu-link ${isActive("/auditoria") ? "active" : ""}`} onClick={onClose}>📊 Auditoría</Link>
-                      <Link to="/email-logs" className={`submenu-link ${isActive("/email-logs") ? "active" : ""}`} onClick={onClose}>✉️ Logs Email</Link>
-                      <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`} onClick={onClose}>📱 Logs WhatsApp</Link>
+                      <Link to="/auditoria" className={`submenu-link ${isActive("/auditoria") ? "active" : ""}`}>📊 Auditoría</Link>
+                      <Link to="/email-logs" className={`submenu-link ${isActive("/email-logs") ? "active" : ""}`}>✉️ Logs Email</Link>
+                      <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`}>📱 Logs WhatsApp</Link>
                     </>
                   )}
                   

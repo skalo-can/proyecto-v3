@@ -26,18 +26,23 @@ export default function DicomConfigModal({ isOpen, onClose }) {
 
     setLoading(true);
 
-    // 1. Cargar Configuración
+    // 1. Cargar Configuración (Solo se hace una vez al abrir)
     axios.get("http://127.0.0.1:8000/api/dicom/config", { headers })
       .then((res) => {
         setForm({
           ae_title: res.data.ae_title || "",
-          ip: res.data.ip || "",
+          ip: res.data.ip_address || res.data.ip || "",
           port: res.data.port || "",
           client_ae: res.data.client_ae || "",
         });
       })
       .catch(() => setError("Error al cargar configuración."));
 
+    fetchLiveStatus(headers);
+  };
+
+  // Función separada para recargar solo los logs y el estado (sin parpadear los inputs)
+  const fetchLiveStatus = (headers) => {
     // 2. Cargar Estado
     axios.get("http://127.0.0.1:8000/api/dicom/status", { headers })
       .then((res) => {
@@ -55,10 +60,16 @@ export default function DicomConfigModal({ isOpen, onClose }) {
       .finally(() => setLoading(false));
   };
 
+  // 🚀 DISPARADOR PRINCIPAL Y BUCLE EN VIVO
   useEffect(() => {
+    let interval;
     if (isOpen) {
       loadData();
+      // Refrescar logs y estado en vivo cada 3 segundos
+      const token = localStorage.getItem("token");
+      interval = setInterval(() => fetchLiveStatus({ Authorization: `Bearer ${token}` }), 3000);
     }
+    return () => clearInterval(interval); // Limpiar el reloj al cerrar el modal
   }, [isOpen]);
 
   useEffect(() => {
@@ -79,7 +90,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
     .then(() => {
-      setMessage("✅ Guardado con éxito.");
+      setMessage("✅ Guardado con éxito. Servidor reiniciado.");
       loadData();
     })
     .catch(() => setError("❌ Error al guardar."))
@@ -114,7 +125,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
         </div>
 
         <div className="dicom-status-row">
-          <span className="dicom-status-label">Último emisor:</span>
+          <span className="dicom-status-label">Último evento:</span>
           <span className="dicom-status-value">{lastSender || "Sin registros"}</span>
         </div>
 
@@ -128,7 +139,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
           <label className="dicom-label">Puerto DICOM</label>
           <input type="number" name="port" value={form.port} onChange={handleChange} className="dicom-input" />
 
-          <label className="dicom-label">AE Title del cliente (WEASIS)</label>
+          <label className="dicom-label">AE Title del cliente (WEASIS / Visor)</label>
           <input type="text" name="client_ae" value={form.client_ae} onChange={handleChange} className="dicom-input" />
         </div>
 
@@ -136,16 +147,16 @@ export default function DicomConfigModal({ isOpen, onClose }) {
         {error && <p className="dicom-error">{error}</p>}
 
         <div className="dicom-logs-container">
-          <div className="dicom-logs-header">Logs DICOM recientes</div>
+          <div className="dicom-logs-header">Logs DICOM recientes (En Vivo)</div>
           <div className="dicom-logs-body">
             {logs.length > 0 ? logs.map((line, idx) => (
               <div key={idx} className="dicom-log-line">
                 <span style={{ color: '#fbbf24', marginRight: '8px', fontSize: '0.75rem' }}>
-                   [{line.fecha || '00:00'}]
+                  [{line.fecha || new Date().toLocaleTimeString()}]
                 </span>
                 <span style={{ fontSize: '0.8rem' }}>{line.mensaje || line}</span>
               </div>
-            )) : <div className="dicom-log-line">No hay logs disponibles</div>}
+            )) : <div className="dicom-log-line">Esperando tráfico de red...</div>}
           </div>
         </div>
 
@@ -155,7 +166,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
             {testing ? "Probando..." : "Probar conexión"}
           </button>
           <button onClick={handleSave} disabled={loading} className="dicom-btn-save">
-            {loading ? "Guardando..." : "Guardar"}
+            {loading ? "Guardando..." : "Guardar y Reiniciar"}
           </button>
         </div>
       </div>
