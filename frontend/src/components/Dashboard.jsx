@@ -266,7 +266,8 @@ export default function ConfiguracionPACS() {
 // ==========================================
 // ESTILOS DE INTERFAZ 
 // ==========================================
-const containerStyle = { padding: "30px", color: "white", backgroundColor: "#0f1114", minHeight: "100vh", width: "100%", boxSizing: "border-box" };
+// 🔥 MODIFICADO: Eliminados 'minHeight' y 'width' para que fluya perfecto con el Sidebar
+const containerStyle = { padding: "30px", color: "white", backgroundColor: "#0f1114", boxSizing: "border-box" };
 const headerStyle = { marginBottom: "25px", borderBottom: "1px solid #222", paddingBottom: "15px" };
 const titleStyle = { color: "#fbbf24", margin: "0 0 10px 0", borderLeft: "4px solid #fbbf24", paddingLeft: "15px", fontSize: "1.8rem" };
 const gridLayout = { display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "25px" };

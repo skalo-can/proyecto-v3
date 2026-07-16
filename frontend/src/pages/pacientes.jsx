@@ -38,24 +38,46 @@ export default function Pacientes() {
   const hoyStr = new Date().toISOString().split('T')[0];
 
   const [filtros, setFiltros] = useState({ 
-    fechaDesde: "2020-01-01", fechaHasta: hoyStr, modalidad: "", busqueda: "", estado: "" 
+    fechaDesde: hoyStr, fechaHasta: hoyStr, fechaExacta: "", modalidad: "", busqueda: "", estado: "" 
   });
 
-  // Consumo del Hook de Audio Aislado
+  // 🔥 ESTADO: El interruptor del "Extra Power"
+  const [busquedaProfunda, setBusquedaProfunda] = useState(false);
+
   const audioRecorder = useAudioRecorder();
 
   // Solicitudes HTTP de Repositorio PACS
   const cargarDatos = useCallback(() => {
     setLoading(true);
-    const params = new URLSearchParams({
-      fechaDesde: filtros.fechaDesde, 
-      fechaHasta: filtros.fechaHasta, 
+    
+    // 🧠 LÓGICA MAESTRA DEL FILTRADO PROFUNDO BLINDADO
+    let paramsObj = {
       modalidad: filtros.modalidad || "",
       estado: filtros.estado || "",
       busqueda: filtros.busqueda || "",
       sort_by: sortBy,
       order: sortOrder
-    });
+    };
+
+    if (busquedaProfunda) {
+      // 🛡️ SEGURO CONTRA VOLCADOS DE RAM:
+      // Si el botón está encendido, pero no han escrito a quién buscar ni fecha exacta...
+      if (filtros.busqueda.trim() === "" && filtros.fechaExacta === "") {
+        // ...Mantenemos el límite de fechas actual (Ej. Hoy) para no saturar la pantalla.
+        paramsObj.fechaDesde = filtros.fechaDesde;
+        paramsObj.fechaHasta = filtros.fechaHasta;
+      } else {
+        // Si YA escribieron un nombre, cédula o fecha, abrimos las compuertas del tiempo.
+        paramsObj.fechaDesde = filtros.fechaExacta || "";
+        paramsObj.fechaHasta = filtros.fechaExacta || ""; 
+      }
+    } else {
+      // Búsqueda normal por rango de fechas
+      paramsObj.fechaDesde = filtros.fechaDesde;
+      paramsObj.fechaHasta = filtros.fechaHasta;
+    }
+
+    const params = new URLSearchParams(paramsObj);
 
     fetch(`http://localhost:8000/api/pacientes?${params}`) 
       .then((res) => res.json())
@@ -67,7 +89,7 @@ export default function Pacientes() {
         console.error("Error cargando el repositorio PACS:", err);
         setLoading(false);
       });
-  }, [filtros, sortBy, sortOrder]);
+  }, [filtros, sortBy, sortOrder, busquedaProfunda]);
 
   useEffect(() => { 
     cargarDatos(); 
@@ -79,7 +101,6 @@ export default function Pacientes() {
     
     canalRefresco.onmessage = (evento) => {
       if (evento.data === "actualizar_tabla") {
-        console.log("🔄 Señal recibida. Refrescando datos de la tabla...");
         cargarDatos(); 
       }
     };
@@ -121,11 +142,10 @@ export default function Pacientes() {
     );
   };
 
-  // 🔥 NUEVO CEREBRO MATEMÁTICO DE FECHAS SEGURAS
+  // 🔥 CEREBRO MATEMÁTICO DE FECHAS
   const setFiltroRapido = (tipo) => {
     const hoy = new Date();
     
-    // Función interna para formatear a YYYY-MM-DD sin problemas de zonas horarias
     const formatearFecha = (fecha) => {
       const year = fecha.getFullYear();
       const month = String(fecha.getMonth() + 1).padStart(2, '0');
@@ -135,30 +155,21 @@ export default function Pacientes() {
 
     const hoyStrLocal = formatearFecha(hoy);
     let desde = new Date();
-    let hastaStr = hoyStrLocal; // Por defecto las búsquedas terminan el día de hoy
+    let hastaStr = hoyStrLocal; 
 
     setSeleccionados([]); 
+    setBusquedaProfunda(false); // Apaga el interruptor si usamos botones rápidos
     
     if (tipo === "HOY") {
       // 'desde' ya es hoy
     } else if (tipo === "AYER") {
       desde.setDate(hoy.getDate() - 1);
-      hastaStr = formatearFecha(desde); // Si es ayer, el rango empieza y termina ayer
+      hastaStr = formatearFecha(desde);
     } else if (tipo === "SEMANA") {
       desde.setDate(hoy.getDate() - 7);
-    } else if (tipo === "MES") {
-      desde.setMonth(hoy.getMonth() - 1);
-    } else if (tipo === "6_MESES") {
-      desde.setMonth(hoy.getMonth() - 6);
-    } else if (tipo === "1_ANO") {
-      desde.setFullYear(hoy.getFullYear() - 1);
-    } else if (tipo === "2_ANOS") {
-      desde.setFullYear(hoy.getFullYear() - 2);
     }
 
     const desdeStr = formatearFecha(desde);
-    
-    // Actualiza los inputs de fecha (esto disparará useEffect y traerá los datos nuevos automáticamente)
     setFiltros(prev => ({ ...prev, fechaDesde: desdeStr, fechaHasta: hastaStr }));
   };
 
@@ -323,7 +334,15 @@ export default function Pacientes() {
           </div>
         </div>
         
-        <FiltrosPacientes filtros={filtros} handleFiltroChange={handleFiltroChange} setFiltroRapido={setFiltroRapido} cargarDatos={cargarDatos} loading={loading} />
+        <FiltrosPacientes 
+          filtros={filtros} 
+          handleFiltroChange={handleFiltroChange} 
+          setFiltroRapido={setFiltroRapido} 
+          cargarDatos={cargarDatos} 
+          loading={loading}
+          busquedaProfunda={busquedaProfunda}
+          setBusquedaProfunda={setBusquedaProfunda} 
+        />
       </header>
 
       <main style={styles.tableContainer}>

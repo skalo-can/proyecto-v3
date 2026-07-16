@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"; 
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, Outlet } from "react-router-dom"; // <-- AÑADIMOS Outlet
 import { useAuth } from "../AuthContext.jsx"; 
 import { FaUserPlus, FaUsersCog } from "react-icons/fa";
 import "./Sidebar.css";
@@ -10,7 +10,6 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const isActive = (path) => location.pathname === path;
 
-  // 🔥 LA SOLUCIÓN REVELADA POR TUS FOTOS: 
   const rutasAdmin = [
     "/gestion-usuarios", 
     "/gestion-backups", 
@@ -19,22 +18,17 @@ export default function Sidebar({ isOpen, onClose }) {
     "/auditoria", 
     "/email-logs", 
     "/whatsapp-logs",
-    "/configuracion" 
+    "/configuracion",
+    "/perfil-institucion"
   ];
 
-  // 🧠 LA MAGIA: Es TRUE si incluye alguna ruta de admin, O si la URL es EXACTAMENTE la raíz "/"
   const isAdminRoute = rutasAdmin.some(ruta => location.pathname.includes(ruta)) || location.pathname === "/";
-
   const [openAdmin, setOpenAdmin] = useState(isAdminRoute);
 
-  // Mantiene la carpeta abierta automáticamente al navegar
   useEffect(() => {
-    if (isAdminRoute) {
-      setOpenAdmin(true);
-    }
+    if (isAdminRoute) setOpenAdmin(true);
   }, [location.pathname, isAdminRoute]);
 
-  // Roles y Permisos
   const currentUsername = user?.username?.trim().toUpperCase() || "";
   const isSkalo = currentUsername.includes("SKALO") || user?.rol === "superadmin";
   const isAdmin = user?.rol === "admin" || isSkalo;
@@ -44,53 +38,35 @@ export default function Sidebar({ isOpen, onClose }) {
   const isRecepcion = user?.rol === "recepcion";
 
   const handleResetSystem = async () => {
-    if (!isSkalo) {
-      alert(`Acceso denegado. Solo el usuario Maestro SKALO tiene permisos.`);
-      return;
-    }
-
-    const confirmacion = window.confirm(
-      "⚠️ ADVERTENCIA CRÍTICA: Estás a punto de borrar todos los datos del sistema (Pacientes, Estudios e Imágenes). ¿Realmente deseas continuar?"
-    );
-
-    if (confirmacion) {
-      const palabraMaestra = window.prompt("Para proceder, confirma escribiendo la palabra maestra (SKALO):");
-
-      if (palabraMaestra?.trim().toUpperCase() === "SKALO") {
-        const passwordConfirm = window.prompt("🛡️ VERIFICACIÓN FINAL: Ingresa tu contraseña de acceso para autorizar el reseteo:");
-        if (!passwordConfirm) return;
-
-        try {
-          const response = await fetch("http://127.0.0.1:8000/api/reset/clinico", {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${user?.token}` 
-            },
-            body: JSON.stringify({ password: passwordConfirm }) 
-          });
-
-          if (response.ok) {
-            alert("✅ SISTEMA RESETEADO EXITOSAMENTE. La página se recargará.");
-            localStorage.clear(); 
-            window.location.href = "/login"; 
-          } else {
-            const errorData = await response.json();
-            alert(`❌ ERROR: ${errorData.detail || 'Fallo de autorización'}`);
-          }
-        } catch (error) {
-          console.error("Error en reset:", error);
-          alert("❌ Error de red: No se pudo conectar con el servidor.");
+    if (!isSkalo) return alert("Acceso denegado.");
+    const confirmacion = window.confirm("⚠️ ADVERTENCIA CRÍTICA: ¿Realmente deseas continuar?");
+    if (confirmacion && window.prompt("Escribe SKALO:")?.trim().toUpperCase() === "SKALO") {
+      const passwordConfirm = window.prompt("🛡️ VERIFICACIÓN FINAL:");
+      if (!passwordConfirm) return;
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/reset/clinico", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user?.token}` },
+          body: JSON.stringify({ password: passwordConfirm }) 
+        });
+        if (response.ok) {
+          localStorage.clear(); 
+          window.location.href = "/login"; 
         }
+      } catch (error) {
+        alert("❌ Error de red.");
       }
     }
   };
 
   return (
-    <>
+    // 🔥 ENVOLVEMOS TODO EN UN CONTENEDOR FLEXIBLE
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f172a' }}> 
+      
       <div className={`sidebar-overlay ${isOpen ? "show" : ""}`} onClick={onClose} />
       
-      <aside className={`sidebar ${isOpen ? "open" : ""}`}>
+      <aside className={`sidebar ${isOpen ? "open" : ""}`} style={{ flexShrink: 0 }}>
+        {/* ... TODO EL CONTENIDO DEL SIDEBAR EXACTAMENTE COMO ESTABA ... */}
         <div className="sidebar-header">
           <span className="sidebar-subtitle">MI_PACS SYSTEM</span>
           <br />
@@ -137,32 +113,26 @@ export default function Sidebar({ isOpen, onClose }) {
               
               {openAdmin && (
                 <div className="sidebar-submenu">
-                  
                   {isSkalo && (
                     <Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} style={{ color: '#6366f1', fontWeight: 'bold' }}>
                       <span className="icon"><FaUsersCog /></span> Gestión Usuarios
                     </Link>
                   )}
-
-                  {/* 🔥 CORREGIDO: Apunta a la ruta real de tu pantalla (raíz "/") */}
                   {isSkalo && (
                     <Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>
                       ⚙️ Configuración MI_PACS
                     </Link>
                   )}
-
                   {isSkalo && (
                     <Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#10b981', fontWeight: 'bold' }}>
                       📦 Ciclo de Vida / Backups
                     </Link>
                   )}
-
                   {isSkalo && (
                     <Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#1890ff', fontWeight: '500' }}>
                       🏷️ Configurar Tags DICOM
                     </Link>
                   )}
-
                   <Link to="/reporte-cobros" className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}>
                     📈 Reporte Cobros / Glosas
                   </Link>
@@ -174,10 +144,15 @@ export default function Sidebar({ isOpen, onClose }) {
                       <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`}>📱 Logs WhatsApp</Link>
                     </>
                   )}
-                  
+
                   {isSkalo && (
-                    <button className="submenu-link reset-link" onClick={handleResetSystem} 
-                      style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px', textAlign: 'left', background: 'transparent', border: 'none', width: '100%', cursor: 'pointer', padding: '8px 12px' }}>
+                    <Link to="/perfil-institucion" className={`submenu-link ${isActive("/perfil-institucion") ? "active" : ""}`} style={{ color: '#38bdf8', fontWeight: 'bold' }}>
+                      🏥 Perfil de Institución
+                    </Link>
+                  )} 
+
+                  {isSkalo && (
+                    <button className="submenu-link reset-link" onClick={handleResetSystem} style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px', textAlign: 'left', background: 'transparent', border: 'none', width: '100%', cursor: 'pointer', padding: '8px 12px' }}>
                       ⚠️ Resetear Sistema
                     </button>
                   )}
@@ -191,6 +166,12 @@ export default function Sidebar({ isOpen, onClose }) {
           </Link>
         </nav>
       </aside>
-    </>
+
+      {/* 🔥 AQUÍ ES DONDE SUCEDE LA MAGIA: El contenido principal se inyecta aquí */}
+      <main style={{ flex: 1, overflowY: 'auto' }}>
+        <Outlet /> 
+      </main>
+
+    </div>
   );
 }

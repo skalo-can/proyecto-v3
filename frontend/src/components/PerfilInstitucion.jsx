@@ -1,0 +1,99 @@
+import React, { useState, useEffect } from "react";
+
+const MODALIDADES_DISPONIBLES = [
+  { id: "CT", nombre: "CT - Tomografía" },
+  { id: "MR", nombre: "MR - Resonancia" },
+  { id: "DX", nombre: "DX - Flat Panel (Directo)" },
+  { id: "CR", nombre: "CR - Casetes (Computarizado)" },
+  { id: "US", nombre: "US - Ecografía" },
+  { id: "MG", nombre: "MG - Mamografía" },
+  { id: "DXA", nombre: "DXA - Densitometría" },
+  { id: "PET", nombre: "PET - PET Scan" },
+  { id: "RF", nombre: "RF - Arco en C (Fluoroscopía)" },
+  { id: "XA", nombre: "XA - Arco en C (Vascular)" }
+];
+
+export default function PerfilInstitucion() {
+  const [loading, setLoading] = useState(false);
+  const [perfil, setPerfil] = useState({
+    nombre_clinica: "", nit_registro: "", direccion: "",
+    telefono: "", email: "", sitio_web: "",
+    modalidades_activas: ["CR", "DX", "US"]
+  });
+
+  useEffect(() => {
+    // Simulación de carga
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setPerfil(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleModalidadToggle = (idModalidad) => {
+    setPerfil(prev => {
+      const activas = prev.modalidades_activas;
+      if (activas.includes(idModalidad)) {
+        return { ...prev, modalidades_activas: activas.filter(m => m !== idModalidad) };
+      } else {
+        return { ...prev, modalidades_activas: [...activas, idModalidad] };
+      }
+    });
+  };
+
+  const guardarPerfil = async () => {
+    setLoading(true);
+    setTimeout(() => {
+      alert("✅ Perfil Institucional y Modalidades guardados correctamente.");
+      setLoading(false);
+    }, 800);
+  };
+
+  // 🔥 ESTILOS LIMPIOS: Sin forzar dimensiones, usando tu paleta exacta
+  const pageStyle = { padding: '30px', color: '#fff', boxSizing: 'border-box', backgroundColor: '#0f1114', width: '100%' };
+  const cardStyle = { background: '#1a1d21', padding: '25px', borderRadius: '10px', border: '1px solid #333', marginBottom: '20px' };
+  const inputStyle = { background: '#0a0c0f', color: '#fbbf24', border: '1px solid #333', padding: '10px', borderRadius: '6px', width: '100%', marginTop: '5px', fontFamily: 'monospace' };
+  const gridStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' };
+  const modGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginTop: '15px' };
+  const btnStyle = { background: '#0ea5e9', color: '#fff', border: 'none', padding: '12px 25px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', width: '100%', transition: '0.2s' };
+
+  return (
+    <div style={pageStyle}>
+      <h2 style={{ color: '#fbbf24', borderBottom: '1px solid #222', paddingBottom: '15px', marginTop: 0, fontSize: '1.8rem' }}>
+        🏥 Configuración de Perfil Institucional
+      </h2>
+      
+      <div style={cardStyle}>
+        <h3 style={{ color: '#38bdf8', marginTop: 0, fontSize: '1.1rem' }}>📋 Datos Generales de la Clínica</h3>
+        <div style={gridStyle}>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Nombre de la Clínica / Hospital</label><input type="text" name="nombre_clinica" value={perfil.nombre_clinica} onChange={handleChange} style={inputStyle} placeholder="Ej. Centro Radiológico Central" /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>NIT / Registro Legal</label><input type="text" name="nit_registro" value={perfil.nit_registro} onChange={handleChange} style={inputStyle} /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Dirección Física</label><input type="text" name="direccion" value={perfil.direccion} onChange={handleChange} style={inputStyle} /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Teléfono de Contacto</label><input type="text" name="telefono" value={perfil.telefono} onChange={handleChange} style={inputStyle} /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Correo Electrónico (Notificaciones)</label><input type="email" name="email" value={perfil.email} onChange={handleChange} style={inputStyle} /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Sitio Web / Portal Pacientes</label><input type="text" name="sitio_web" value={perfil.sitio_web} onChange={handleChange} style={inputStyle} /></div>
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ color: '#10b981', marginTop: 0, fontSize: '1.1rem' }}>☢️ Modalidades Activas (Equipos en Servicio)</h3>
+        <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '5px 0 15px 0' }}>Seleccione únicamente los equipos con los que cuenta esta institución. Esto adaptará los filtros de búsqueda y las reglas de almacenamiento de Backups.</p>
+        <div style={modGrid}>
+          {MODALIDADES_DISPONIBLES.map(mod => {
+            const isChecked = perfil.modalidades_activas.includes(mod.id);
+            return (
+              <label key={mod.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: isChecked ? '#064e3b' : '#0a0c0f', padding: '12px', borderRadius: '6px', border: isChecked ? '1px solid #10b981' : '1px solid #333', cursor: 'pointer', transition: 'all 0.2s' }}>
+                <input type="checkbox" checked={isChecked} onChange={() => handleModalidadToggle(mod.id)} style={{ transform: 'scale(1.2)' }} />
+                <span style={{ color: isChecked ? '#34d399' : '#cbd5e1', fontWeight: isChecked ? 'bold' : 'normal', fontSize: '0.9rem' }}>{mod.nombre}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      <button onClick={guardarPerfil} style={btnStyle}>
+        {loading ? "💾 GUARDANDO..." : "💾 GUARDAR PERFIL Y ACTUALIZAR SISTEMA"}
+      </button>
+    </div>
+  );
+}

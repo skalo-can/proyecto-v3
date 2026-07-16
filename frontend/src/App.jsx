@@ -28,6 +28,7 @@ import BackupConfigPage from "./pages/BackupConfigPage";
 import { PortalPaciente } from "./components/PortalPaciente/PortalPaciente";
 import ImportarPage from './pages/ImportarPage';
 import ExportarPage from './pages/ExportarPage';
+import PerfilInstitucion from "./components/PerfilInstitucion";
 
 // 🚀 IMPORTACIONES PARA MÓDULOS MULTIMONITOR
 import ModalDictadoHardware from "./pages/ModalDictadoHardware";
@@ -168,6 +169,13 @@ export default function App() {
         <Route path="/email-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><EmailLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/whatsapp-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/reporte-cobros" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'auxiliar']}><ReporteCobrosPage /></ProtectedRoute></Layout>} />
+        <Route path="/perfil-institucion" element={
+          <Layout onOpenDicom={openDicom}>
+            <ProtectedRoute allowedRoles={['superadmin']}>
+              <PerfilInstitucion />
+            </ProtectedRoute>
+          </Layout>
+        } />
 
         <Route path="/logout" element={<Logout />} />
         
