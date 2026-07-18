@@ -57,6 +57,7 @@ from app.api.email_logs_api import router as email_logs_router
 from app.api.pdf_report_api import router as pdf_report_router
 from app.api.whatsapp_api import router as whatsapp_router
 from app.api.secure_links_api import router as secure_links_router
+from app.api.perfil_api import router as perfil_router # 👈 ¡NUEVO!
 from app.api.filtros.pacientes_filtros_api import router as pacientes_filtros_router
 from app.api.filtros.estudios_filtros_api import router as estudios_filtros_router
 from app.api.filtros.busqueda_global_api import router as busqueda_global_router
@@ -203,6 +204,7 @@ app.include_router(email_logs_router, prefix="/api")
 app.include_router(pdf_report_router, prefix="/api")
 app.include_router(whatsapp_router, prefix="/api")
 app.include_router(secure_links_router, prefix="/api")
+app.include_router(perfil_router) # 👈 ¡NUEVO! (El prefijo ya está dentro del archivo)
 app.include_router(pacientes_filtros_router, prefix="/filtros")
 app.include_router(ris_router, prefix="/api/ris", tags=["RIS"])
 app.include_router(estudios_filtros_router, prefix="/filtros")

@@ -50,7 +50,7 @@ export default function PerfilInstitucion() {
   };
 
   // 🔥 ESTILOS LIMPIOS: Sin forzar dimensiones, usando tu paleta exacta
-  const pageStyle = { padding: '30px', color: '#fff', boxSizing: 'border-box', backgroundColor: '#0f1114', width: '100%' };
+  const pageStyle = { padding: '80px', color: '#fff', boxSizing: 'border-box', backgroundColor: '#0f1114', width: '100%' };
   const cardStyle = { background: '#1a1d21', padding: '25px', borderRadius: '10px', border: '1px solid #333', marginBottom: '20px' };
   const inputStyle = { background: '#0a0c0f', color: '#fbbf24', border: '1px solid #333', padding: '10px', borderRadius: '6px', width: '100%', marginTop: '5px', fontFamily: 'monospace' };
   const gridStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' };
