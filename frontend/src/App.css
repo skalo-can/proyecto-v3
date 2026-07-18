@@ -120,22 +120,24 @@
 
 .layout-body {
   display: flex;
-  flex: 1;            /* Ocupa todo el alto restante debajo del header */
-  margin-top: 90px;   /* Altura del header */
-  overflow: hidden;   /* Evita que el cuerpo empuje hacia afuera */
+  flex: 1;
+  margin-top: 0 !important; /* 🔥 Reseteamos esto para evitar choques */
+  overflow: hidden; 
 }
 
 .layout-content {
-  flex: 1;            /* SE AJUSTA AUTOMÁTICAMENTE al espacio restante */
-  margin: 15px;       /* Margen uniforme para que se vea el "borde" del dashboard */
-  margin-left: 280px !important; /* Espacio para el Sidebar fijo */
+  flex: 1; 
+  /* 🔥 AQUÍ ESTÁ LA MAGIA: Declaramos márgenes estrictos por cada lado */
+  margin-top: 105px !important;  /* 90px del Header + 15px de espacio respirable */
+  margin-bottom: 15px !important;
+  margin-right: 15px !important;
+  margin-left: 280px !important; /* Espacio intocable para el Sidebar */
+  
   padding: 20px;
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(12px);
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  
-  /* SCROLL INTERNO: Solo aparecerá aquí cuando sea necesario */
   overflow-y: auto !important; 
   display: flex;
   flex-direction: column;
