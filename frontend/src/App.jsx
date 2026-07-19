@@ -141,13 +141,13 @@ export default function App() {
         {/* ======================================================== */}
 
         {/* 👥 PACIENTES Y ESTUDIOS */}
-        {/* 🚀 AÑADIDO: transcriptor a las listas de trabajo */}
-        <Route path="/pacientes" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor']}><Pacientes /></ProtectedRoute></Layout>} />
-        <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor']}><Estudios /></ProtectedRoute></Layout>} />
-        <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'auxiliar', 'invitado', 'transcriptor']}><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
-        
+        {/* 🚀 AÑADIDO: tecnólogo a las listas de trabajo para que el botón lateral funcione */}
+        <Route path="/pacientes" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo']}><Pacientes /></ProtectedRoute></Layout>} />
+        <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo']}><Estudios /></ProtectedRoute></Layout>} />
+        <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo']}><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
+
         {/* 📱 CONSOLA TÉCNICA */}
-        <Route path="/tecnologo" element={<ProtectedRoute allowedRoles={['tecnologo', 'superadmin']}><TecnologoConsole /></ProtectedRoute>} />
+        <Route path="/tecnologo" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['tecnologo', 'superadmin', 'recepcion']}><TecnologoConsole /></ProtectedRoute></Layout>} />
 
         {/* 🛠️ GESTIÓN DE USUARIOS */}
         <Route path="/gestion-usuarios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><GestionUsuarios /></ProtectedRoute></Layout>} />
@@ -188,4 +188,4 @@ export default function App() {
 
     </BrowserRouter>
   );
-} 
+}  

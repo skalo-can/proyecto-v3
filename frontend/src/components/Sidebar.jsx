@@ -37,6 +37,8 @@ export default function Sidebar({ isOpen, onClose }) {
   const isInvitado = user?.rol === "invitado";
   const isRecepcion = user?.rol === "recepcion";
 
+  const isTecnologo = user?.rol === "tecnologo"; // 🔥 Añadido para el menú
+
 // =========================================================
   // 🟢 NUEVA FUNCIÓN: SOFT RESET (Con Token Dinámico Maestro)
   // =========================================================
@@ -130,6 +132,13 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="icon"><FaUserPlus /></span> Recepción / RIS
             </Link>
           )}
+
+          {/* 🔥 NUEVO BOTÓN: Para que el Tecnólogo regrese a su Consola */}
+          {(isAdmin || isTecnologo) && (
+            <Link to="/tecnologo" className={`sidebar-link ${isActive("/tecnologo") ? "active" : ""}`} onClick={onClose}>
+              <span className="icon">🖥️</span> Consola RIS
+            </Link>
+          )}          
 
           {(isAdmin || isInvitado) && (
             <Link to="/estadisticas" className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`} onClick={onClose}>

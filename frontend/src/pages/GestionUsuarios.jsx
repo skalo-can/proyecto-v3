@@ -71,6 +71,9 @@ export default function GestionUsuarios() {
     const [selectedUsers, setSelectedUsers] = useState({});
     const [verPassword, setVerPassword] = useState(false);
 
+// ✨ NUEVO ESTADO PARA EFECTO VISUAL DE TABLA
+    const [hoveredRow, setHoveredRow] = useState(null);
+
     useEffect(() => { fetchUsuarios(); }, []);
 
     const fetchUsuarios = async () => {
@@ -266,22 +269,52 @@ export default function GestionUsuarios() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {usuarios.map(u => (
-                                    <tr key={u.id}>
-                                        <td><input type="checkbox" checked={!!selectedUsers[u.id]} onChange={() => setSelectedUsers(prev => ({...prev, [u.id]: !prev[u.id]}))} /></td>
-                                        <td style={{ color: '#ffffff' }}><strong>{u.nombre}</strong></td>
-                                        <td style={{ color: '#ffffff', fontSize: '0.85rem' }}>{u.username}</td>
-                                        <td>
-                                            <span className="rol-badge" style={{ background: '#333', color: '#fbbf24', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                                {u.rol.toUpperCase()}
-                                                {/* 🔥 NUEVO: Icono de alarma en la tabla si el usuario tiene poderes de Urgenciologo */}
-                                                {u.es_urgenciologo && <span title="Permisos de Urgenciología Activos" style={{marginLeft: '6px', fontSize: '14px'}}>🚨</span>}
-                                            </span>
-                                        </td>
-                                        <td><span style={{color: u.is_active ? '#10b981' : '#ef4444', fontWeight: 'bold'}}>{u.is_active ? '● OPERATIVO' : '○ BLOQUEADO'}</span></td>
-                                        <td><button className="btn-editar-mini" style={{ background: '#ffffff', color: '#000000', fontWeight: 'bold', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => seleccionarParaEditar(u)}>EDITAR</button></td>
-                                    </tr>
-                                ))}
+                                {usuarios.map(u => {
+                                    const isSelected = !!selectedUsers[u.id];
+                                    const isHovered = hoveredRow === u.id;
+
+                                    return (
+                                        <tr 
+                                            key={u.id}
+                                            onMouseEnter={() => setHoveredRow(u.id)}
+                                            onMouseLeave={() => setHoveredRow(null)}
+                                            onClick={() => setSelectedUsers(prev => ({...prev, [u.id]: !prev[u.id]}))}
+                                            style={{
+                                                backgroundColor: isSelected ? 'rgba(251, 191, 36, 0.15)' : (isHovered ? '#1e293b' : 'transparent'),
+                                                borderLeft: isSelected ? '4px solid #fbbf24' : '4px solid transparent',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s ease-in-out'
+                                            }}
+                                        >
+                                            {/* 🛑 Aislamos el click del checkbox para evitar que se dispare doble vez */}
+                                            <td onClick={(e) => e.stopPropagation()}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={isSelected} 
+                                                    onChange={() => setSelectedUsers(prev => ({...prev, [u.id]: !prev[u.id]}))} 
+                                                />
+                                            </td>
+                                            <td style={{ color: '#ffffff' }}><strong>{u.nombre}</strong></td>
+                                            <td style={{ color: '#ffffff', fontSize: '0.85rem' }}>{u.username}</td>
+                                            <td>
+                                                <span className="rol-badge" style={{ background: '#333', color: '#fbbf24', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                                    {u.rol.toUpperCase()}
+                                                    {/* 🔥 Icono de alarma en la tabla si el usuario tiene poderes de Urgenciologo */}
+                                                    {u.es_urgenciologo && <span title="Permisos de Urgenciología Activos" style={{marginLeft: '6px', fontSize: '14px'}}>🚨</span>}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span style={{color: u.is_active ? '#10b981' : '#ef4444', fontWeight: 'bold'}}>
+                                                    {u.is_active ? '● OPERATIVO' : '○ BLOQUEADO'}
+                                                </span>
+                                            </td>
+                                            {/* 🛑 Aislamos el click del botón Editar para no seleccionar la fila al editar */}
+                                            <td onClick={(e) => e.stopPropagation()}>
+                                                <button className="btn-editar-mini" style={{ background: '#ffffff', color: '#000000', fontWeight: 'bold', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => seleccionarParaEditar(u)}>EDITAR</button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

@@ -2,7 +2,7 @@
  * Login.jsx — MI_PACS (Versión compatible con SKALO)
  */
 
-import React, { useState } from "react"; // 👈 ¡Inyectamos React formalmente aquí!
+import React, { useState } from "react"; 
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import "./login.css";
@@ -39,7 +39,18 @@ function Login() {
 
       if (token && usuario) {
         login(token, usuario);
-        navigate("/pacientes", { replace: true });
+        
+        // 🚀 ENRUTAMIENTO MAESTRO POR ROLES
+        const rolActual = String(usuario.rol || "").toLowerCase();
+        
+        // 🔥 Recepción y Tecnólogo van directo al RIS
+        if (rolActual === "recepcion" || rolActual === "tecnologo") {
+          navigate("/recepcion", { replace: true }); 
+        } else {
+          // Todos los demás van al panel central de pacientes
+          navigate("/pacientes", { replace: true });
+        }
+        
       } else {
         setError("Error en el formato de respuesta del servidor.");
       }

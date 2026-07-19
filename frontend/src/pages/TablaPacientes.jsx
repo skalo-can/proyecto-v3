@@ -83,6 +83,26 @@ export default function TablaPacientes({
     }
   };
 
+  // 🚀 NUEVO: Motor de envíos manuales para Recepción
+  const handleEnvioManual = async (tipoMetodo, pacienteId, destino) => {
+    if (!destino || destino === "-" || destino.trim() === "") {
+      return alert(`❌ El paciente no tiene un ${tipoMetodo === 'Email' ? 'correo electrónico' : 'número de teléfono'} válido registrado.`);
+    }
+
+    const confirmar = window.confirm(`📤 ¿Confirmar envío del resultado por ${tipoMetodo} al destino: ${destino}?`);
+    if (!confirmar) return;
+
+    try {
+      // Aquí harás el llamado a tu API real de Python/FastAPI cuando la tengas lista
+      // Ejemplo: await axios.post(`http://localhost:8000/api/envios/${tipoMetodo.toLowerCase()}`, { paciente_id: pacienteId })
+      
+      alert(`✅ Solicitud de envío por ${tipoMetodo} enviada con éxito al paciente.`);
+    } catch (error) {
+      console.error(`Error enviando ${tipoMetodo}:`, error);
+      alert(`❌ Error al intentar enviar el ${tipoMetodo}. Verifica la conexión con el servidor.`);
+    }
+  };
+
   const handleRowMouseDown = (e, index, id) => {
     if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
     if (e.shiftKey && lastIndex !== null) {
@@ -165,15 +185,16 @@ export default function TablaPacientes({
             const estaSeleccionado = seleccionados.includes(p.id);
             const estiloMod = obtenerEstiloModalidad(mReal);
             const estaDesbloqueado = !!estudiosAutorizados[p.id] || p.estado_pacs === "Tomado";
-            
+
             // 🔒 REGLA DE SEGURIDAD MAESTRA PARA EDICIÓN
             const esEstadoInicial = p.estado_pacs === "Importado" || p.estado_pacs === "Tomado" || !p.estado_pacs;
             const estudioAbierto = p.estado_pacs !== "Firmado" && p.estado_pacs !== "Cancelado";
             
-            // Lógica: Puede editar si es Médico/Admin, SI es Recepción (solo al inicio), 
-            // O SI el superadmin le dio el permiso explícito en la matriz (mientras no esté firmado).
+            // Lógica: Puede editar si es Médico/Admin, 
+            // SI es Recepción o Tecnólogo (solo al inicio antes de que avance el flujo), 
+            // O SI tiene el permiso explícito en la matriz dinámica (mientras el estudio esté abierto).
             const canEditPaciente = canUseHerramientasMedicas || 
-                                    (userRol === "recepcion" && esEstadoInicial) || 
+                                    ((userRol === "recepcion" || userRol === "tecnologo") && esEstadoInicial) || 
                                     (tienePermisoDinamicoEditar && estudioAbierto);
 
             return (
@@ -238,8 +259,9 @@ export default function TablaPacientes({
                     {p.estado_pacs === "Dictado" && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                         <button onClick={() => ejecutarPlayAudioTabla(p.id)} style={{ ...styles.iconFlujoBase, color: "#3b82f6", backgroundColor: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>🔊 Play</button>
-                        {/* Asumimos que Recepción no debe transcribir. Si pueden, elimina la condición canUseHerramientasMedicas aquí */}
-                        {canUseHerramientasMedicas && (
+                        
+                        {/* 🔥 CORREGIDO: Ahora validamos si es Admin/Radiólogo o si tiene el rol de Transcriptor */}
+                        {(canUseHerramientasMedicas || userRol === "transcriptor") && (
                           <button onClick={() => abrirModalTranscriptor(p.id)} style={{ padding: "6px 12px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>✍️ Transcribir</button>
                         )}
                       </div>
@@ -248,9 +270,24 @@ export default function TablaPacientes({
                       <button onClick={() => abrirModalFirma(p.id)} style={{ padding: "6px 12px", backgroundColor: "#10b981", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}>🔏 Validar y Firmar</button>
                     )}
                     {p.estado_pacs === "Firmado" && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                         <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center", gap: "4px" }}>✅ Completado</span>
-                        <button onClick={() => abrirPDF(p.id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>📄 Ver PDF</button>
+                        <button onClick={() => abrirPDF(p.id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>📄 PDF</button>
+                        
+                        {/* 🔥 NUEVA BOTONERA DE COMUNICACIÓN (Recepción y Admin) */}
+                        {(userRol === "recepcion" || isAdmin) && (
+                          <>
+                            <button onClick={() => handleEnvioManual('WhatsApp', p.id, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }} title="Enviar por WhatsApp">
+                              📱 WA
+                            </button>
+                            <button onClick={() => handleEnvioManual('Email', p.id, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }} title="Enviar por Correo Electrónico">
+                              ✉️ Email
+                            </button>
+                            <button onClick={() => handleEnvioManual('SMS', p.id, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }} title="Enviar por SMS">
+                              💬 SMS
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

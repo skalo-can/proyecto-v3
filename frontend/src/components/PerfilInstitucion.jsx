@@ -18,11 +18,15 @@ export default function PerfilInstitucion() {
   const [perfil, setPerfil] = useState({
     nombre_clinica: "", nit_registro: "", direccion: "",
     telefono: "", email: "", sitio_web: "",
-    modalidades_activas: ["CR", "DX", "US"]
+    modalidades_activas: ["CR", "DX", "US"],
+    // 🔥 NUEVO: Configuración de Pasarelas de Comunicación
+    smtp_server: "", smtp_port: "", smtp_user: "", smtp_pass: "",
+    wa_token: "", sms_api_key: "",
+    envio_automatico: false // Interruptor de automatización
   });
 
   useEffect(() => {
-    // Simulación de carga
+    // Simulación de carga desde el backend
   }, []);
 
   const handleChange = (e) => {
@@ -41,10 +45,14 @@ export default function PerfilInstitucion() {
     });
   };
 
+  const handleToggleEnvio = () => {
+    setPerfil(prev => ({ ...prev, envio_automatico: !prev.envio_automatico }));
+  };
+
   const guardarPerfil = async () => {
     setLoading(true);
     setTimeout(() => {
-      alert("✅ Perfil Institucional y Modalidades guardados correctamente.");
+      alert("✅ Perfil Institucional y Pasarelas de Comunicación guardados correctamente.");
       setLoading(false);
     }, 800);
   };
@@ -75,6 +83,36 @@ export default function PerfilInstitucion() {
         </div>
       </div>
 
+      {/* 🚀 NUEVA SECCIÓN: PASARELAS DE COMUNICACIÓN */}
+      <div style={cardStyle}>
+        <h3 style={{ color: '#a855f7', marginTop: 0, fontSize: '1.1rem' }}>📡 Pasarelas de Envío (WhatsApp, Email, SMS)</h3>
+        
+        {/* Toggle de Automatización */}
+        <div style={{ background: '#0a0c0f', padding: '15px', borderRadius: '8px', border: perfil.envio_automatico ? '1px solid #10b981' : '1px solid #333', marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '15px', transition: 'all 0.3s' }}>
+          <input type="checkbox" checked={perfil.envio_automatico} onChange={handleToggleEnvio} style={{ transform: 'scale(1.5)', cursor: 'pointer', accentColor: '#10b981' }} />
+          <div>
+            <strong style={{ color: perfil.envio_automatico ? '#10b981' : '#cbd5e1', fontSize: '1rem', display: 'block' }}>🤖 Envío Automático al Firmar (ON/OFF)</strong>
+            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Si está activo, el sistema enviará los PDF automáticamente al paciente en el instante en que el Médico o Radiólogo firme el estudio.</span>
+          </div>
+        </div>
+
+        {/* Configuración Email SMTP */}
+        <h4 style={{ color: '#38bdf8', fontSize: '0.95rem', borderBottom: '1px dashed #333', paddingBottom: '5px', marginTop: 0 }}>✉️ Servidor de Correo Institucional (SMTP)</h4>
+        <div style={gridStyle}>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Servidor SMTP</label><input type="text" name="smtp_server" value={perfil.smtp_server} onChange={handleChange} style={inputStyle} placeholder="Ej. smtp.gmail.com u office365" /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Puerto SMTP</label><input type="text" name="smtp_port" value={perfil.smtp_port} onChange={handleChange} style={inputStyle} placeholder="Ej. 587 o 465" /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Correo Remitente</label><input type="email" name="smtp_user" value={perfil.smtp_user} onChange={handleChange} style={inputStyle} placeholder="resultados@miclinica.com" /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Contraseña de Aplicación SMTP</label><input type="password" name="smtp_pass" value={perfil.smtp_pass} onChange={handleChange} style={inputStyle} placeholder="********" /></div>
+        </div>
+
+        {/* Configuración WhatsApp y SMS */}
+        <h4 style={{ color: '#25D366', fontSize: '0.95rem', borderBottom: '1px dashed #333', paddingBottom: '5px', marginTop: '25px' }}>📱 APIs de Mensajería (WhatsApp & SMS)</h4>
+        <div style={gridStyle}>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Token WhatsApp API (Meta/Twilio)</label><input type="password" name="wa_token" value={perfil.wa_token} onChange={handleChange} style={inputStyle} placeholder="Ingrese el Token de Autorización" /></div>
+          <div><label style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>API Key SMS (Twilio/AWS/Otros)</label><input type="password" name="sms_api_key" value={perfil.sms_api_key} onChange={handleChange} style={inputStyle} placeholder="Ingrese la API Key" /></div>
+        </div>
+      </div>
+
       <div style={cardStyle}>
         <h3 style={{ color: '#10b981', marginTop: 0, fontSize: '1.1rem' }}>☢️ Modalidades Activas (Equipos en Servicio)</h3>
         <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '5px 0 15px 0' }}>Seleccione únicamente los equipos con los que cuenta esta institución. Esto adaptará los filtros de búsqueda y las reglas de almacenamiento de Backups.</p>
@@ -83,7 +121,7 @@ export default function PerfilInstitucion() {
             const isChecked = perfil.modalidades_activas.includes(mod.id);
             return (
               <label key={mod.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: isChecked ? '#064e3b' : '#0a0c0f', padding: '12px', borderRadius: '6px', border: isChecked ? '1px solid #10b981' : '1px solid #333', cursor: 'pointer', transition: 'all 0.2s' }}>
-                <input type="checkbox" checked={isChecked} onChange={() => handleModalidadToggle(mod.id)} style={{ transform: 'scale(1.2)' }} />
+                <input type="checkbox" checked={isChecked} onChange={() => handleModalidadToggle(mod.id)} style={{ transform: 'scale(1.2)', accentColor: '#10b981' }} />
                 <span style={{ color: isChecked ? '#34d399' : '#cbd5e1', fontWeight: isChecked ? 'bold' : 'normal', fontSize: '0.9rem' }}>{mod.nombre}</span>
               </label>
             );

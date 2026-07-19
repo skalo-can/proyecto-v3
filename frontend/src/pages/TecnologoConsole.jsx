@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import Header from '../components/Header'; 
+// 🗑️ IMPORTACIÓN DEL HEADER ELIMINADA: El Layout de App.jsx ya se encarga de mostrarlo
 import './TecnologoConsole.css';
 
 const TecnologoConsole = () => {
@@ -33,46 +33,40 @@ const TecnologoConsole = () => {
     };
 
     return (
-        <div className="tecnologo-container">
-            <Header />
-            <main className="tecnologo-main">
-                <div className="tecnologo-header-bar">
-                    <h1>CONSOLA TÉCNICA</h1>
-                    <div style={{color: '#94a3b8', fontSize: '0.9rem'}}>
-                        Modo: <strong style={{color: '#38bdf8'}}>Maestro</strong> | 
-                        Modalidad: <strong style={{color: '#38bdf8'}}>DR</strong>
-                    </div>
+        // 🚀 Quitamos la clase 'tecnologo-container' general para que el Layout controle el fondo y el scroll
+        <main className="tecnologo-main" style={{ padding: '20px', height: '100%' }}>
+            <div className="tecnologo-header-bar">
+                <h1>CONSOLA TÉCNICA RIS</h1>
                 </div>
 
-                <div className="pacientes-grid">
-                    {pacientes.map((p) => (
-                        <div key={p.id_orden} className="paciente-card">
-                            <div className="card-header">
-                                <span className="card-tag-modality">{p.modalidad || 'DR'}</span>
-                                <span className="card-tag-priority">{p.prioridad || 'Urgente'}</span>
-                            </div>
-                            <div className="card-body">
-                                <h3 className="card-name">{p.apellido}, {p.nombre}</h3>
-                                <div className="card-details">
-                                    <p>ID: <strong>{p.id_institucional}</strong></p>
-                                    <p>Acc: <strong>{p.accession_number}</strong></p>
-                                    <p style={{fontStyle: 'italic', marginTop: '10px'}}>{p.estudio_descripcion || 'Radiografía'}</p>
-                                </div>
-                            </div>
-                            <button className="btn-marcar-atendido" onClick={() => handleAtender(p.id_orden)}>
-                                MARCAR ATENDIDO
-                            </button>
+            <div className="pacientes-grid">
+                {pacientes.map((p) => (
+                    <div key={p.id_orden} className="paciente-card">
+                        <div className="card-header">
+                            <span className="card-tag-modality">{p.modalidad || 'DR'}</span>
+                            <span className="card-tag-priority">{p.prioridad || 'Urgente'}</span>
                         </div>
-                    ))}
-                </div>
-
-                {!loading && pacientes.length === 0 && (
-                    <div style={{textAlign: 'center', color: '#64748b', marginTop: '100px'}}>
-                        ✅ No hay pacientes pendientes.
+                        <div className="card-body">
+                            <h3 className="card-name">{p.apellido}, {p.nombre}</h3>
+                            <div className="card-details">
+                                <p>ID: <strong>{p.id_institucional}</strong></p>
+                                <p>Acc: <strong>{p.accession_number}</strong></p>
+                                <p style={{fontStyle: 'italic', marginTop: '10px'}}>{p.estudio_descripcion || 'Radiografía'}</p>
+                            </div>
+                        </div>
+                        <button className="btn-marcar-atendido" onClick={() => handleAtender(p.id_orden)}>
+                            MARCAR ATENDIDO
+                        </button>
                     </div>
-                )}
-            </main>
-        </div>
+                ))}
+            </div>
+
+            {!loading && pacientes.length === 0 && (
+                <div style={{textAlign: 'center', color: '#64748b', marginTop: '100px'}}>
+                    ✅ No hay pacientes pendientes.
+                </div>
+            )}
+        </main>
     );
 };
 

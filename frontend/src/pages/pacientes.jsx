@@ -58,6 +58,38 @@ export default function Pacientes() {
 
   const audioRecorder = useAudioRecorder();
 
+  // 🚀===================================================================
+  // AUTOMATIZACIÓN DE FLUJO MAESTRO POR ROLES (PEGAR AQUÍ)
+  // =====================================================================
+  useEffect(() => {
+    if (user && user.rol) {
+      const rolActual = user.rol.toLowerCase();
+
+      switch (rolActual) {
+        case "transcriptor":
+          setFiltros(prev => ({ ...prev, estado: "Dictado" }));
+          break;
+        case "radiologo":
+          setFiltros(prev => ({ ...prev, estado: "Tomado" }));
+          break;
+        case "medico":
+          setFiltros(prev => ({ ...prev, estado: "Firmado" }));
+          break;
+        case "tecnologo":
+          setFiltros(prev => ({ ...prev, estado: "Importado" }));
+          break;
+        case "recepcion":
+          // 🔥 Recepción ve por defecto los listos para entrega
+          setFiltros(prev => ({ ...prev, estado: "Firmado" }));
+          break;  
+        default:
+          setFiltros(prev => ({ ...prev, estado: "" }));
+          break;
+      }
+    }
+  }, [user]); 
+  // =====================================================================
+
   // Solicitudes HTTP de Repositorio PACS
   const cargarDatos = useCallback(() => {
     setLoading(true);
@@ -204,11 +236,33 @@ export default function Pacientes() {
     e.preventDefault();
     if (!pacienteAEditar) return;
 
+    // 🕵️‍♂️ LÓGICA DE AUDITORÍA Y TRAZABILIDAD
+    let motivoAuditoria = "";
+    const rolActual = String(user?.rol || "").toLowerCase();
+    
+    // Si es tecnólogo o recepción, exigimos justificación legal/clínica
+    if (rolActual === "tecnologo" || rolActual === "recepcion") {
+      motivoAuditoria = window.prompt("⚠️ CONTROL DE AUDITORÍA:\nEl paciente ya fue ingresado por el RIS. Escriba el motivo de la corrección demográfica (Ej: 'El paciente confirmó error en documento en sala'):");
+      
+      // Si le dan cancelar o lo dejan en blanco, abortamos la edición
+      if (!motivoAuditoria || motivoAuditoria.trim() === "") {
+        alert("❌ Operación cancelada. Es obligatorio registrar el motivo para la auditoría.");
+        return; 
+      }
+    }
+
+    // Preparamos el paquete de datos inyectando la firma y el motivo
+    const payload = {
+      ...formEdit,
+      modificado_por: user?.username || "Desconocido",
+      motivo_cambio: motivoAuditoria
+    };
+
     try {
       const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteAEditar.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formEdit)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -217,10 +271,7 @@ export default function Pacientes() {
             return {
               ...item,
               ...formEdit,
-              identificacion: formEdit.identificacion,
-              primer_nombre: formEdit.primer_nombre,
               segundo_nombre: formEdit.segundo_nombre || "-",
-              primer_apellido: formEdit.primer_apellido,
               segundo_apellido: formEdit.segundo_apellido || "-",
               email: formEdit.email || "-",
               telefono: formEdit.telefono || "-"
@@ -229,7 +280,7 @@ export default function Pacientes() {
           return item;
         }));
 
-        alert("📝 Todos los campos relacionales del paciente han sido corregidos con éxito.");
+        alert("📝 Datos corregidos. La modificación ha quedado registrada en la bitácora de auditoría.");
         setModalEditOpen(false);
         setPacienteAEditar(null);
       } else {
