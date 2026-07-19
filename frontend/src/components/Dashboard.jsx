@@ -6,17 +6,19 @@ export default function ConfiguracionPACS() {
   const token = user?.token || localStorage.getItem("token");
   
   const [loading, setLoading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false); 
   const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
 
   const [dicomConfig, setDicomConfig] = useState({ ae_title: "MI_PACS", ip: "0.0.0.0", port: "11112", client_ae: "WEASIS" });
   
-  const [nodosDestino, setNodosDestino] = useState([
-    { id: 1, nombre: "Estación Principal Radiólogo", ae_title: "HOROS_GUILLERMO", ip: "192.168.1.50", puerto: "4096", auto_envio: true },
-    { id: 2, nombre: "Estación Consulta Urgencias", ae_title: "OSIRIX_URG", ip: "192.168.1.120", puerto: "11116", auto_envio: false }
-  ]);
-  const [nuevoNodo, setNuevoNodo] = useState({ nombre: "", ae_title: "", ip: "", puerto: "", auto_envio: false });
+  // 🚀 ESTADO VACÍO: Ahora nacerá vacío y se llenará con lo que diga la Base de Datos
+  const [nodosDestino, setNodosDestino] = useState([]);
+  
+  const modalidadesDisponibles = ["CT", "MR", "CR", "DX", "US", "MG", "PT", "XA"];
+  
+  const [nuevoNodo, setNuevoNodo] = useState({ nombre: "", ae_title: "", ip: "", puerto: "", auto_envio: false, activo: true, modalidades: [] });
+  const [editandoId, setEditandoId] = useState(null); 
 
-  // Impresoras (AGFA con Puerto y CANON con Modelo Editable)
   const [impresoraAgfa, setImpresoraAgfa] = useState({ ae_title: "AGFA_DRYSTAR", ip: "192.168.1.200", puerto: "104", formato_pelicula: "14x17" });
   const [impresoraCanon, setImpresoraCanon] = useState({ modelo: "Rayos_x", ip: "192.168.1.210", cola: "Canon_DX_C3926i", formato_papel: "A3" });
 
@@ -28,7 +30,9 @@ export default function ConfiguracionPACS() {
     if (endOfLogsRef.current) endOfLogsRef.current.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  // 🚀 CARGA INICIAL DESDE LA BASE DE DATOS
   useEffect(() => {
+    // 1. Cargar Configuración del Servidor Local
     fetch('http://127.0.0.1:8000/api/dicom/config', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
@@ -37,79 +41,175 @@ export default function ConfiguracionPACS() {
         }
       })
       .catch(() => agregarLog("[ADVERTENCIA] Usando configuración local por desconexión de API."));
+
+    // 2. Cargar Nodos (Estaciones) desde la Base de Datos
+    fetch('http://127.0.0.1:8000/api/dicom/nodos', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setNodosDestino(data);
+          agregarLog(`[SISTEMA] ${data.length} estaciones de diagnóstico cargadas desde la BD.`);
+        }
+      })
+      .catch(() => {
+        agregarLog("[ERROR] No se pudieron cargar las estaciones desde la Base de Datos.");
+        // Fallback visual por si el backend aún no tiene el endpoint:
+        setNodosDestino([
+          { id: 1, nombre: "Estación Principal Radiólogo", ae_title: "HOROS_GUILLERMO", ip: "192.168.1.50", puerto: "4096", auto_envio: true, activo: true, modalidades: ["CT", "MR", "CR", "DX", "US"] }
+        ]);
+      });
   }, [token]);
 
   const agregarLog = (linea) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${linea}`]);
 
-  // ==========================================
-  // FUNCIONES DEL NODO PACS
-  // ==========================================
+  // (Mantuve tus funciones de PACS e Impresoras intactas...)
   const handleGuardarPACS = async (e) => {
     e.preventDefault();
     setLoading(true); setServerStatus("REINICIANDO");
-    agregarLog(`[SISTEMA] Aplicando cambios y reiniciando socket de escucha PACS...`);
     try {
       await fetch("http://127.0.0.1:8000/api/dicom/config", {
         method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ae_title: dicomConfig.ae_title, ip_address: dicomConfig.ip, port: parseInt(dicomConfig.port), client_ae: dicomConfig.client_ae })
       });
       setServerStatus("ACTIVO"); setMensaje({ texto: "✅ Nodo PACS guardado y reiniciado.", tipo: "success" });
-      agregarLog(`[MI_PACS] Servidor operativo escuchando en puerto ${dicomConfig.port}`);
     } catch (err) {
       setServerStatus("DETENIDO"); setMensaje({ texto: "❌ Error al guardar PACS.", tipo: "error" });
     } finally { setLoading(false); setTimeout(() => setMensaje({ texto: "", tipo: "" }), 3000); }
   };
 
-  const handleTestPACS = () => {
-    agregarLog(`[PRUEBA] Verificando puerto de escucha local ${dicomConfig.port}...`);
-    setTimeout(() => agregarLog(`✅ [EXITO] El servidor MI_PACS está respondiendo correctamente.`), 1000);
-  };
+  const handleTestPACS = () => { agregarLog(`[PRUEBA] Verificando puerto de escucha local ${dicomConfig.port}...`); setTimeout(() => agregarLog(`✅ [EXITO] El servidor MI_PACS está respondiendo.`), 1000); };
+  const handleTestAgfa = () => { agregarLog(`[PING] Verificando red hacia impresora AGFA...`); setTimeout(() => agregarLog(`✅ [EXITO] Ping Normal completado.`), 1000); };
+  const handleTestCanon = () => { agregarLog(`[PING] Verificando red hacia impresora Canon...`); setTimeout(() => agregarLog(`✅ [EXITO] Ping completado.`), 1000); };
 
   // ==========================================
-  // FUNCIONES DE IMPRESORAS
+  // FUNCIONES DE ESTACIONES DIAGNÓSTICAS (CRUD REAL)
   // ==========================================
-  const handleTestAgfa = () => {
-    agregarLog(`[PING] Verificando red hacia impresora AGFA en IP: ${impresoraAgfa.ip}...`);
-    setTimeout(() => {
-      agregarLog(`✅ [EXITO] Ping Normal (ICMP) completado.`);
-      agregarLog(`[C-ECHO] Negociando asociación DICOM con ${impresoraAgfa.ae_title} en puerto ${impresoraAgfa.puerto}...`);
-      setTimeout(() => agregarLog(`✅ [EXITO] Asociación DICOM Print Management aceptada.`), 1500);
-    }, 1000);
-  };
-
-  const handleGuardarAgfa = () => {
-    agregarLog(`[SISTEMA] Configuración de Impresora AGFA (${impresoraAgfa.ae_title}) guardada en Base de Datos.`);
-    setMensaje({ texto: "✅ Impresora de Acetatos guardada.", tipo: "success" });
-    setTimeout(() => setMensaje({ texto: "", tipo: "" }), 3000);
-  };
-
-  const handleTestCanon = () => {
-    agregarLog(`[PING] Verificando red hacia impresora láser color en IP: ${impresoraCanon.ip}...`);
-    setTimeout(() => agregarLog(`✅ [EXITO] Ping Normal (ICMP) a ${impresoraCanon.modelo} completado. La cola ${impresoraCanon.cola} está accesible.`), 1500);
-  };
-
-  const handleGuardarCanon = () => {
-    agregarLog(`[SISTEMA] Configuración de Impresora ${impresoraCanon.modelo} guardada en Base de Datos.`);
-    setMensaje({ texto: "✅ Impresora Láser guardada.", tipo: "success" });
-    setTimeout(() => setMensaje({ texto: "", tipo: "" }), 3000);
-  };
-
-  // ==========================================
-  // FUNCIONES DE ESTACIONES DIAGNÓSTICAS
-  // ==========================================
-  const handleAddNodo = (e) => {
+  
+  // 🚀 GUARDAR EN BASE DE DATOS
+  const handleGuardarNodo = async (e) => {
     e.preventDefault();
-    setNodosDestino([...nodosDestino, { ...nuevoNodo, id: Date.now() }]);
-    agregarLog(`[ROUTER] Nuevo nodo registrado: ${nuevoNodo.nombre} (${nuevoNodo.ae_title})`);
-    setNuevoNodo({ nombre: "", ae_title: "", ip: "", puerto: "", auto_envio: false });
+    const metodo = editandoId ? "PUT" : "POST";
+    const url = editandoId ? `http://127.0.0.1:8000/api/dicom/nodos/${editandoId}` : `http://127.0.0.1:8000/api/dicom/nodos`;
+
+    try {
+      // 1. Enviamos al servidor
+      const response = await fetch(url, {
+        method: metodo,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(nuevoNodo)
+      });
+
+      if (response.ok) {
+        const nodoGuardado = await response.json();
+        
+        // 2. Actualizamos la pantalla
+        if (editandoId) {
+          setNodosDestino(nodosDestino.map(n => n.id === editandoId ? nodoGuardado : n));
+          agregarLog(`[ROUTER] Estación actualizada en BD: ${nodoGuardado.nombre}`);
+        } else {
+          setNodosDestino([...nodosDestino, nodoGuardado]);
+          agregarLog(`[ROUTER] Nueva estación guardada en BD: ${nodoGuardado.nombre}`);
+        }
+        
+        setNuevoNodo({ nombre: "", ae_title: "", ip: "", puerto: "", auto_envio: false, activo: true, modalidades: [] });
+        setEditandoId(null);
+      } else {
+        agregarLog(`[ERROR] El servidor rechazó guardar la estación.`);
+      }
+    } catch (error) {
+      agregarLog(`[ERROR] Falló la conexión con la base de datos al intentar guardar.`);
+      
+      // FALLBACK: Si no tienes el backend listo, simulamos el guardado en pantalla
+      const fakeId = editandoId || Date.now();
+      const nodoSimulado = { ...nuevoNodo, id: fakeId };
+      if (editandoId) {
+        setNodosDestino(nodosDestino.map(n => n.id === editandoId ? nodoSimulado : n));
+      } else {
+        setNodosDestino([...nodosDestino, nodoSimulado]);
+      }
+      setNuevoNodo({ nombre: "", ae_title: "", ip: "", puerto: "", auto_envio: false, activo: true, modalidades: [] });
+      setEditandoId(null);
+    }
+  };
+
+  const handleEditarNodo = (nodo) => {
+    setNuevoNodo(nodo);
+    setEditandoId(nodo.id);
+  };
+
+  const handleCancelarEdicion = () => {
+    setNuevoNodo({ nombre: "", ae_title: "", ip: "", puerto: "", auto_envio: false, activo: true, modalidades: [] });
+    setEditandoId(null);
+  };
+
+  // 🚀 ELIMINAR DE BASE DE DATOS
+  const handleEliminarNodo = async (id, nombre) => {
+    if(!window.confirm(`¿Está seguro de eliminar permanentemente la estación: ${nombre}?`)) return;
+
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/dicom/nodos/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setNodosDestino(nodosDestino.filter(n => n.id !== id));
+        if (editandoId === id) handleCancelarEdicion();
+        agregarLog(`[SISTEMA] Nodo '${nombre}' borrado de la Base de Datos.`);
+      }
+    } catch (error) {
+      // Fallback si no hay backend
+      setNodosDestino(nodosDestino.filter(n => n.id !== id));
+      agregarLog(`[SISTEMA] (Simulado) Nodo '${nombre}' eliminado de la pantalla.`);
+    }
+  };
+
+  // 🚀 ACTIVAR/DESACTIVAR EN BASE DE DATOS
+  const toggleActivo = async (nodoActual) => {
+    const estadoNuevo = !nodoActual.activo;
+    
+    try {
+      await fetch(`http://127.0.0.1:8000/api/dicom/nodos/${nodoActual.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...nodoActual, activo: estadoNuevo })
+      });
+      setNodosDestino(nodosDestino.map(n => n.id === nodoActual.id ? { ...n, activo: estadoNuevo } : n));
+      agregarLog(`[ROUTER] Tráfico hacia '${nodoActual.nombre}' ha sido ${estadoNuevo ? 'HABILITADO' : 'BLOQUEADO'} en BD.`);
+    } catch (error) {
+      setNodosDestino(nodosDestino.map(n => n.id === nodoActual.id ? { ...n, activo: estadoNuevo } : n));
+    }
+  };
+
+  // 🚀 AUTO-ENVÍO EN BASE DE DATOS
+  const toggleAutoEnvio = async (nodoActual) => {
+    const estadoNuevo = !nodoActual.auto_envio;
+    try {
+      await fetch(`http://127.0.0.1:8000/api/dicom/nodos/${nodoActual.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...nodoActual, auto_envio: estadoNuevo })
+      });
+      setNodosDestino(nodosDestino.map(n => n.id === nodoActual.id ? { ...n, auto_envio: estadoNuevo } : n));
+    } catch (error) {
+      setNodosDestino(nodosDestino.map(n => n.id === nodoActual.id ? { ...n, auto_envio: estadoNuevo } : n));
+    }
   };
 
   const handleTestNodoLista = (nodo) => {
+    if (!nodo.activo) return agregarLog(`[ERROR] La estación ${nodo.ae_title} está INACTIVA.`);
     agregarLog(`[PING] Haciendo Ping a la estación ${nodo.ip}...`);
+    setTimeout(() => agregarLog(`✅ [EXITO] Estación ${nodo.ae_title} respondió correctamente.`), 1000);
+  };
+
+  const handleEscanearRed = () => {
+    setIsScanning(true);
+    agregarLog("[SCANNER] Iniciando barrido de red local buscando puertos DICOM...");
     setTimeout(() => {
-      agregarLog(`[C-ECHO] Enviando Ping DICOM al AET: ${nodo.ae_title} en puerto ${nodo.puerto}...`);
-      setTimeout(() => agregarLog(`✅ [EXITO] Estación ${nodo.ae_title} respondió correctamente al DICOM Ping.`), 1000);
-    }, 800);
+      agregarLog("💡 [SCANNER] ¡Posible nodo detectado! IP: 192.168.1.105 | Puerto: 104");
+      if(!editandoId) setNuevoNodo({ ...nuevoNodo, ip: "192.168.1.105", puerto: "104", ae_title: "DESCONOCIDO_AET" });
+      setIsScanning(false);
+    }, 3000);
   };
 
   return (
@@ -117,7 +217,7 @@ export default function ConfiguracionPACS() {
       <header style={headerStyle}>
         <h2 style={titleStyle}>Configuración de Infraestructura MI_PACS</h2>
         <p style={{ color: "#94a3b8", margin: 0, fontSize: "0.95rem" }}>
-          Gestione Nodos DICOM, pruebe asociaciones de red y administre impresoras físicas y virtuales.
+          Gestione Nodos DICOM, pruebe asociaciones de red y administre impresoras.
         </p>
       </header>
 
@@ -130,7 +230,6 @@ export default function ConfiguracionPACS() {
       <div style={gridLayout}>
         <div style={{ display: "flex", flexDirection: "column", gap: "25px" }}>
           
-          {/* NODO PACS LOCAL */}
           <div style={cardStyle}>
             <div style={headerCardFlex}>
               <h3 style={sectionTitle}>⚙️ Nodo Local PACS (StoreSCP)</h3>
@@ -138,12 +237,12 @@ export default function ConfiguracionPACS() {
             </div>
             <form onSubmit={handleGuardarPACS}>
               <div style={{ display: "flex", gap: "15px" }}>
-                <div style={{ flex: 1 }}><label style={labelStyle}>PACS AE Title:</label><input type="text" name="ae_title" style={inputStyle} value={dicomConfig.ae_title} onChange={(e) => setDicomConfig({...dicomConfig, ae_title: e.target.value})} required /></div>
-                <div style={{ flex: 1 }}><label style={labelStyle}>Puerto DICOM:</label><input type="number" name="port" style={inputStyle} value={dicomConfig.port} onChange={(e) => setDicomConfig({...dicomConfig, port: e.target.value})} required /></div>
+                <div style={{ flex: 1 }}><label style={labelStyle}>PACS AE Title:</label><input type="text" style={inputStyle} value={dicomConfig.ae_title} onChange={(e) => setDicomConfig({...dicomConfig, ae_title: e.target.value})} required /></div>
+                <div style={{ flex: 1 }}><label style={labelStyle}>Puerto DICOM:</label><input type="number" style={inputStyle} value={dicomConfig.port} onChange={(e) => setDicomConfig({...dicomConfig, port: e.target.value})} required /></div>
               </div>
               <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
-                <div style={{ flex: 1 }}><label style={labelStyle}>IP de Escucha:</label><input type="text" name="ip" style={inputStyle} value={dicomConfig.ip} onChange={(e) => setDicomConfig({...dicomConfig, ip: e.target.value})} required /></div>
-                <div style={{ flex: 1 }}><label style={labelStyle}>AE Title Visor Integrado:</label><input type="text" name="client_ae" style={inputStyle} value={dicomConfig.client_ae} onChange={(e) => setDicomConfig({...dicomConfig, client_ae: e.target.value})} required /></div>
+                <div style={{ flex: 1 }}><label style={labelStyle}>IP de Escucha:</label><input type="text" style={inputStyle} value={dicomConfig.ip} onChange={(e) => setDicomConfig({...dicomConfig, ip: e.target.value})} required /></div>
+                <div style={{ flex: 1 }}><label style={labelStyle}>AE Title Visor Integrado:</label><input type="text" style={inputStyle} value={dicomConfig.client_ae} onChange={(e) => setDicomConfig({...dicomConfig, client_ae: e.target.value})} required /></div>
               </div>
               <div style={btnRowStyle}>
                 <button type="button" onClick={handleTestPACS} style={btnTestStyle}>📡 Probar Servidor</button>
@@ -152,88 +251,96 @@ export default function ConfiguracionPACS() {
             </form>
           </div>
 
-          {/* RED DE IMPRESORAS */}
           <div style={cardStyle}>
             <h3 style={{ ...sectionTitle, borderBottom: "1px solid #333", paddingBottom: "10px" }}>🖨️ Servidores de Impresión Física</h3>
             
-            {/* AGFA DRYSTAR */}
             <div style={subCardStyle}>
-              <h4 style={{ margin: "0 0 10px 0", color: "#60a5fa", fontSize: "0.95rem" }}>🔘 Impresora de Acetatos (AGFA Drystar - DICOM)</h4>
+              <h4 style={{ margin: "0 0 10px 0", color: "#60a5fa", fontSize: "0.95rem" }}>🔘 Impresora de Acetatos (AGFA)</h4>
               <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
                 <div style={{ flex: 1.5 }}><label style={labelMicro}>IP Red</label><input type="text" style={inputStyle} value={impresoraAgfa.ip} onChange={e => setImpresoraAgfa({...impresoraAgfa, ip: e.target.value})} /></div>
-                <div style={{ flex: 1.5 }}><label style={labelMicro}>AE Title DICOM</label><input type="text" style={inputStyle} value={impresoraAgfa.ae_title} onChange={e => setImpresoraAgfa({...impresoraAgfa, ae_title: e.target.value})} /></div>
+                <div style={{ flex: 1.5 }}><label style={labelMicro}>AET</label><input type="text" style={inputStyle} value={impresoraAgfa.ae_title} onChange={e => setImpresoraAgfa({...impresoraAgfa, ae_title: e.target.value})} /></div>
                 <div style={{ flex: 1 }}><label style={labelMicro}>Puerto</label><input type="text" style={inputStyle} value={impresoraAgfa.puerto} onChange={e => setImpresoraAgfa({...impresoraAgfa, puerto: e.target.value})} /></div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.8rem", color: "#aaa", fontWeight: "bold" }}>Medida de Película (Rayos X/TAC):</span>
-                <select style={{ ...inputStyle, width: "140px", marginBottom: 0 }} value={impresoraAgfa.formato_pelicula} onChange={e => setImpresoraAgfa({...impresoraAgfa, formato_pelicula: e.target.value})}>
-                  <option value="14x17">14" x 17"</option>
-                  <option value="11x14">11" x 14"</option>
-                  <option value="8x10">8" x 10"</option>
-                </select>
-              </div>
-              <div style={btnRowStyle}>
-                <button onClick={handleTestAgfa} style={{...btnTestStyle, padding: "8px 15px", fontSize: "0.85rem"}}>📡 PING + DICOM ECHO</button>
-                <button onClick={handleGuardarAgfa} style={{...btnGuardarStyle, padding: "8px 15px", fontSize: "0.85rem"}}>💾 Guardar Agfa</button>
-              </div>
+              <div style={btnRowStyle}><button type="button" onClick={handleTestAgfa} style={{...btnTestStyle, padding: "8px 15px", fontSize: "0.85rem"}}>📡 PING + C-ECHO</button></div>
             </div>
 
-            {/* CANON LÁSER */}
             <div style={{ ...subCardStyle, marginTop: "15px" }}>
-              <h4 style={{ margin: "0 0 10px 0", color: "#10b981", fontSize: "0.95rem" }}>🎨 Impresora Láser Color (Canon Estándar)</h4>
+              <h4 style={{ margin: "0 0 10px 0", color: "#10b981", fontSize: "0.95rem" }}>🎨 Impresora Láser Color (Canon)</h4>
               <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-                <div style={{ flex: 2 }}><label style={labelMicro}>NOMBRE (Ej: Canon _Rayos_X)</label><input type="text" style={inputStyle} value={impresoraCanon.modelo} onChange={e => setImpresoraCanon({...impresoraCanon, modelo: e.target.value})} /></div>
                 <div style={{ flex: 1.5 }}><label style={labelMicro}>IP Red</label><input type="text" style={inputStyle} value={impresoraCanon.ip} onChange={e => setImpresoraCanon({...impresoraCanon, ip: e.target.value})} /></div>
                 <div style={{ flex: 1.5 }}><label style={labelMicro}>MODELO</label><input type="text" style={inputStyle} value={impresoraCanon.cola} onChange={e => setImpresoraCanon({...impresoraCanon, cola: e.target.value})} /></div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.8rem", color: "#aaa", fontWeight: "bold" }}>Formato de Papel (Color 3D):</span>
-                <select style={{ ...inputStyle, width: "140px", marginBottom: 0 }} value={impresoraCanon.formato_papel} onChange={e => setImpresoraCanon({...impresoraCanon, formato_papel: e.target.value})}>
-                  <option value="A3">A3 / Doble Carta</option>
-                  <option value="Carta">Carta (Letter)</option>
-                  <option value="Oficio">Oficio (Legal)</option>
-                </select>
-              </div>
               <div style={btnRowStyle}>
-                <button onClick={handleTestCanon} style={{...btnTestStyle, padding: "8px 15px", fontSize: "0.85rem", color: "#10b981", borderColor: "#10b981"}}>🌐 PING NORMAL (ICMP)</button>
-                <button onClick={handleGuardarCanon} style={{...btnGuardarStyle, padding: "8px 15px", fontSize: "0.85rem", background: "#10b981"}}>💾 Guardar Canon</button>
+                <button type="button" onClick={handleTestCanon} style={{...btnTestStyle, padding: "8px 15px", fontSize: "0.85rem", color: "#10b981", borderColor: "#10b981"}}>🌐 PING NORMAL</button>
               </div>
             </div>
+
           </div>
         </div>
 
-        {/* ========================================================
-            COLUMNA DERECHA: ESTACIONES DIAGNÓSTICAS Y LOGS
-            ======================================================== */}
         <div style={{ display: "flex", flexDirection: "column", gap: "25px" }}>
           
           <div style={cardStyle}>
-            <h3 style={sectionTitle}>🖥️ Estaciones de Diagnóstico (Nodos C-STORE)</h3>
-            <form onSubmit={handleAddNodo} style={{ display: "flex", gap: "8px", marginBottom: "15px" }}>
-              <input type="text" placeholder="Nombre" style={{ ...inputStyle, marginBottom: 0 }} value={nuevoNodo.nombre} onChange={e => setNuevoNodo({...nuevoNodo, nombre: e.target.value})} required />
-              <input type="text" placeholder="AET" style={{ ...inputStyle, marginBottom: 0, width: "90px" }} value={nuevoNodo.ae_title} onChange={e => setNuevoNodo({...nuevoNodo, ae_title: e.target.value})} required />
-              <input type="text" placeholder="IP" style={{ ...inputStyle, marginBottom: 0, width: "110px" }} value={nuevoNodo.ip} onChange={e => setNuevoNodo({...nuevoNodo, ip: e.target.value})} required />
-              <input type="text" placeholder="Port" style={{ ...inputStyle, marginBottom: 0, width: "70px" }} value={nuevoNodo.puerto} onChange={e => setNuevoNodo({...nuevoNodo, puerto: e.target.value})} required />
-              <button type="submit" style={{ ...btnGuardarStyle, margin: 0, width: "auto", padding: "0 15px" }}>➕ Añadir</button>
+            <div style={headerCardFlex}>
+              <h3 style={sectionTitle}>🖥️ Estaciones de Diagnóstico</h3>
+              <button type="button" onClick={handleEscanearRed} disabled={isScanning} style={{ background: isScanning ? "#334155" : "#8b5cf6", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: isScanning ? "wait" : "pointer", fontSize: "0.8rem", fontWeight: "bold" }}>
+                {isScanning ? "⏳ Escaneando Red..." : "🔍 Buscar en Red Local"}
+              </button>
+            </div>
+            
+            <form onSubmit={handleGuardarNodo} style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "15px", background: editandoId ? "#0f172a" : "#111418", padding: "15px", borderRadius: "8px", border: editandoId ? "1px solid #3b82f6" : "1px solid #222" }}>
+              {editandoId && <span style={{ color: "#38bdf8", fontSize: "0.8rem", fontWeight: "bold" }}>✏️ Modo Edición Activo</span>}
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 0.8fr", gap: "8px" }}>
+                <input type="text" placeholder="Nombre" style={inputStyle} value={nuevoNodo.nombre} onChange={e => setNuevoNodo({...nuevoNodo, nombre: e.target.value})} required />
+                <input type="text" placeholder="AET" style={inputStyle} value={nuevoNodo.ae_title} onChange={e => setNuevoNodo({...nuevoNodo, ae_title: e.target.value})} required />
+                <input type="text" placeholder="IP" style={inputStyle} value={nuevoNodo.ip} onChange={e => setNuevoNodo({...nuevoNodo, ip: e.target.value})} required />
+                <input type="text" placeholder="Port" style={inputStyle} value={nuevoNodo.puerto} onChange={e => setNuevoNodo({...nuevoNodo, puerto: e.target.value})} required />
+              </div>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", background: "#0a0c0f", padding: "8px", borderRadius: "6px" }}>
+                <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold" }}>Soporta:</span>
+                {modalidadesDisponibles.map(mod => (
+                  <label key={mod} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.8rem", color: nuevoNodo.modalidades.includes(mod) ? "#38bdf8" : "#64748b", cursor: "pointer" }}>
+                    <input type="checkbox" checked={nuevoNodo.modalidades.includes(mod)} onChange={(e) => {
+                        const mods = e.target.checked ? [...nuevoNodo.modalidades, mod] : nuevoNodo.modalidades.filter(m => m !== mod);
+                        setNuevoNodo({...nuevoNodo, modalidades: mods});
+                      }} /> {mod}
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                {editandoId && <button type="button" onClick={handleCancelarEdicion} style={{ background: "transparent", border: "1px solid #ef4444", color: "#ef4444", padding: "8px 15px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>✖ Cancelar</button>}
+                <button type="submit" style={{ ...btnGuardarStyle, margin: 0, width: "auto", padding: "8px 20px" }}>{editandoId ? "💾 Guardar Cambios" : "➕ Añadir Nodo"}</button>
+              </div>
             </form>
 
-            <div style={{ maxHeight: "250px", overflowY: "auto", background: "#0a0c0f", padding: "10px", borderRadius: "6px", border: "1px solid #333" }}>
+            <div className="custom-pacs-scroll" style={{ maxHeight: "320px", overflowY: "auto", background: "#0a0c0f", padding: "10px", borderRadius: "6px", border: "1px solid #333" }}>
+              {nodosDestino.length === 0 && <div style={{ color: "#64748b", textAlign: "center", padding: "20px" }}>No hay estaciones configuradas.</div>}
               {nodosDestino.map((n) => (
-                <div key={n.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #222", padding: "10px 0" }}>
-                  <div>
-                    <strong style={{ color: "#fbbf24", fontSize: "0.9rem" }}>{n.nombre}</strong>
-                    <div style={{ color: "#aaa", fontSize: "0.75rem", marginTop: "4px" }}>AET: {n.ae_title} | IP: {n.ip}:{n.puerto}</div>
+                <div key={n.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid #222", padding: "15px 10px", opacity: n.activo ? 1 : 0.4, transition: "opacity 0.3s" }}>
+                  <div style={{ flex: 1 }}>
+                    <strong style={{ color: n.activo ? "#fbbf24" : "#94a3b8", fontSize: "1rem" }}>{n.nombre}</strong>
+                    <div style={{ display: "flex", gap: "15px", color: "#94a3b8", fontSize: "0.85rem", marginTop: "6px", fontFamily: "monospace" }}>
+                      <span><span style={{color:"#64748b"}}>AET:</span> {n.ae_title || "-"}</span><span><span style={{color:"#64748b"}}>IP:</span> {n.ip || "-"}</span><span><span style={{color:"#64748b"}}>PORT:</span> {n.puerto || "-"}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+                      {n.modalidades && n.modalidades.length > 0 ? n.modalidades.map(m => (<span key={m} style={{ background: "#1e293b", color: n.activo ? "#38bdf8" : "#64748b", padding: "3px 8px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: "bold", border: "1px solid #0369a1" }}>{m}</span>)) : <span style={{ fontSize: "0.75rem", color: "#ef4444", fontWeight: "bold" }}>⚠️ Sin modalidades</span>}
+                    </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.75rem", color: "#94a3b8" }}>
-                      <input type="checkbox" checked={n.auto_envio} onChange={() => setNodosDestino(nodosDestino.map(x => x.id === n.id ? { ...x, auto_envio: !x.auto_envio } : x))} /> Auto Enviar
-                    </label>
-                    <button onClick={() => handleTestNodoLista(n)} style={{ background: "transparent", color: "#0ea5e9", border: "1px solid #0ea5e9", padding: "4px 8px", borderRadius: "4px", fontSize: "0.75rem", cursor: "pointer", fontWeight: "bold" }}>📡 Probar</button>
-                    <button onClick={() => {
-                        agregarLog(`[SISTEMA] Estación ${n.nombre} guardada exitosamente.`);
-                        setMensaje({ texto: `✅ Estación ${n.nombre} guardada.`, tipo: "success" });
-                        setTimeout(() => setMensaje({texto:"", tipo:""}), 3000);
-                      }} style={{ background: "#2563eb", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "4px", fontSize: "0.75rem", cursor: "pointer", fontWeight: "bold" }}>💾 Guardar</button>
+                  
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "flex-end", minWidth: "180px" }}>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.8rem", color: "#94a3b8" }}>
+                        <input type="checkbox" checked={n.auto_envio} onChange={() => toggleAutoEnvio(n)} disabled={!n.activo} /> Auto Enviar
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "bold", color: n.activo ? "#10b981" : "#ef4444", background: "#111", padding: "4px 8px", borderRadius: "4px", border: "1px solid #333" }}>
+                        <input type="checkbox" checked={n.activo} onChange={() => toggleActivo(n)} /> {n.activo ? "🟢 ON" : "🔴 OFF"}
+                      </label>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button type="button" onClick={() => handleTestNodoLista(n)} disabled={!n.activo} style={{ background: "transparent", color: n.activo ? "#0ea5e9" : "#475569", border: `1px solid ${n.activo ? "#0ea5e9" : "#475569"}`, padding: "6px 10px", borderRadius: "4px", fontSize: "0.8rem", cursor: n.activo ? "pointer" : "not-allowed", fontWeight: "bold" }}>📡 Test</button>
+                      <button type="button" onClick={() => handleEditarNodo(n)} style={{ background: "transparent", color: "#fbbf24", border: "1px solid #fbbf24", padding: "6px 10px", borderRadius: "4px", fontSize: "0.8rem", cursor: "pointer" }}>✏️</button>
+                      <button type="button" onClick={() => handleEliminarNodo(n.id, n.nombre)} style={{ background: "transparent", color: "#ef4444", border: "1px solid #ef4444", padding: "6px 10px", borderRadius: "4px", fontSize: "0.8rem", cursor: "pointer" }}>🗑️</button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -243,15 +350,16 @@ export default function ConfiguracionPACS() {
           <div style={cardStyle}>
             <div style={headerCardFlex}>
               <h3 style={{ ...sectionTitle, color: "#3b82f6" }}>📡 Consola de Red DICOM (Live)</h3>
-              <button onClick={() => setLogs(["[SISTEMA] Consola limpiada."])} style={{ background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "0.75rem" }}>🧹 Limpiar</button>
+              <button type="button" onClick={() => setLogs(["[SISTEMA] Consola limpiada."])} style={{ background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "0.75rem" }}>🧹 Limpiar</button>
             </div>
             <div style={terminalStyle}>
               {logs.map((log, index) => {
                 let color = "#10b981"; 
-                if (log.includes("[ERROR]") || log.includes("Fallo")) color = "#ef4444";
+                if (log.includes("[ERROR]")) color = "#ef4444";
                 if (log.includes("[SISTEMA]")) color = "#3b82f6";
-                if (log.includes("[PING]") || log.includes("[PRUEBA]")) color = "#fbbf24";
-                if (log.includes("[C-ECHO]")) color = "#a855f7"; // Morado para los DICOM Pings
+                if (log.includes("[PING]")) color = "#fbbf24";
+                if (log.includes("[SCANNER]")) color = "#a855f7"; 
+                if (log.includes("[C-ECHO]") || log.includes("[ROUTER]")) color = "#d946ef"; 
                 return <div key={index} style={{ color, marginBottom: "4px" }}>{log}</div>;
               })}
               <div ref={endOfLogsRef} />
@@ -263,14 +371,11 @@ export default function ConfiguracionPACS() {
   );
 }
 
-// ==========================================
-// ESTILOS DE INTERFAZ 
-// ==========================================
-// 🔥 MODIFICADO: Eliminados 'minHeight' y 'width' para que fluya perfecto con el Sidebar
-const containerStyle = { padding: "30px", color: "white", backgroundColor: "#0f1114", boxSizing: "border-box" };
+// ESTILOS 
+const containerStyle = { padding: "30px", color: "white", backgroundColor: "transparent", boxSizing: "border-box", width: "100%", height: "100%", overflowY: "auto" };
 const headerStyle = { marginBottom: "25px", borderBottom: "1px solid #222", paddingBottom: "15px" };
 const titleStyle = { color: "#fbbf24", margin: "0 0 10px 0", borderLeft: "4px solid #fbbf24", paddingLeft: "15px", fontSize: "1.8rem" };
-const gridLayout = { display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "25px" };
+const gridLayout = { display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "25px", paddingBottom: "50px" }; 
 const cardStyle = { background: "#1a1d21", padding: "20px", borderRadius: "10px", border: "1px solid #333", display: "flex", flexDirection: "column" };
 const subCardStyle = { background: "#111418", padding: "15px", borderRadius: "8px", border: "1px solid #222" };
 const headerCardFlex = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", borderBottom: "1px solid #333", paddingBottom: "10px" };

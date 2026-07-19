@@ -1,34 +1,20 @@
 """
 dicom_config_crud.py
 --------------------
-
 CRUD clínico para la configuración DICOM del sistema MI_PACS.
-
-Responsabilidades:
-- Obtener la configuración DICOM (siempre id = 1)
-- Crear configuración por defecto si no existe
-- Actualizar AE Titles, IP y puerto del servidor PACS
-- Integrarse con el servicio que reinicia el servidor DICOM
 """
 
 from sqlalchemy.orm import Session
-from app.models.dicom_config import DicomConfig
-from app.schemas.dicom_config import DicomConfigUpdate
+from app.models.dicom_config import DicomConfig, NodoDestinoDicom
+from app.schemas.dicom_config import DicomConfigUpdate, NodoDicomCreate, NodoDicomUpdate
 
-
+# ==========================================
+# CRUD CONFIGURACIÓN GLOBAL
+# ==========================================
 def get_config(db: Session):
-    """
-    Obtiene la configuración DICOM (id = 1).
-    Si no existe, devuelve None.
-    """
     return db.query(DicomConfig).filter(DicomConfig.id == 1).first()
 
-
 def create_default_config(db: Session):
-    """
-    Crea configuración inicial si no existe.
-    Esta configuración garantiza que MI_PACS arranque con valores válidos.
-    """
     config = DicomConfig(
         id=1,
         ae_title="MIPACS",
@@ -41,12 +27,7 @@ def create_default_config(db: Session):
     db.refresh(config)
     return config
 
-
 def update_config(db: Session, data: DicomConfigUpdate):
-    """
-    Actualiza la configuración DICOM.
-    Si no existe, crea la configuración por defecto.
-    """
     config = get_config(db)
     if not config:
         config = create_default_config(db)
@@ -58,4 +39,35 @@ def update_config(db: Session, data: DicomConfigUpdate):
 
     db.commit()
     db.refresh(config)
-    return config
+    return config 
+
+# ==========================================
+# CRUD NODOS (ESTACIONES DE DIAGNÓSTICO)
+# ==========================================
+def get_nodos(db: Session):
+    return db.query(NodoDestinoDicom).all()
+
+def create_nodo(db: Session, data: NodoDicomCreate):
+    nuevo_nodo = NodoDestinoDicom(**data.model_dump())
+    db.add(nuevo_nodo)
+    db.commit()
+    db.refresh(nuevo_nodo)
+    return nuevo_nodo
+
+def update_nodo(db: Session, nodo_id: int, data: NodoDicomUpdate):
+    nodo = db.query(NodoDestinoDicom).filter(NodoDestinoDicom.id == nodo_id).first()
+    if not nodo:
+        return None
+    for var, value in data.model_dump().items():
+        setattr(nodo, var, value)
+    db.commit()
+    db.refresh(nodo)
+    return nodo
+
+def delete_nodo(db: Session, nodo_id: int):
+    nodo = db.query(NodoDestinoDicom).filter(NodoDestinoDicom.id == nodo_id).first()
+    if nodo:
+        db.delete(nodo)
+        db.commit()
+        return True
+    return False

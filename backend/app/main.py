@@ -230,6 +230,12 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.on_event("startup")
 def startup_event():
+    # --- 🚀 SOLUCIÓN: Crear tablas antes de consultar ---
+    from app.core.database import engine, Base
+    from app.models import dicom_config  # Forzamos la lectura de los modelos
+    Base.metadata.create_all(bind=engine)
+    # ----------------------------------------------------
+
     db = SessionLocal()
     config = get_config(db)
     if not config:

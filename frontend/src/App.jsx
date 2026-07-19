@@ -72,14 +72,14 @@ function Layout({ children, onOpenDicom }) {
   }
 
   return (
-    <div className="layout-container">
+    <div className="layout-container" style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       <Header  
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
         onOpenDicom={onOpenDicom} 
       />
-      <div className="layout-body">
+      <div className="layout-body" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="layout-content">
+        <main className="layout-content" style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
           {children}
         </main>
       </div>

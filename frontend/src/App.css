@@ -1,5 +1,5 @@
 /* ==============================================
-   HEADER PRINCIPAL: DISTRIBUCIÓN Y ESTILO (RESTAURADO)
+   HEADER PRINCIPAL: DISTRIBUCIÓN Y ESTILO
    ============================================== */
 .header {
   display: flex !important;
@@ -17,7 +17,6 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
-/* LOGO MI_PACS: DORADO Y GRANDE (COMO TE GUSTÓ) */
 .header-title {
   font-size: 2.8rem !important;
   color: #fbbf24 !important;
@@ -28,9 +27,6 @@
   margin-left: 10px !important;
 }
 
-/* ==============================================
-   BOTÓN PRINCIPAL DE OPCIONES
-   ============================================== */
 .menu-btn {
   background: #f1f5f9 !important;
   color: #0f172a !important;
@@ -48,9 +44,6 @@
   transform: translateY(-2px) !important;
 }
 
-/* ==============================================
-   MENÚ DESPLEGABLE: VERTICAL Y HERMOSO (RESTAURADO)
-   ============================================== */
 .menu-dropdown {
   position: absolute !important;
   top: 100% !important;
@@ -61,8 +54,8 @@
   padding: 15px !important;
   min-width: 240px !important;
   display: flex !important;
-  flex-direction: column !important; /* APILADO VERTICAL */
-  gap: 12px !important;              /* SEPARACIÓN ENTRE BOTONES */
+  flex-direction: column !important;
+  gap: 12px !important;              
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   z-index: 3000 !important;
@@ -74,7 +67,6 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* BOTONES INTERNOS (EL EFECTO DORADO QUE TE GUSTÓ) */
 .dropdown-item {
   width: 100% !important;
   background: rgba(255, 255, 255, 0.03) !important;
@@ -91,7 +83,7 @@
 }
 
 .dropdown-item:hover {
-  background: #fbbf24 !important; /* Vuelve el dorado al hover */
+  background: #fbbf24 !important; 
   color: #0f172a !important;
   transform: translateX(5px) !important;
 }
@@ -112,66 +104,59 @@
 .layout-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;      /* Altura fija al 100% de la ventana */
-  width: 100vw;       /* Ancho fijo al 100% de la ventana */
-  overflow: hidden;   /* PROHIBIDO el scroll externo */
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
   background: #0f172a;
 }
 
 .layout-body {
   display: flex;
   flex: 1;
-  margin-top: 0 !important; /* 🔥 Reseteamos esto para evitar choques */
+  margin-top: 90px; /* Compensa la altura exacta del header fijo */
   overflow: hidden; 
+  min-height: 0; 
 }
 
 .layout-content {
   flex: 1; 
-  /* 🔥 AQUÍ ESTÁ LA MAGIA: Declaramos márgenes estrictos por cada lado */
-  margin-top: 105px !important;  /* 90px del Header + 15px de espacio respirable */
-  margin-bottom: 15px !important;
-  margin-right: 15px !important;
-  margin-left: 280px !important; /* Espacio intocable para el Sidebar */
-  
-  padding: 20px;
+  margin-left: 260px; /* Deja el espacio exacto para el Sidebar (que mide 260px) */
+  padding: 20px 30px 40px 30px; /* Aire interno para que el contenido respire */
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(12px);
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  overflow-y: auto !important; 
+  border-radius: 18px 0 0 0; /* Suaviza el borde superior izquierdo */
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto !important; /* 🔥 LA MAGIA DEL SCROLL */
   display: flex;
   flex-direction: column;
+  min-height: 0; 
 }
 
-/* Estilo de la barra de scroll interna para que sea estética */
 .layout-content::-webkit-scrollbar {
   width: 8px;
 }
 .layout-content::-webkit-scrollbar-thumb {
-  background: #fbbf24; /* Color dorado para combinar con tu sistema */
+  background: #fbbf24; 
   border-radius: 10px;
 }
 .layout-content::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);
 }
 
-
-
 /* ==============================================
-   ESTILOS PARA LA PÁGINA DE PACIENTES
+   ESTILOS PARA LA PÁGINA DE PACIENTES Y ACCIONES
    ============================================== */
-
 .titulo-seccion {
-  color: #fbbf24; /* Dorado para el título también */
+  color: #fbbf24; 
   font-size: 2rem;
   margin-bottom: 25px;
   font-weight: 700;
 }
 
-/* Contenedor de botones de acción */
 .contenedor-acciones {
   display: flex !important;
-  gap: 20px !important; /* Espacio entre botones */
+  gap: 20px !important;
   margin-bottom: 30px !important;
   background: rgba(255, 255, 255, 0.02);
   padding: 20px;
@@ -179,7 +164,6 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Botón base estilo MI_PACS */
 .btn-accion {
   padding: 12px 24px !important;
   border-radius: 8px !important;
@@ -193,19 +177,17 @@
   justify-content: center;
 }
 
-/* Estilo para Configuración (Dorado al hover) */
 .btn-config-pacs {
   background: #f1f5f9 !important;
   color: #0f172a !important;
 }
 
 .btn-config-pacs:hover {
-  background: #fbbf24 !important; /* Dorado MI_PACS */
+  background: #fbbf24 !important; 
   transform: translateY(-3px) !important;
   box-shadow: 0 5px 15px rgba(251, 191, 36, 0.3) !important;
 }
 
-/* Estilo para Resetear (Rojo de advertencia pero elegante) */
 .btn-reset {
   background: rgba(239, 68, 68, 0.1) !important;
   color: #f87171 !important;
@@ -219,7 +201,6 @@
   box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3) !important;
 }
 
-/* Botón de la tabla (Ver estudios) */
 .btn-ver-estudios {
   background: transparent !important;
   color: #fbbf24 !important;
@@ -240,15 +221,25 @@
    ============================================== */
 .sidebar {
   width: 260px;
-  background: #1e293b !important; /* Mismo tono que el Header */
-  height: 100vh;
+  background: #1e293b !important; 
+  height: calc(100vh - 90px); /* Altura restando el header */
   position: fixed;
   left: 0;
-  top: 0;
-  padding-top: 100px; /* Debajo del header de 90px */
+  top: 90px; /* Comienza justo debajo del header */
+  padding-top: 20px; 
   border-right: 1px solid rgba(255, 255, 255, 0.05);
   transition: all 0.3s ease;
   z-index: 1500;
+  overflow-y: auto; /* Permite scroll interno si hay muchos enlaces */
+}
+
+/* Estilizar el scroll del sidebar */
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(251, 191, 36, 0.5); 
+  border-radius: 4px;
 }
 
 .sidebar-header {
@@ -269,9 +260,9 @@
   flex-direction: column;
   padding: 0 15px;
   gap: 8px;
+  padding-bottom: 30px; /* Espacio extra al final */
 }
 
-/* Enlaces y Botones del Sidebar */
 .sidebar-link, .sidebar-btn-action {
   display: flex;
   align-items: center;
@@ -289,8 +280,8 @@
 }
 
 .sidebar-link:hover, .sidebar-btn-action:hover {
-  background: rgba(251, 191, 36, 0.1); /* Fondo dorado sutil */
-  color: #fbbf24; /* Texto dorado */
+  background: rgba(251, 191, 36, 0.1); 
+  color: #fbbf24; 
 }
 
 .sidebar-link.active {
@@ -305,7 +296,6 @@
   margin: 15px 10px;
 }
 
-/* Submenú de Administración */
 .sidebar-submenu {
   margin-left: 15px;
   display: flex;
@@ -344,12 +334,11 @@
   margin: 10px 15px 5px;
 }
 
-/* Layout especial para el Portal del Paciente */
 .portal-fullscreen-layout {
     width: 100vw;
     height: 100vh;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
-    background-color: #000; /* Fondo base para evitar destellos blancos */
+    background-color: #000; 
 }

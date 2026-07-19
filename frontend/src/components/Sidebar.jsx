@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"; 
-import { Link, useLocation, Outlet } from "react-router-dom"; // <-- AÑADIMOS Outlet
+import { Link, useLocation } from "react-router-dom"; 
 import { useAuth } from "../AuthContext.jsx"; 
 import { FaUserPlus, FaUsersCog } from "react-icons/fa";
 import "./Sidebar.css";
@@ -37,36 +37,81 @@ export default function Sidebar({ isOpen, onClose }) {
   const isInvitado = user?.rol === "invitado";
   const isRecepcion = user?.rol === "recepcion";
 
-  const handleResetSystem = async () => {
-    if (!isSkalo) return alert("Acceso denegado.");
-    const confirmacion = window.confirm("⚠️ ADVERTENCIA CRÍTICA: ¿Realmente deseas continuar?");
-    if (confirmacion && window.prompt("Escribe SKALO:")?.trim().toUpperCase() === "SKALO") {
-      const passwordConfirm = window.prompt("🛡️ VERIFICACIÓN FINAL:");
-      if (!passwordConfirm) return;
-      try {
-        const response = await fetch("http://127.0.0.1:8000/api/reset/clinico", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user?.token}` },
-          body: JSON.stringify({ password: passwordConfirm }) 
-        });
-        if (response.ok) {
-          localStorage.clear(); 
-          window.location.href = "/login"; 
+// =========================================================
+  // 🟢 NUEVA FUNCIÓN: SOFT RESET (Con Token Dinámico Maestro)
+  // =========================================================
+  const handleLimpiezaClinica = async () => {
+    // 1. Ahora los administradores también pueden ver/hacer clic en el botón,
+    // pero se toparán con el muro de seguridad.
+    if (!isAdmin) return alert("Acceso denegado.");
+    
+    // 2. Primera capa: Confirmación del usuario local
+    const primerFiltro = window.prompt(
+      "⚠️ ATENCIÓN: Estás a punto de borrar todos los pacientes y estudios.\n\nPara iniciar, escribe la palabra LIMPIAR en mayúsculas:"
+    );
+    if (primerFiltro !== "LIMPIAR") {
+      if (primerFiltro !== null) alert("❌ Palabra incorrecta. Operación cancelada.");
+      return;
+    }
+
+// 3. Generar el Token Dinámico Maestro (HH+DD+MM+YYYY+MIN_FLAG)
+    const ahora = new Date();
+    
+    // Hora militar: 00h se convierte en 24, el resto se mantiene (ej: 12h)
+    let hh = ahora.getHours();
+    const hhStr = hh === 0 ? "24" : String(hh).padStart(2, '0');
+    
+    // Fecha
+    const dia = String(ahora.getDate()).padStart(2, '0');
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    const anio = ahora.getFullYear();
+    
+    // Flag de minutos: 01 si es < 30min, 59 si es >= 30min
+    const minFlag = ahora.getMinutes() < 30 ? "01" : "59";
+    
+    // Token resultante: Ej: 241907202659
+    const tokenMaestro = `${hhStr}${dia}${mes}${anio}${minFlag}`;
+
+    // 4. Segunda capa: El Token de SKALO
+    const tokenIngresado = window.prompt(
+      "🔒 SISTEMA BLOQUEADO\n\nEsta acción requiere autorización de Nivel Maestro.\nComunícate con Soporte (SKALO) para obtener el Token Dinámico de hoy:\n\nIngrese el Token de Autorización:"
+    );
+
+    if (tokenIngresado !== tokenMaestro) {
+      alert("❌ ACCESO DENEGADO: Token inválido o expirado. El incidente ha sido registrado.");
+      return;
+    }
+
+    // 5. Si pasa los dos filtros, ejecutamos el borrado
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/reset/soft", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user?.token}` 
         }
-      } catch (error) {
-        alert("❌ Error de red.");
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert("✅ " + data.message);
+        window.location.href = "/pacientes"; 
+      } else {
+        alert("❌ Error: " + data.message);
       }
+
+    } catch (error) {
+      console.error("Error en limpieza:", error);
+      alert("❌ Fallo de conexión con el servidor al intentar limpiar el sistema.");
     }
   };
 
   return (
-    // 🔥 ENVOLVEMOS TODO EN UN CONTENEDOR FLEXIBLE
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f172a' }}> 
-      
+    <> 
       <div className={`sidebar-overlay ${isOpen ? "show" : ""}`} onClick={onClose} />
       
-      <aside className={`sidebar ${isOpen ? "open" : ""}`} style={{ flexShrink: 0 }}>
-        {/* ... TODO EL CONTENIDO DEL SIDEBAR EXACTAMENTE COMO ESTABA ... */}
+      <aside className={`sidebar ${isOpen ? "open" : ""}`}>
         <div className="sidebar-header">
           <span className="sidebar-subtitle">MI_PACS SYSTEM</span>
           <br />
@@ -150,12 +195,27 @@ export default function Sidebar({ isOpen, onClose }) {
                       🏥 Perfil de Institución
                     </Link>
                   )} 
-
-                  {isSkalo && (
-                    <button className="submenu-link reset-link" onClick={handleResetSystem} style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px', textAlign: 'left', background: 'transparent', border: 'none', width: '100%', cursor: 'pointer', padding: '8px 12px' }}>
-                      ⚠️ Resetear Sistema
+                  {/* BOTÓN CONECTADO AL SOFT RESET: Visible para Admin, protegido por Token Maestro */}
+                  {isAdmin && (
+                    <button 
+                      className="submenu-link reset-link" 
+                      onClick={handleLimpiezaClinica} 
+                      style={{ 
+                        color: '#ff4d4d', 
+                        fontWeight: 'bold', 
+                        marginTop: '10px', 
+                        textAlign: 'left', 
+                        background: 'transparent', 
+                        border: 'none', 
+                        width: '100%', 
+                        cursor: 'pointer', 
+                        padding: '8px 12px' 
+                      }}
+                    >
+                      🧹 Limpiar Datos Clínicos
                     </button>
                   )}
+
                 </div>
               )}
             </div>
@@ -166,12 +226,6 @@ export default function Sidebar({ isOpen, onClose }) {
           </Link>
         </nav>
       </aside>
-
-      {/* 🔥 AQUÍ ES DONDE SUCEDE LA MAGIA: El contenido principal se inyecta aquí */}
-      <main style={{ flex: 1, overflowY: 'auto' }}>
-        <Outlet /> 
-      </main>
-
-    </div>
+    </>
   );
 }

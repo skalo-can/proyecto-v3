@@ -78,3 +78,12 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Bloqueo estricto del contenedor principal de React */
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

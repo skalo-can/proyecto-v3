@@ -77,3 +77,63 @@ def disparar_backup_manual(background_tasks: BackgroundTasks):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo iniciar el proceso: {str(e)}")
+    
+    from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+import os
+import shutil
+
+# Asegúrate de importar tus modelos y la dependencia de base de datos
+from app.core.database import get_db
+from app.models.estudio import Estudio
+from app.models.estudio_ia_log import EstudioIALog # Si tienes logs asociados
+
+# Asumiendo que tu router ya está definido arriba así:
+# router = APIRouter()
+
+@router.delete("/purgar-importados")
+def purgar_estudios_importados(dias_retencion: int = 30, db: Session = Depends(get_db)):
+    """
+    Elimina físicamente y de la BD los estudios importados de otras clínicas 
+    que superen los días de retención permitidos para referencia.
+    """
+    try:
+        fecha_limite = datetime.now() - timedelta(days=dias_retencion)
+        
+        # BUSCAR ESTUDIOS IMPORTADOS VIEJOS
+        # Ajusta "origen" al nombre real de la columna que uses para saber si es importado (ej: es_importado == True)
+        estudios_a_purgar = db.query(Estudio).filter(
+            Estudio.origen == 'IMPORTADO',
+            Estudio.fecha_estudio < fecha_limite
+        ).all()
+
+        if not estudios_a_purgar:
+            return {"mensaje": "No hay estudios importados caducados para purgar.", "cantidad_purgada": 0}
+
+        cantidad_borrada = 0
+
+        for estudio in estudios_a_purgar:
+            # 1. BORRADO FÍSICO (Archivos DICOM pesados)
+            if estudio.ruta_archivos and os.path.exists(estudio.ruta_archivos):
+                try:
+                    shutil.rmtree(estudio.ruta_archivos) # Borra la carpeta completa del estudio
+                except Exception as e:
+                    print(f"Error borrando carpeta física {estudio.ruta_archivos}: {e}")
+            
+            # 2. BORRADO EN BASE DE DATOS
+            db.delete(estudio)
+            cantidad_borrada += 1
+
+        db.commit()
+
+        # Opcional: Escribir en la tabla de Auditoría aquí
+        
+        return {
+            "mensaje": f"Se han purgado {cantidad_borrada} estudios importados exitosamente.",
+            "cantidad_purgada": cantidad_borrada
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error ejecutando la purga: {str(e)}")

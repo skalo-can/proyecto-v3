@@ -8,6 +8,14 @@ from app.core.database import Base, engine, get_db
 from app.models.usuario import Usuario
 from app.core.security import get_password_hash
 
+# 🚀 NUEVAS IMPORTACIONES PARA EL SOFT RESET
+from app.models.paciente import Paciente
+from app.models.estudio import Estudio
+from app.models.estudio_imagen import EstudioImagen
+from app.models.ris_orden import RISOrden
+from app.models.reporte import Reporte
+from app.models.archivo_estudio import ArchivoEstudio
+
 # Configuración de logs para ver errores en la terminal negra
 logger = logging.getLogger(__name__)
 
@@ -101,3 +109,48 @@ def resetear_sistema_clinico(request: Request, db: Session = Depends(get_db)):
     
     finally:
         db.close()
+
+
+# =========================================================
+# 🟢 NUEVO ENDPOINT: EXCLUSIVO PARA EL BOTÓN DEL FRONTEND
+# =========================================================
+@router.post("/soft")
+def limpieza_clinica_frontend(request: Request, db: Session = Depends(get_db)):
+    """
+    LIMPIEZA CLÍNICA: 
+    Borra únicamente pacientes, órdenes, reportes, estudios e imágenes.
+    Mantiene intactos a los usuarios, contraseñas, Nodos DICOM y configuración.
+    """
+    try:
+        logger.info("Iniciando purificación clínica (Soft Reset) desde Frontend...")
+        
+        # 1. Borrar datos de tablas clínicas (De hijos a padres para evitar conflictos)
+        db.query(ArchivoEstudio).delete()
+        db.query(EstudioImagen).delete()
+        db.query(Reporte).delete()
+        db.query(Estudio).delete()
+        db.query(RISOrden).delete()
+        db.query(Paciente).delete()
+        
+        db.commit()
+
+        # 2. Limpieza de las imágenes físicas (DICOMs) para no dejar basura
+        carpetas = ["static/dicoms", "static/thumbnails", "dicom_inbox", "dicom_archivados"]
+        for carpeta in carpetas:
+            ruta = BASE_DIR / carpeta
+            if ruta.exists():
+                shutil.rmtree(ruta, ignore_errors=True)
+            ruta.mkdir(parents=True, exist_ok=True)
+            
+        logger.info("Datos clínicos y archivos purificados correctamente.")
+
+        return {
+            "success": True, 
+            "message": "🧹 Limpieza clínica completada. Los pacientes y estudios han sido eliminados del sistema."
+        }
+
+    except Exception as e:
+        db.rollback()
+        error_msg = f"Fallo en limpieza clínica: {str(e)}"
+        logger.error(error_msg)
+        return {"success": False, "message": error_msg}

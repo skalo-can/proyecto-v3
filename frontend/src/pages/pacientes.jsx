@@ -7,13 +7,22 @@ import ModalEdicionPaciente from "./ModalEdicionPaciente";
 import FiltrosPacientes from "./FiltrosPacientes";
 import TablaPacientes from "./TablaPacientes";
 
+// 🚀 NUEVO: Importamos el Modal de Envío DICOM
+import ModalEnviarEstudios from "../components/Modals/ModalEnviarEstudios"; 
+
 // Capa de Hooks y Utilidades independientes
 import { useAudioRecorder } from "./useAudioRecorder";
 import { modalitiesLista } from "./modalidades";
 import { styles } from "./pacientesStyles";
 
+// 🔒 NUEVO: Importación del contexto de seguridad
+import { useAuth } from "../AuthContext"; 
+
 export default function Pacientes() {
   const navigate = useNavigate();
+
+  // 🔒 1. Extraemos el usuario actual del contexto de seguridad
+  const { user } = useAuth(); 
 
   // Estados Locales de Datos e Interfaz
   const [pacientes, setPacientes] = useState([]); 
@@ -33,6 +42,9 @@ export default function Pacientes() {
   const [estudiosAutorizados, setEstudiosAutorizados] = useState({});
   const [audiosClinicos, setAudiosClinicos] = useState({});
   const [audioActualJugando, setAudioActualJugando] = useState(null);
+
+  // 🚀 ESTADO: Controla la apertura del Modal de Envío
+  const [modalEnvioOpen, setModalEnvioOpen] = useState(false);
 
   const reproductorGlobalRef = useRef(null); 
   const hoyStr = new Date().toISOString().split('T')[0];
@@ -60,19 +72,14 @@ export default function Pacientes() {
     };
 
     if (busquedaProfunda) {
-      // 🛡️ SEGURO CONTRA VOLCADOS DE RAM:
-      // Si el botón está encendido, pero no han escrito a quién buscar ni fecha exacta...
       if (filtros.busqueda.trim() === "" && filtros.fechaExacta === "") {
-        // ...Mantenemos el límite de fechas actual (Ej. Hoy) para no saturar la pantalla.
         paramsObj.fechaDesde = filtros.fechaDesde;
         paramsObj.fechaHasta = filtros.fechaHasta;
       } else {
-        // Si YA escribieron un nombre, cédula o fecha, abrimos las compuertas del tiempo.
         paramsObj.fechaDesde = filtros.fechaExacta || "";
         paramsObj.fechaHasta = filtros.fechaExacta || ""; 
       }
     } else {
-      // Búsqueda normal por rango de fechas
       paramsObj.fechaDesde = filtros.fechaDesde;
       paramsObj.fechaHasta = filtros.fechaHasta;
     }
@@ -142,7 +149,11 @@ export default function Pacientes() {
     );
   };
 
-  // 🔥 CEREBRO MATEMÁTICO DE FECHAS
+  const handleAbrirEnvioMultiple = () => {
+    if (seleccionados.length === 0) return;
+    setModalEnvioOpen(true);
+  };
+
   const setFiltroRapido = (tipo) => {
     const hoy = new Date();
     
@@ -158,10 +169,9 @@ export default function Pacientes() {
     let hastaStr = hoyStrLocal; 
 
     setSeleccionados([]); 
-    setBusquedaProfunda(false); // Apaga el interruptor si usamos botones rápidos
+    setBusquedaProfunda(false); 
     
     if (tipo === "HOY") {
-      // 'desde' ya es hoy
     } else if (tipo === "AYER") {
       desde.setDate(hoy.getDate() - 1);
       hastaStr = formatearFecha(desde);
@@ -258,7 +268,6 @@ export default function Pacientes() {
     }
   };
 
-  // 🚀 VENTANAS INDEPENDIENTES MULTIMONITOR
   const abrirModuloDictado = (pacienteId) => {
     const pac = pacientes.find(p => p.id === pacienteId);
     if (!pac) return;
@@ -320,12 +329,28 @@ export default function Pacientes() {
     }
   };
 
+  const pacientesParaEnvio = pacientes
+    .filter(p => seleccionados.includes(p.id))
+    .map(p => ({
+        ...p,
+        modality: p.modalidad || p.modality || "OTRO" 
+    }));
+
   return (
     <div style={styles.mainLayout}>
       <header style={styles.headerContainer}>
         <div style={styles.flexSpace}>
           <h2 style={styles.tituloDorado}>Panel de Control Operativo</h2>
-          <div style={styles.headerActions}>
+          <div style={{ ...styles.headerActions, display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {seleccionados.length > 0 && (
+              <button 
+                onClick={handleAbrirEnvioMultiple}
+                style={{ background: "#2563eb", color: "#fff", border: "1px solid #3b82f6", padding: "8px 16px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}
+              >
+                📤 Enviar DICOM ({seleccionados.length})
+              </button>
+            )}
+
             <button style={styles.btnProductividad} onClick={() => navigate("/productividad")}>📊 PANEL DE PRODUCTIVIDAD</button>
             <div style={styles.contadorBadge}>
               <span style={styles.labelContador}>ESTUDIOS EN PANTALLA:</span>
@@ -348,6 +373,7 @@ export default function Pacientes() {
       <main style={styles.tableContainer}>
         <div style={styles.scrollWrapper} className="custom-pacs-scroll">
           <TablaPacientes 
+            user={user} // 🔒 2. PASAMOS EL USUARIO A LA TABLA
             key={`tabla-pacs-${pacientes.length}-${pacientes.map(p => p.estado_pacs).join('-')}`}
             pacientes={pacientes} 
             seleccionados={seleccionados} 
@@ -369,6 +395,12 @@ export default function Pacientes() {
       </main>
 
       <ModalEdicionPaciente isOpen={modalEditOpen} formEdit={formEdit} setFormEdit={setFormEdit} onCancelar={() => setModalEditOpen(false)} onGuardar={handleGuardarEdicion} />
+      
+      <ModalEnviarEstudios 
+        isOpen={modalEnvioOpen} 
+        onClose={() => setModalEnvioOpen(false)} 
+        estudiosSeleccionados={pacientesParaEnvio} 
+      />
     </div>
   );
 }
