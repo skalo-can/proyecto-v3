@@ -138,3 +138,79 @@
   50% { opacity: 0.7; transform: scale(1.05); }
   100% { opacity: 1; transform: scale(1); }
 }
+
+/* ================================
+   SUBMENÚ Y SCROLL (CORRECCIÓN FINAL)
+================================ */
+.sidebar-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15); 
+}
+
+.submenu-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13.5px; /* 🔥 Un poco más pequeño para que quepan palabras largas */
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+  line-height: 1.3;
+  /* 🔥 Eliminamos el 'nowrap' para que el texto baje a la siguiente línea si es muy largo */
+}
+
+.submenu-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  transform: translateX(4px); 
+}
+
+.submenu-link.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff !important; /* 🔥 Fuerza a que se ponga blanco brillante para que se lea perfecto */
+  font-weight: bold;
+}
+
+/* 🔥 BARRA DE SCROLL PREMIUM (GLASS) */
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent; 
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2); 
+  border-radius: 10px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4); 
+}
+
+/* 🔥 INDICADOR VISUAL INTUITIVO DE SCROLL (MÁSCARA DE DESVANECIMIENTO) */
+.fade-scroll {
+  /* Hace que los últimos 30px del contenedor se vayan desvaneciendo hacia transparente */
+  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+}
+
+/* Scroll Premium ajustado */
+.admin-scroll-zone::-webkit-scrollbar {
+  width: 5px;
+}
+.admin-scroll-zone::-webkit-scrollbar-track {
+  background: transparent; 
+}
+.admin-scroll-zone::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15); 
+  border-radius: 10px;
+}
+.admin-scroll-zone::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4); 
+}

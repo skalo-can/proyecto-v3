@@ -40,7 +40,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const isRecepcion = userRol === "recepcion";
   const isTecnologo = userRol === "tecnologo"; 
 
-  // 🔥 DETECCIÓN DEL SÚPER PODER (Corregido leyendo el boolean del backend)
+  // 🔥 DETECCIÓN DEL SÚPER PODER
   const userRolRaw = String(user?.rol || "").toLowerCase().trim();
   const esUrgenciologo = user?.es_urgenciologo === true;
 
@@ -94,7 +94,7 @@ return (
       <aside className={`sidebar ${isOpen ? "open" : ""}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
         
         {/* 1. CABECERA FIJA */}
-        <div className="sidebar-header">
+        <div className="sidebar-header" style={{ flexShrink: 0 }}>
           <span className="sidebar-subtitle">MI_PACS SYSTEM</span>
           <br />
           <small className={esUrgenciologo ? "urgencia-badge" : ""} style={{ color: esUrgenciologo ? '#ef4444' : '#fbbf24', fontWeight: 'bold' }}>
@@ -102,8 +102,8 @@ return (
           </small>
         </div>
 
-        {/* 2. ZONA NAVEGABLE CON SCROLL FLEXIBLE */}
-        <nav className="sidebar-nav" style={{ flex: 1, overflowY: 'auto', paddingBottom: '20px' }}>
+        {/* 2. ZONA SUPERIOR FIJA (Pacientes -> Estadísticas + Botón Admin) */}
+        <nav className="sidebar-nav" style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`} onClick={onClose}>
             <span className="icon">👥</span> Pacientes
           </Link>
@@ -132,41 +132,44 @@ return (
               </Link>
             </>
           )}          
-          <div className="sidebar-divider"></div>
-          {(isAdmin || isAuxiliar) && (
-            <div className="sidebar-section">
-              <button className="sidebar-link dropdown-toggle" onClick={() => setOpenAdmin(!openAdmin)}>
-                <span className="icon">⚙️</span> Administración {openAdmin ? "▴" : "▾"}
-              </button>
-              {openAdmin && (
-                <div className="sidebar-submenu" style={{ maxHeight: '40vh', overflowY: 'auto', paddingRight: '5px' }}>
-                  {/* 🔥 CORRECCIÓN: Altura máxima y scroll interno exclusivo para este submenú */}
-                  
-                  {isSkalo && (<Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} style={{ color: '#6366f1', fontWeight: 'bold' }}><span className="icon"><FaUsersCog /></span> Gestión Usuarios</Link>)}
-                  {isSkalo && (<Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>⚙️ Configuración MI_PACS</Link>)}
-                  {isSkalo && (<Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#10b981', fontWeight: 'bold' }}>📦 Ciclo de Vida / Backups</Link>)}
-                  {isSkalo && (<Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#1890ff', fontWeight: '500' }}>🏷️ Configurar Tags DICOM</Link>)}
-                  <Link to="/reporte-cobros" className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}>📈 Reporte Cobros / Glosas</Link>
-                  {isAdmin && (
-                    <>
-                      <Link to="/auditoria" className={`submenu-link ${isActive("/auditoria") ? "active" : ""}`}>📊 Auditoría</Link>
-                      <Link to="/email-logs" className={`submenu-link ${isActive("/email-logs") ? "active" : ""}`}>✉️ Logs Email</Link>
-                      <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`}>📱 Logs WhatsApp</Link>
-                    </>
-                  )}
-                  {isSkalo && (<Link to="/perfil-institucion" className={`submenu-link ${isActive("/perfil-institucion") ? "active" : ""}`} style={{ color: '#38bdf8', fontWeight: 'bold' }}>🏥 Perfil de Institución</Link>)} 
-                  {isAdmin && (<button className="submenu-link reset-link" onClick={handleLimpiezaClinica} style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px', textAlign: 'left', background: 'transparent', border: 'none', width: '100%', cursor: 'pointer', padding: '8px 12px' }}>🧹 Limpiar Datos Clínicos</button>)}
-                
-                </div>
-              )}
 
-            </div>
+          <div className="sidebar-divider" style={{ margin: '10px 0' }}></div>
+
+          {/* 🔥 BOTÓN FIJO: Ya no se desplaza con el scroll */}
+          {(isAdmin || isAuxiliar) && (
+            <button className="sidebar-link dropdown-toggle" onClick={() => setOpenAdmin(!openAdmin)} style={{ flexShrink: 0 }}>
+              <span className="icon">⚙️</span> Administración {openAdmin ? "▴" : "▾"}
+            </button>
           )}
         </nav>
 
-{/* 3. BOTÓN DE SALIDA SIEMPRE VISIBLE AL FONDO */}
-        {/* 🔥 CORRECCIÓN: Aumentamos el padding inferior a 40px (antes 15px) para subir el botón */}
-        <div style={{ marginTop: 'auto', padding: '15px 15px 65px 15px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', background: '#111827' }}>
+        {/* 3. ZONA CENTRAL FLEXIBLE Y CON SCROLL (SOLO EL SUBMENÚ) */}
+        {/* Agregamos la clase "fade-scroll" para el efecto visual intuitivo */}
+        {(isAdmin || isAuxiliar) && openAdmin && (
+          <div className="sidebar-submenu admin-scroll-zone fade-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingRight: '5px', marginTop: '-45px', paddingBottom: '30px' }}>
+            
+            {isSkalo && (<Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} style={{ color: '#818cf8', fontWeight: 'bold' }}><span className="icon"><FaUsersCog /></span> Gestión Usuarios</Link>)}
+            {isSkalo && (<Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>⚙️ Configuración MI_PACS</Link>)}
+            {isSkalo && (<Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#34d399', fontWeight: 'bold' }}>📦 Ciclo de Vida / Backups</Link>)}
+            {isSkalo && (<Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#60a5fa', fontWeight: '500' }}>🏷️ Configurar Tags DICOM</Link>)}
+            <Link to="/reporte-cobros" className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}>📈 Reporte Cobros / Glosas</Link>
+            
+            {isAdmin && (
+              <>
+                <Link to="/auditoria" className={`submenu-link ${isActive("/auditoria") ? "active" : ""}`}>📊 Auditoría</Link>
+                <Link to="/email-logs" className={`submenu-link ${isActive("/email-logs") ? "active" : ""}`}>✉️ Logs Email</Link>
+                <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`}>📱 Logs WhatsApp</Link>
+              </>
+            )}
+            
+            {isSkalo && (<Link to="/perfil-institucion" className={`submenu-link ${isActive("/perfil-institucion") ? "active" : ""}`} style={{ color: '#38bdf8', fontWeight: 'bold' }}>🏥 Perfil de Institución</Link>)} 
+            {isAdmin && (<button className="submenu-link reset-link" onClick={handleLimpiezaClinica} style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px', textAlign: 'left', background: 'transparent', border: 'none', width: '100%', cursor: 'pointer', padding: '8px 12px' }}>🧹 Limpiar Datos Clínicos</button>)}
+          </div>
+        )}
+
+        {/* 4. BOTÓN DE SALIDA FIJO AL FONDO */}
+        {/* flexShrink: 0 evita que sea empujado fuera de la pantalla */}
+        <div style={{ flexShrink: 0, padding: '15px 15px 65px 15px', background: 'transparent', marginTop: 'auto' }}>
           <Link to="/logout" className="sidebar-link logout-btn" style={{ color: '#ff4d4d', margin: '0' }}>
             <span className="icon">🚪</span> Cerrar Sesión
           </Link>
