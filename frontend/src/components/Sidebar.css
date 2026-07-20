@@ -126,3 +126,15 @@
   transform: scale(1.12);
 }
 
+/* 🔥 ANIMACIÓN PARA EL MÉDICO URGENCIÓLOGO */
+.urgencia-badge {
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+  animation: pulsoUrgencia 1.5s infinite;
+  display: inline-block;
+}
+
+@keyframes pulsoUrgencia {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}

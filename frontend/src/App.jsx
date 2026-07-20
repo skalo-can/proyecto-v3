@@ -47,8 +47,18 @@ function ProtectedRoute({ children, allowedRoles }) {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  if (allowedRoles && !allowedRoles.includes(user?.rol)) {
-    return user?.rol === "tecnologo" ? <Navigate to="/tecnologo" /> : <Navigate to="/" />;
+  // 🔥 BLINDAJE DE ENRUTADOR: Normalización de roles
+  const userRolRaw = String(user?.rol || "").toLowerCase().trim();
+  
+  // Agrupamos a todos los médicos (con o sin emoji 🚨) bajo el paraguas de permisos del radiólogo
+  let userRolNormalizado = userRolRaw;
+  if (userRolRaw.startsWith("medico")) {
+    userRolNormalizado = "radiologo";
+  }
+
+  // Comprobación estricta de la lista de roles permitidos
+  if (allowedRoles && !allowedRoles.includes(userRolNormalizado)) {
+    return userRolNormalizado === "tecnologo" ? <Navigate to="/tecnologo" replace /> : <Navigate to="/" replace />;
   }
 
   return children;
@@ -105,8 +115,7 @@ export default function App() {
             <Navigate to="/portal-paciente" replace />
           ) : (
             <Layout onOpenDicom={openDicom}>
-              {/* 🚀 AÑADIDO: transcriptor */}
-              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor']}>
+              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor', 'it_biomedica']}>
                 <Dashboard />
               </ProtectedRoute>
             </Layout>
@@ -118,14 +127,12 @@ export default function App() {
             SIN Layout, para abrir en ventanas flotantes nativas.
            ======================================================== */}
 
-        {/* RUTAS LIMPIAS (MULTIMONITOR) */}
         <Route path="/visor-dictado/:pacienteId" element={
           <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'invitado']}>
             <ModalDictadoHardware isOpen={true} isWindow={true} />
           </ProtectedRoute>
         } />
 
-        {/* 🚀 AÑADIDO: transcriptor */}
         <Route path="/visor-transcriptor/:estudioId" element={
           <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'auxiliar', 'invitado', 'transcriptor']}>
             <ModalTranscriptor visible={true} isWindow={true} />
@@ -141,10 +148,10 @@ export default function App() {
         {/* ======================================================== */}
 
         {/* 👥 PACIENTES Y ESTUDIOS */}
-        {/* 🚀 AÑADIDO: tecnólogo a las listas de trabajo para que el botón lateral funcione */}
-        <Route path="/pacientes" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo']}><Pacientes /></ProtectedRoute></Layout>} />
-        <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo']}><Estudios /></ProtectedRoute></Layout>} />
-        <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo']}><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
+        {/* 🔥 AÑADIDO: it_biomedica a la ruta para que no sea expulsado */}
+        <Route path="/pacientes" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo', 'it_biomedica']}><Pacientes /></ProtectedRoute></Layout>} />
+        <Route path="/pacientes/:id/estudios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo', 'it_biomedica']}><Estudios /></ProtectedRoute></Layout>} />
+        <Route path="/imagenes-estudio/:id" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo', 'it_biomedica']}><VisorDICOMWrapper /></ProtectedRoute></Layout>} />
 
         {/* 📱 CONSOLA TÉCNICA */}
         <Route path="/tecnologo" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['tecnologo', 'superadmin', 'recepcion']}><TecnologoConsole /></ProtectedRoute></Layout>} />
@@ -157,7 +164,6 @@ export default function App() {
         <Route path="/productividad" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'invitado']}><Productividad /></ProtectedRoute></Layout>} />
 
         {/* OTRAS RUTAS */}
-        {/* 🚀 NUEVOS MÓDULOS DE INGESTA Y EXPORTACIÓN */}
         <Route path="/importar" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin']}><ImportarPage /></ProtectedRoute></Layout>} />
         <Route path="/exportar" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin']}><ExportarPage /></ProtectedRoute></Layout>} />
 
@@ -185,7 +191,6 @@ export default function App() {
           <Navigate to="/" replace />
         } />
       </Routes>
-
     </BrowserRouter>
   );
-}  
+}
