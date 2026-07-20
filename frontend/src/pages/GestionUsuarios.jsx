@@ -278,7 +278,8 @@ export default function GestionUsuarios() {
                                             key={u.id}
                                             onMouseEnter={() => setHoveredRow(u.id)}
                                             onMouseLeave={() => setHoveredRow(null)}
-                                            onClick={() => setSelectedUsers(prev => ({...prev, [u.id]: !prev[u.id]}))}
+                                            // 🔥 CORRECCIÓN: Selección única. Si ya está seleccionado lo limpia, si no, lo selecciona a él solo.
+                                            onClick={() => setSelectedUsers(prev => prev[u.id] ? {} : { [u.id]: true })}
                                             style={{
                                                 backgroundColor: isSelected ? 'rgba(251, 191, 36, 0.15)' : (isHovered ? '#1e293b' : 'transparent'),
                                                 borderLeft: isSelected ? '4px solid #fbbf24' : '4px solid transparent',
@@ -286,12 +287,12 @@ export default function GestionUsuarios() {
                                                 transition: 'all 0.2s ease-in-out'
                                             }}
                                         >
-                                            {/* 🛑 Aislamos el click del checkbox para evitar que se dispare doble vez */}
                                             <td onClick={(e) => e.stopPropagation()}>
                                                 <input 
                                                     type="checkbox" 
                                                     checked={isSelected} 
-                                                    onChange={() => setSelectedUsers(prev => ({...prev, [u.id]: !prev[u.id]}))} 
+                                                    // 🔥 CORRECCIÓN: Mismo comportamiento para el checkbox directo
+                                                    onChange={() => setSelectedUsers(prev => prev[u.id] ? {} : { [u.id]: true })} 
                                                 />
                                             </td>
                                             <td style={{ color: '#ffffff' }}><strong>{u.nombre}</strong></td>
@@ -299,7 +300,6 @@ export default function GestionUsuarios() {
                                             <td>
                                                 <span className="rol-badge" style={{ background: '#333', color: '#fbbf24', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
                                                     {u.rol.toUpperCase()}
-                                                    {/* 🔥 Icono de alarma en la tabla si el usuario tiene poderes de Urgenciologo */}
                                                     {u.es_urgenciologo && <span title="Permisos de Urgenciología Activos" style={{marginLeft: '6px', fontSize: '14px'}}>🚨</span>}
                                                 </span>
                                             </td>
@@ -308,7 +308,6 @@ export default function GestionUsuarios() {
                                                     {u.is_active ? '● OPERATIVO' : '○ BLOQUEADO'}
                                                 </span>
                                             </td>
-                                            {/* 🛑 Aislamos el click del botón Editar para no seleccionar la fila al editar */}
                                             <td onClick={(e) => e.stopPropagation()}>
                                                 <button className="btn-editar-mini" style={{ background: '#ffffff', color: '#000000', fontWeight: 'bold', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => seleccionarParaEditar(u)}>EDITAR</button>
                                             </td>

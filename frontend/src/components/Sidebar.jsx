@@ -86,20 +86,24 @@ export default function Sidebar({ isOpen, onClose }) {
     }
   };
 
-  return (
+return (
     <> 
       <div className={`sidebar-overlay ${isOpen ? "show" : ""}`} onClick={onClose} />
-      <aside className={`sidebar ${isOpen ? "open" : ""}`}>
+      
+      {/* 🔥 CONTENEDOR PRINCIPAL: Flexbox vertical en toda la altura */}
+      <aside className={`sidebar ${isOpen ? "open" : ""}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        
+        {/* 1. CABECERA FIJA */}
         <div className="sidebar-header">
           <span className="sidebar-subtitle">MI_PACS SYSTEM</span>
           <br />
-          {/* 🔥 ETIQUETA VISUAL DINÁMICA CON SIRENA Y COLOR ROJO PARA URGENCIAS */}
           <small className={esUrgenciologo ? "urgencia-badge" : ""} style={{ color: esUrgenciologo ? '#ef4444' : '#fbbf24', fontWeight: 'bold' }}>
             {isSkalo ? "🚀 MODO MAESTRO" : esUrgenciologo ? "🚨 MÉD. URGENCIAS" : `🛡️ ${userRolRaw.toUpperCase()}`}
           </small>
         </div>
 
-        <nav className="sidebar-nav">
+        {/* 2. ZONA NAVEGABLE CON SCROLL FLEXIBLE */}
+        <nav className="sidebar-nav" style={{ flex: 1, overflowY: 'auto', paddingBottom: '20px' }}>
           <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`} onClick={onClose}>
             <span className="icon">👥</span> Pacientes
           </Link>
@@ -135,7 +139,9 @@ export default function Sidebar({ isOpen, onClose }) {
                 <span className="icon">⚙️</span> Administración {openAdmin ? "▴" : "▾"}
               </button>
               {openAdmin && (
-                <div className="sidebar-submenu">
+                <div className="sidebar-submenu" style={{ maxHeight: '40vh', overflowY: 'auto', paddingRight: '5px' }}>
+                  {/* 🔥 CORRECCIÓN: Altura máxima y scroll interno exclusivo para este submenú */}
+                  
                   {isSkalo && (<Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} style={{ color: '#6366f1', fontWeight: 'bold' }}><span className="icon"><FaUsersCog /></span> Gestión Usuarios</Link>)}
                   {isSkalo && (<Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>⚙️ Configuración MI_PACS</Link>)}
                   {isSkalo && (<Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#10b981', fontWeight: 'bold' }}>📦 Ciclo de Vida / Backups</Link>)}
@@ -150,12 +156,22 @@ export default function Sidebar({ isOpen, onClose }) {
                   )}
                   {isSkalo && (<Link to="/perfil-institucion" className={`submenu-link ${isActive("/perfil-institucion") ? "active" : ""}`} style={{ color: '#38bdf8', fontWeight: 'bold' }}>🏥 Perfil de Institución</Link>)} 
                   {isAdmin && (<button className="submenu-link reset-link" onClick={handleLimpiezaClinica} style={{ color: '#ff4d4d', fontWeight: 'bold', marginTop: '10px', textAlign: 'left', background: 'transparent', border: 'none', width: '100%', cursor: 'pointer', padding: '8px 12px' }}>🧹 Limpiar Datos Clínicos</button>)}
+                
                 </div>
               )}
+
             </div>
           )}
-          <Link to="/logout" className="sidebar-link logout-btn" style={{ color: '#ff4d4d', marginTop: '20px' }}><span className="icon">🚪</span> Cerrar Sesión</Link>
         </nav>
+
+{/* 3. BOTÓN DE SALIDA SIEMPRE VISIBLE AL FONDO */}
+        {/* 🔥 CORRECCIÓN: Aumentamos el padding inferior a 40px (antes 15px) para subir el botón */}
+        <div style={{ marginTop: 'auto', padding: '15px 15px 65px 15px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', background: '#111827' }}>
+          <Link to="/logout" className="sidebar-link logout-btn" style={{ color: '#ff4d4d', margin: '0' }}>
+            <span className="icon">🚪</span> Cerrar Sesión
+          </Link>
+        </div>
+
       </aside>
     </>
   );
