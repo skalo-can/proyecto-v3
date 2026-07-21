@@ -1,14 +1,19 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-import os
+from fastapi.responses import FileResponse
 from pathlib import Path
+from datetime import datetime
+import os
+from pydantic import BaseModel
 from pydicom import dcmread
 
 from app.dicom_utils.dicom_preprocessor import import_from_folder
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
+from app.core.config import BACKEND_DIR
+
 router = APIRouter()
 
-INBOX_DIR = r"D:\proyecto v3\backend\dicom_inbox"
+INBOX_DIR = BACKEND_DIR / "dicom_inbox"
 
 
 # -------------------------------
@@ -90,13 +95,14 @@ def validar_dicom(data: PathRequest):
 # -------------------------------
 @router.delete("/dicom/limpiar-inbox")
 def limpiar_inbox():
-    if not os.path.exists(INBOX_DIR):
+    inbox_path_str = str(INBOX_DIR)
+    if not os.path.exists(inbox_path_str):
         raise HTTPException(status_code=400, detail="El inbox no existe.")
 
     eliminados = 0
 
-    for f in os.listdir(INBOX_DIR):
-        full = os.path.join(INBOX_DIR, f)
+    for f in os.listdir(inbox_path_str):
+        full = os.path.join(inbox_path_str, f)
         try:
             os.remove(full)
             eliminados += 1

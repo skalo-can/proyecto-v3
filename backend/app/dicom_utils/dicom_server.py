@@ -14,9 +14,12 @@ from app.core.database import SessionLocal
 from app.crud.crud_modality import register_modality
 from app.models.ris_orden import RISOrden
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
+from app.core.config import BACKEND_DIR
+
 # Instancia global y configuración
 dicom_server_instance = None
-INBOX_PATH = Path("backend/dicom_inbox")
+INBOX_PATH = BACKEND_DIR / "dicom_inbox"
 
 server_state = {
     "running": False,
@@ -60,8 +63,6 @@ def handle_find(event):
     identifier = event.identifier
     db = SessionLocal()
     try:
-        # 🔥 FILTRO ESTRICTO: Solo enviamos a la AGFA lo que el tecnólogo inició.
-        # En cuanto presiones 'Atender', el estado cambia y dejará de aparecer aquí.
         ordenes_activas = db.query(RISOrden).filter(RISOrden.estado_ris == "Iniciado").all()
         _log(f"📋 Enviando {len(ordenes_activas)} órdenes activas a la modalidad.")
 
@@ -74,7 +75,6 @@ def handle_find(event):
             sex_val = str(orden.sexo).upper() if orden.sexo else 'O'
             ds.PatientSex = sex_val[0] if sex_val[0] in ['M', 'F', 'O'] else 'O'
             
-            # --- SECCIÓN DE DIAGNÓSTICO DE METADATA (Mantenida) ---
             metadata = getattr(orden, 'metadata_extra', None)
             
             if metadata:
@@ -85,7 +85,6 @@ def handle_find(event):
                             val_str = str(valor)
                             tag_lower = tag_key.lower()
                             
-                            # Buscamos la fecha con cualquier nombre posible
                             if tag_lower in ["patientbirthdate", "birthdate", "fechanacimiento", "fecha_nacimiento", "00100030"]:
                                 clean_date = "".join(filter(str.isdigit, val_str))
                                 if len(clean_date) == 8:
@@ -98,7 +97,6 @@ def handle_find(event):
                 except Exception as e:
                     print(f"❌ Error al procesar JSON de metadata: {e}")
 
-            # Datos de procedimiento
             sps_step = Dataset()
             sps_step.Modality = orden.modalidad
             sps_step.ScheduledStationAETitle = "AGFA_NX" 
