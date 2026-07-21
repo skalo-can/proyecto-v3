@@ -70,4 +70,7 @@ backend/static/reportes/**
 backend/static/transcripciones/
 backend/static/transcripciones/**
 
+# Ignorar configuraciones visuales de carpetas en Windows
+desktop.ini
+
 .env
