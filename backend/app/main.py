@@ -17,7 +17,7 @@ from typing import List
 # 🛠️ IMPORTS PARA EL ESCUDO DE AUTOMIGRACIÓN DE PRODUCCIÓN
 from sqlalchemy import inspect, text
 
-from app.core.config import settings
+from app.core.config import settings, STATIC_DIR, AUDIOS_DIR
 from app.core.database import Base, engine, SessionLocal
 
 # ---------------------------------------------------------
@@ -221,11 +221,10 @@ async def trigger_notification():
     return {"status": "Notificación enviada"}
 
 # ---------------------------------------------------------
-# ARCHIVOS ESTÁTICOS
+# ARCHIVOS ESTÁTICOS (👻 CORREGIDO CON ANCLA ABSOLUTA)
 # ---------------------------------------------------------
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-static_dir = os.path.join(BASE_DIR, "static")
-os.makedirs(static_dir, exist_ok=True)
+static_dir = str(STATIC_DIR)
+# os.makedirs(static_dir, exist_ok=True) <- Ya no es necesario, config.py lo hace
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.on_event("startup")
@@ -297,14 +296,14 @@ async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)
         mes = f"{fecha_referencia.month:02d}"
         dia = f"{fecha_referencia.day:02d}"
 
-        # 2. Crear las subcarpetas físicas (ej: static/audios_dictado/2020/04/15/)
-        directorio_audios = os.path.join(static_dir, "audios_dictado", año, mes, dia)
-        os.makedirs(directorio_audios, exist_ok=True)
+        # 2. Crear las subcarpetas físicas usando el ANCLA
+        directorio_audios = AUDIOS_DIR / año / mes / dia
+        directorio_audios.mkdir(parents=True, exist_ok=True)
         
-        # 3. Guardar archivo con un nombre único
-        timestamp = datetime.now().strftime("%H%M%S") # La hora exacta del dictado sí nos sirve para que no se sobreescriba
+        # 3. Guardar archivo con un único proceso limpio y seguro
+        timestamp = datetime.now().strftime("%H%M%S")
         nombre_archivo = f"dictado_{pid}_{timestamp}.wav"
-        ruta_archivo = os.path.join(directorio_audios, nombre_archivo)
+        ruta_archivo = directorio_audios / nombre_archivo
         
         with open(ruta_archivo, "wb") as f:
             f.write(await audio.read())

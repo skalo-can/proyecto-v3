@@ -67,6 +67,8 @@ def construir_reporte_pdf(datos_estudio, ruta_salida):
 # BLOQUE DE PRUEBA INDEPENDIENTE (ACTUALIZADO CON REGISTRO MÉDICO)
 # =====================================================================
 if __name__ == "__main__":
+    from app.core.config import PDF_REPORTS_DIR # 🔥 Importamos el ancla aquí
+
     datos_prueba = {
         "nombre_paciente": "FRANKLYN GONGORA ARIAS",
         "id_paciente": "93377886",
@@ -77,9 +79,8 @@ if __name__ == "__main__":
         "registro_medico": "RM-99452"  # Agregado para pruebas locales
     }
 
-    # CALCULAMOS LA RUTA REAL HACIA TU CARPETA DE ESTÁTICOS
-    directorio_actual = os.path.dirname(os.path.abspath(__file__))
-    ruta_reportes_sistema = os.path.abspath(os.path.join(directorio_actual, "..", "..", "static", "pdf_reports"))
+    # 👻 FANTASMA ELIMINADO: Ya no calculamos la ruta con ".." manuales
+    ruta_reportes_sistema = str(PDF_REPORTS_DIR)
     
     # Definimos el nombre y destino final del archivo de prueba
     nombre_archivo_salida = os.path.join(ruta_reportes_sistema, f"Reporte_{datos_prueba['id_paciente']}.pdf")

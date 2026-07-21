@@ -44,17 +44,17 @@ from app.services.paciente_service import (
     actualizar_paciente,
     eliminar_paciente
 )
-from app.services.generador_pdf import construir_reporte_pdf  
+from app.services.generador_pdf import construir_reporte_pdf
 
-# 🚀 DEFINICIÓN DEL ROUTER Y DIRECTORIOS
+# 🔥 INYECTAMOS LAS ANCLAS ABSOLUTAS
+from app.core.config import STATIC_DIR, THUMBNAILS_DIR, PDF_REPORTS_DIR, DICOM_ARCHIVADOS_DIR
+
+# 🚀 DEFINICIÓN DEL ROUTER Y DIRECTORIOS (👻 FANTASMA ELIMINADO)
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
 security = HTTPBearer()
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent 
-STATIC_THUMBNAILS_PATH = BASE_DIR / "static" / "thumbnails"
-STATIC_PDF_PATH = BASE_DIR / "static" / "pdf_reports"
-STATIC_PDF_PATH.mkdir(parents=True, exist_ok=True)
-
+STATIC_THUMBNAILS_PATH = THUMBNAILS_DIR
+STATIC_PDF_PATH = PDF_REPORTS_DIR
 
 # ---------------------------------------------------------
 # LISTAR PACIENTES (TABLA PRINCIPAL CON ORDENAMIENTO MULTIVARIABLE)
@@ -520,7 +520,8 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
 
             ruta_dicom_origen = getattr(estudio_db, "ruta_archivos", getattr(estudio_db, "ruta_dicom", None))
             if not ruta_dicom_origen:
-                ruta_dicom_origen = os.path.join(os.getcwd(), "dicom_storage", str(paciente_db.id), str(estudio_db.id))
+                # 👻 FANTASMA ELIMINADO: Anclaje absoluto a DICOM_ARCHIVADOS_DIR
+                ruta_dicom_origen = os.path.join(str(DICOM_ARCHIVADOS_DIR), str(paciente_db.id), str(estudio_db.id))
 
             carpeta_dicom_destino = os.path.join(carpeta_paciente, "IMAGENES_DICOM")
             if ruta_dicom_origen and os.path.exists(ruta_dicom_origen):
@@ -531,7 +532,9 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
                 os.makedirs(carpeta_dicom_destino, exist_ok=True) 
 
             pdf_nombre = f"Reporte_{identificacion}.pdf"
-            ruta_pdf_origen = os.path.join(os.getcwd(), "static", "pdf_reports", pdf_nombre)
+            
+            # 👻 FANTASMA ELIMINADO: Anclaje absoluto a la variable unificada de PDFs
+            ruta_pdf_origen = os.path.join(str(STATIC_PDF_PATH), pdf_nombre)
             
             if os.path.exists(ruta_pdf_origen):
                 try:
@@ -541,7 +544,8 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
             estudios_procesados += 1
 
         if datos.incluir_visor:
-            ruta_visor_origen = os.path.join(os.getcwd(), "static", "visor_portable")
+            # 👻 FANTASMA ELIMINADO: Anclaje absoluto a la carpeta estática para el visor
+            ruta_visor_origen = os.path.join(str(STATIC_DIR), "visor_portable")
             carpeta_visor_destino = os.path.join(carpeta_lote, "MI_PACS_Visor_Lite")
             if os.path.exists(ruta_visor_origen):
                 try:
@@ -698,4 +702,4 @@ def cancelar_estudio_definitivo(paciente_id: int, datos: CancelacionInput, db: S
         
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al cancelar: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al cancelar: {str(e)}") 

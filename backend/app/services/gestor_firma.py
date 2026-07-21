@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 from app.services.generador_pdf import construir_reporte_pdf
 from app.models.estudio import Estudio
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA
+from app.core.config import PDF_REPORTS_DIR
+
 def procesar_firma_estudio(db: Session, estudio_id: int) -> bool:
     """
     Orquesta el flujo de firma recuperando datos con extracción segura.
@@ -63,11 +66,9 @@ def procesar_firma_estudio(db: Session, estudio_id: int) -> bool:
         
         print(f"✅ Datos extraídos listos para PDF: {datos_clinicos}")
         
-        # 3. Definir la ruta física
-        directorio_actual = os.path.dirname(os.path.abspath(__file__))
-        ruta_almacenamiento = os.path.abspath(os.path.join(directorio_actual, "..", "..", "static", "pdf_reports"))
+        # 3. Definir la ruta física usando el Ancla Absoluta (👻 FANTASMA ELIMINADO)
+        ruta_almacenamiento = str(PDF_REPORTS_DIR)
         
-        os.makedirs(ruta_almacenamiento, exist_ok=True)
         # El nombre del archivo ahora usará la identificación real
         nombre_pdf_final = os.path.join(ruta_almacenamiento, f"Reporte_{datos_clinicos['id_paciente']}.pdf")
         
@@ -88,4 +89,4 @@ def procesar_firma_estudio(db: Session, estudio_id: int) -> bool:
 
     except Exception as e:
         print(f"❌ Error crítico en el servicio de firma: {e}")
-        return False
+        return False 

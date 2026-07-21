@@ -25,6 +25,9 @@ from app.models.dicom_config import DicomConfig
 
 from pydantic import BaseModel, Field
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
+from app.core.config import STATIC_DIR
+
 
 router = APIRouter(prefix="/dicom", tags=["DICOM Store"])
 
@@ -85,15 +88,10 @@ def send_dicom_endpoint(
         )
 
     # -----------------------------------------------------
-    # 3. Resolver ruta física desde ruta pública
+    # 3. Resolver ruta física desde ruta pública usando el Ancla
     # -----------------------------------------------------
-    # Ejemplo:
-    # /static/dicoms/estudio_12/imagen.dcm
-    # → D:\proyecto v3\backend\static\dicoms\estudio_12\imagen.dcm
-
-    STATIC_ROOT = Path(r"D:\proyecto v3\backend\static")
     public_path = payload.file_path.replace("/static/", "")
-    full_path = STATIC_ROOT / public_path
+    full_path = STATIC_DIR / public_path
 
     if not full_path.exists():
         raise HTTPException(

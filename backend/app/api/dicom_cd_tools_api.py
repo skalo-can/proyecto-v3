@@ -5,10 +5,11 @@ import pydicom
 from pydicom.dataset import Dataset, FileDataset
 from datetime import datetime
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
+from app.core.config import STATIC_DIR
+
 router = APIRouter()
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-STATIC_DIR = BASE_DIR / "static"
 DICOMS_DIR = STATIC_DIR / "dicoms"
 
 

@@ -15,8 +15,10 @@ import shutil
 from app.core.database import get_db
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
-
 from app.models.estudio import Estudio
+
+# 🔥 IMPORTAMOS EL ANCLA
+from app.core.config import AUDIOS_DIR
 
 router = APIRouter(prefix="/estudios", tags=["Audio dictado"])
 
@@ -24,7 +26,8 @@ router = APIRouter(prefix="/estudios", tags=["Audio dictado"])
 # RUTA BASE PARA AUDIO CLÍNICO (Alineada con tu carpeta estática)
 # ---------------------------------------------------------
 # Apuntamos a la carpeta estática para que el frontend pueda reproducirlos por red
-AUDIO_BASE_PATH = Path("static") / "audios_dictado"
+from app.core.config import AUDIOS_DIR
+AUDIO_BASE_PATH = AUDIOS_DIR
 
 
 # ---------------------------------------------------------
@@ -100,4 +103,4 @@ async def upload_audio_endpoint(
         "path": ruta_relativa,
         "estudio_id": estudio_id,
         "estado_reporte": estudio.reporte_estado
-    })
+    }) 

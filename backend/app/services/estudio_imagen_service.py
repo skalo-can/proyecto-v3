@@ -19,18 +19,17 @@ import pydicom
 
 from app.models.estudio_imagen import EstudioImagen
 
+# 🔥 INYECTAMOS LAS ANCLAS ABSOLUTAS
+from app.core.config import STATIC_DIR, THUMBNAILS_DIR
 
 # ---------------------------------------------------------
-# RUTAS CLÍNICAS ABSOLUTAS
+# RUTAS CLÍNICAS ABSOLUTAS (👻 FANTASMA ELIMINADO)
 # ---------------------------------------------------------
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-STATIC_DIR = BASE_DIR / "static"
-
 DICOMS_BASE = STATIC_DIR / "dicoms"
-THUMB_DIR = STATIC_DIR / "thumbnails"
+THUMB_DIR = THUMBNAILS_DIR
 
-os.makedirs(DICOMS_BASE, exist_ok=True)
-os.makedirs(THUMB_DIR, exist_ok=True)
+DICOMS_BASE.mkdir(parents=True, exist_ok=True)
+# THUMB_DIR ya está blindado por config.py, no necesitamos os.makedirs aquí
 
 
 # ---------------------------------------------------------

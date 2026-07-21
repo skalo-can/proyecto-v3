@@ -8,6 +8,9 @@ from app.models.estudio import Estudio
 from app.core.auth import obtener_usuario_actual
 from app.services.generador_pdf import construir_reporte_pdf 
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
+from app.core.config import PDF_REPORTS_DIR
+
 router = APIRouter(prefix="/estudios", tags=["Estudios"])
 
 @router.patch("/atender/{identificador}")
@@ -108,10 +111,8 @@ async def firmar_estudio_endpoint(
         "registro_medico": registro_medico.upper()
     }
 
-    # 5. RUTA ABSOLUTA BLINDADA (Siempre guardará en backend/static/pdf_reports)
-    directorio_base = Path(__file__).resolve().parents[2]
-    ruta_estaticos_real = directorio_base / "static" / "pdf_reports"
-    ruta_estaticos_real.mkdir(parents=True, exist_ok=True)
+    # 5. RUTA ABSOLUTA BLINDADA USANDO EL ANCLA
+    ruta_estaticos_real = PDF_REPORTS_DIR
     
     nombre_pdf = f"Reporte_{id_real}.pdf"
     ruta_final_pdf = ruta_estaticos_real / nombre_pdf

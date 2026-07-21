@@ -8,6 +8,9 @@ from app.models.ris_orden import RISOrden
 from app.models.estudio import Estudio
 from app.models.pacs_config import PACSConfig 
 
+# 🔥 INYECTAMOS LAS ANCLAS ABSOLUTAS
+from app.core.config import DICOM_ARCHIVADOS_DIR, PDF_REPORTS_DIR
+
 # Inicializamos el planificador global de fondo
 scheduler = BackgroundScheduler()
 
@@ -65,11 +68,13 @@ def ejecutar_rutina_backup_diario():
             
             ruta_destino_nas = os.path.join(NAS_LOCAL_DIR, mod, str(fecha_objetivo.year), f"{fecha_objetivo.month:02d}")
             os.makedirs(ruta_destino_nas, exist_ok=True)
-            
+                            
             for orden in estudios_a_respaldar:
                 nombre_archivo_backup = f"PACIENTE_{orden.id_orden}_{orden.apellido}.tar.gz"
                 ruta_final_tar = os.path.join(ruta_destino_nas, nombre_archivo_backup)
-                ruta_dicom_origen = f"D:\\proyecto v3\\backend\\app\\dicom_archivados\\{orden.accession_number}"
+                
+                # 👻 FANTASMA ELIMINADO: Anclaje a DICOM_ARCHIVADOS_DIR
+                ruta_dicom_origen = os.path.join(str(DICOM_ARCHIVADOS_DIR), str(orden.accession_number))
                 ruta_replica_internacional = os.path.join(CLOUD_OFFSITE_DIR, nombre_archivo_backup)
                 
                 # --- PROCESO DE EMPAQUETADO COMPLETO ---
@@ -77,7 +82,8 @@ def ejecutar_rutina_backup_diario():
                     if os.path.exists(ruta_dicom_origen):
                         tar.add(ruta_dicom_origen, arcname="IMAGENES_DICOM")
                     
-                    ruta_pdf_reporte = f"D:\\proyecto v3\\backend\\static\\reports\\{orden.accession_number}.pdf"
+                    # 👻 FANTASMA ELIMINADO: Anclaje a PDF_REPORTS_DIR
+                    ruta_pdf_reporte = os.path.join(str(PDF_REPORTS_DIR), f"{orden.accession_number}.pdf")
                     if os.path.exists(ruta_pdf_reporte):
                         tar.add(ruta_pdf_reporte, arcname="REPORTE_FIRMADO.pdf")
                         
@@ -90,7 +96,7 @@ def ejecutar_rutina_backup_diario():
                     
                     tar.add(nota_clinica_path, arcname="INFORMACION_ANEXA.txt")
                     os.remove(nota_clinica_path)
-                
+
                 # --- PASO C: RÉPLICA FUERA DEL PAÍS ---
                 os.makedirs(CLOUD_OFFSITE_DIR, exist_ok=True)
                 shutil.copy2(ruta_final_tar, ruta_replica_internacional)
@@ -169,4 +175,4 @@ def reprogramar_cron_backup(nueva_hora_str: str):
         return True
     except Exception as e:
         print(f"❌ Error al reprogramar el scheduler: {e}")
-        return False
+        return False 

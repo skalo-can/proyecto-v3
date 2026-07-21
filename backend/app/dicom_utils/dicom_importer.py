@@ -10,13 +10,14 @@ from app.models.paciente import Paciente
 from app.models.estudio import Estudio
 from app.models.estudio_imagen import EstudioImagen
 
+# 🔥 IMPORTAMOS EL ANCLA
+from app.core.config import BACKEND_DIR, DICOM_ARCHIVADOS_DIR
 
 # ---------------------------------------------------------
-# 🚀 RUTAS CLÍNICAS UNIFICADAS CON EL SISTEMA DE ARCHIVOS DEL PACS
+# 🚀 RUTAS CLÍNICAS UNIFICADAS (👻 FANTASMA ELIMINADO)
 # ---------------------------------------------------------
-DICOM_INBOX = r"D:\proyecto v3\backend\dicom_inbox"
-# Cambiado a dicom_archivados para que coincida con scheduler_service y las estadísticas
-DICOM_STORAGE_ROOT = r"D:\proyecto v3\backend\app\dicom_archivados"
+DICOM_INBOX = str(BACKEND_DIR / "dicom_inbox")
+DICOM_STORAGE_ROOT = str(DICOM_ARCHIVADOS_DIR)
 
 
 def _safe_get(ds, tag, default=None):
@@ -225,4 +226,4 @@ def process_inbox():
 
 
 if __name__ == "__main__":
-    process_inbox()
+    process_inbox() 

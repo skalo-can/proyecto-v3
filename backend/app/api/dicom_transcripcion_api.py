@@ -18,12 +18,13 @@ from app.models.estudio import Estudio
 
 router = APIRouter(prefix="/estudios", tags=["Transcripción"])
 
+# 🔥 INYECTAMOS EL ANCLA
+from app.core.config import AUDIOS_DIR
 
 # ---------------------------------------------------------
-# RUTA BASE PARA AUDIO CLÍNICO
+# RUTA BASE PARA AUDIO CLÍNICO (👻 FANTASMA ELIMINADO)
 # ---------------------------------------------------------
-AUDIO_BASE_PATH = Path("evidencia_audio")
-AUDIO_BASE_PATH.mkdir(exist_ok=True)
+AUDIO_BASE_PATH = AUDIOS_DIR
 
 
 # ---------------------------------------------------------
@@ -173,4 +174,4 @@ def actualizar_reporte_endpoint(
     return {
         "message": "Reporte actualizado.",
         "texto": texto
-    }
+    } 

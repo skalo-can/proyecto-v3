@@ -10,14 +10,10 @@ from app.models.paciente import Paciente
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
+from app.core.config import PDF_REPORTS_DIR
 
 router = APIRouter(tags=["Reportes PDF"], prefix="/pdf")
-
-BASE_DIR = Path(__file__).resolve().parents[2]
-STATIC_DIR = BASE_DIR / "static"
-PDF_DIR = STATIC_DIR / "pdf_reports"
-PDF_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def _get_estudio(estudio_id: int) -> Estudio:
     db = SessionLocal()
@@ -36,7 +32,7 @@ def generar_pdf_estudio(estudio_id: int):
     est = _get_estudio(estudio_id)
     paciente: Paciente = est.paciente
 
-    pdf_path = PDF_DIR / f"estudio_{estudio_id}.pdf"
+    pdf_path = PDF_REPORTS_DIR / f"estudio_{estudio_id}.pdf"
     c = canvas.Canvas(str(pdf_path), pagesize=A4)
     width, height = A4
 

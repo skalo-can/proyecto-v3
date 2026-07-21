@@ -16,13 +16,13 @@ from app.models.ris_orden import RISOrden
 from app.models.reporte import Reporte
 from app.models.archivo_estudio import ArchivoEstudio
 
+# 🔥 INYECTAMOS LAS ANCLAS ABSOLUTAS (ELIMINACIÓN DE FANTASMAS)
+from app.core.config import BACKEND_DIR, DICOMS_DIR, THUMBNAILS_DIR, DICOM_ARCHIVADOS_DIR
+
 # Configuración de logs para ver errores en la terminal negra
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reset", tags=["Reset del Sistema"])
-
-# Ubicación base del proyecto
-BASE_DIR = Path(__file__).resolve().parents[2]
 
 # --- 1. MATRIZ MAESTRA DE PERMISOS (Poder Total para SKALO) ---
 PERMISOS_FULL = {
@@ -76,22 +76,25 @@ def resetear_sistema_clinico(request: Request, db: Session = Depends(get_db)):
                 email=u["email"],
                 password=get_password_hash(u["pass"]), # Hash de seguridad
                 rol=u["rol"],
-                is_active=True,                        # Campo sincronizado
-                permisos=PERMISOS_FULL                 # Inyección de matriz total
+                is_active=True,                    # Campo sincronizado
+                permisos=PERMISOS_FULL                # Inyección de matriz total
             )
             db.add(nuevo_usuario)
         
         db.commit()
         logger.info("Usuarios maestros creados exitosamente.")
 
-        # --- PASO 3: LIMPIEZA DE ARCHIVOS FÍSICOS ---
-        carpetas = ["static/dicoms", "static/thumbnails", "dicom_inbox", "dicom_archivados"]
+        # --- PASO 3: LIMPIEZA DE ARCHIVOS FÍSICOS (BLINDADO CON ANCLAS) ---
+        carpetas_absolutas = [
+            DICOMS_DIR, 
+            THUMBNAILS_DIR, 
+            BACKEND_DIR / "dicom_inbox", 
+            DICOM_ARCHIVADOS_DIR
+        ]
         
-        for carpeta in carpetas:
-            ruta = BASE_DIR / carpeta
+        for ruta in carpetas_absolutas:
             if ruta.exists():
                 shutil.rmtree(ruta, ignore_errors=True)
-            # Creamos la carpeta de nuevo, limpia y lista
             ruta.mkdir(parents=True, exist_ok=True)
             
         logger.info("Carpetas de almacenamiento purificadas.")
@@ -134,10 +137,15 @@ def limpieza_clinica_frontend(request: Request, db: Session = Depends(get_db)):
         
         db.commit()
 
-        # 2. Limpieza de las imágenes físicas (DICOMs) para no dejar basura
-        carpetas = ["static/dicoms", "static/thumbnails", "dicom_inbox", "dicom_archivados"]
-        for carpeta in carpetas:
-            ruta = BASE_DIR / carpeta
+        # 2. Limpieza de las imágenes físicas (DICOMs) blindada con anclas
+        carpetas_absolutas = [
+            DICOMS_DIR, 
+            THUMBNAILS_DIR, 
+            BACKEND_DIR / "dicom_inbox", 
+            DICOM_ARCHIVADOS_DIR
+        ]
+        
+        for ruta in carpetas_absolutas:
             if ruta.exists():
                 shutil.rmtree(ruta, ignore_errors=True)
             ruta.mkdir(parents=True, exist_ok=True)

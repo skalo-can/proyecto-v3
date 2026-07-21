@@ -46,12 +46,16 @@ ESTADO_IMPORTACION = {
     "finalizado": False
 }
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (👻 FANTASMAS ELIMINADOS)
+from app.core.config import BACKEND_DIR, STATIC_DIR, THUMBNAILS_DIR, DICOM_ARCHIVADOS_DIR
+
 # Rutas clínicas unificadas del sistema PACS
-BASE_DIR = Path(__file__).resolve().parents[2]  # backend/
-STATIC_DIR = BASE_DIR / "static"
-THUMBS_DIR = STATIC_DIR / "thumbnails"
-INBOX = BASE_DIR / "dicom_inbox"
-ARCHIVO_ROOT = Path(r"D:\proyecto v3\backend\app\dicom_archivados")
+INBOX = BACKEND_DIR / "dicom_inbox"
+THUMBS_DIR = THUMBNAILS_DIR
+ARCHIVO_ROOT = DICOM_ARCHIVADOS_DIR
+
+# Asegurar la existencia de directorios core (config.py ya asegura los demás)
+INBOX.mkdir(parents=True, exist_ok=True)
 
 # Asegurar la existencia de directorios core
 for carpeta in [THUMBS_DIR, INBOX, ARCHIVO_ROOT]:
@@ -355,4 +359,4 @@ def importar_dicom(usuario=Depends(obtener_usuario_actual), db: Session = Depend
                 archivo.unlink()
             resultados.append(res)
             
-    return {"mensaje": "Importación local completada", "importados": [r for r in resultados if r is not None]}
+    return {"mensaje": "Importación local completada", "importados": [r for r in resultados if r is not None]} 

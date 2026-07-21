@@ -13,9 +13,11 @@ from app.models.estudio import Estudio
 from app.models.paciente import Paciente
 from app.services.generador_pdf import construir_reporte_pdf
 
+# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
+from app.core.config import PDF_REPORTS_DIR
+
 router = APIRouter(prefix="/estudios", tags=["Firma y PDF"])
-STATIC_PDF_PATH = Path("static/pdf_reports")
-STATIC_PDF_PATH.mkdir(parents=True, exist_ok=True)
+STATIC_PDF_PATH = PDF_REPORTS_DIR
 
 class DatosFirma(BaseModel):
     medico_firma: str = ""
