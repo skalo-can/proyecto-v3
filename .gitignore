@@ -73,4 +73,10 @@ backend/static/transcripciones/**
 # Ignorar configuraciones visuales de carpetas en Windows
 desktop.ini
 
+# Excluir carpetas principales del PACS
+backend/dicom_inbox/
+backend/dicom_archivados/
+backend/static/pdf_reports/
+backend/static/exports/
+
 .env
