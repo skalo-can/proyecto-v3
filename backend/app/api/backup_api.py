@@ -1,139 +1,159 @@
+# backend/app/api/backup_api.py
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from typing import List, Dict
-import pydantic
+from datetime import datetime, timedelta
+from typing import List
+from pydantic import BaseModel
+import json
+import os
+import shutil
 
-# Importaciones de tu core y servicios
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, get_db
+from app.models.estudio import Estudio
+
+# Motores de servicios (Importados limpiamente en la cabecera)
 from app.services.scheduler_service import ejecutar_rutina_backup_diario
+from app.services.efilm_migration_service import ejecutar_migracion_efilm
 
-# 🚀 CORREGIDO: Eliminamos el prefijo duplicado para que ensamble directo con el main.py
 router = APIRouter()
 
-# Esquema para recibir las configuraciones del Frontend
-class BackupConfigSchema(pydantic.BaseModel):
+# Archivo temporal para guardar la configuración del frontend
+CONFIG_FILE = "backup_config.json"
+
+# ==========================================
+# ESQUEMAS DE DATOS (PYDANTIC)
+# ==========================================
+class BackupConfigSchema(BaseModel):
     dias_maduracion: int
-    modalidades: List[str]  # 🟢 Recibe dinámicamente ["CT", "MR", "DX", "CR", etc.]
+    modalidades: List[str]
     nas_ruta: str
     copia_internacional: bool
 
-# Dependencia de base de datos
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+class EfilmConfigRequest(BaseModel):
+    host: str = "localhost"
+    database: str = "Efilm"
+    usuario: str = "sa"
+    password: str = "admin123"
+    ruta_archivos: str = "C:\\Efilm\\Images"
 
-# 1. GET /api/backup/status — Ver info en tu Dashboard / Panel de Control
+# ==========================================
+# FUNCIONES AUXILIARES
+# ==========================================
+def guardar_config_json(config: BackupConfigSchema):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config.dict(), f)
+
+def leer_config_json():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    # Valores por defecto si nunca se ha guardado
+    return {
+        "dias_maduracion": 30,
+        "modalidades": ["CT", "MR", "CR", "US", "DX"],
+        "nas_ruta": "D:\\MI_PACS_NAS_EXTERNAL",
+        "copia_internacional": False
+    }
+
+# ==========================================
+# ENDPOINTS
+# ==========================================
+
+# 1. GET /backup/status — Ver info en el Dashboard
 @router.get("/backup/status")
 def obtener_estado_backup(db: Session = Depends(get_db)):
-    """
-    Devuelve el estado del sistema de copias de seguridad 
-    para pintarlo en las tarjetas del Frontend.
-    """
     try:
-        # Mapeo inicial simulado adaptado a las nuevas modalidades core del PACS
+        config = leer_config_json()
         return {
             "status": "activo",
-            "proxima_ejecucion": "Dinámica",
-            "dias_espera_actual": 30,
-            "modalidades_activas": ["CT", "MR", "DX", "US", "MG", "CR", "DXA", "PET"],
-            "nas_conectado": True
+            "proxima_ejecucion": "01:00 AM",
+            "dias_espera_actual": config["dias_maduracion"],
+            "modalidades_activas": config["modalidades"],
+            "nas_conectado": os.path.exists(config["nas_ruta"])
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al leer estado: {str(e)}")
 
-# 2. POST /api/backup/config — Guardar lo que elijas en pantalla
+# 2. POST /backup/config — Guardar reglas
 @router.post("/backup/config")
 def guardar_configuracion_backup(config: BackupConfigSchema, db: Session = Depends(get_db)):
-    """
-    Recibe los checkboxes de modalidades (incluyendo DX, CR, DXA, PET) y días 
-    seleccionados en el frontend y los procesa en el sistema.
-    """
     try:
-        # 📝 REGISTRO EN CONSOLA: Monitoreo técnico del cambio de reglas
-        print(f"⚙️ [CICLO DE VIDA] Aplicando regla: {config.dias_maduracion} días para modalidades: {config.modalidades}")
-        print(f"📁 [RUTA DESTINO NAS]: {config.nas_ruta} | Réplica Geográfica: {config.copia_internacional}")
-        
-        # Aquí mapearás estos valores a tu persistencia global de almacenamiento si lo requieres
-        return {"status": "success", "message": "Configuración de ciclo de vida guardada correctamente."}
+        guardar_config_json(config)
+        print(f"⚙️ [BACKUP] Regla guardada: {config.dias_maduracion} días | Modalidades: {config.modalidades}")
+        return {"status": "success", "message": "Configuración de respaldo guardada correctamente."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar regla: {str(e)}")
 
-# 3. POST /api/backup/run — ¡EL BOTÓN MANUAL DE PRUEBA!
+# 3. POST /backup/run — ¡EL BOTÓN MANUAL QUE LLAMA AL MOTOR MAESTRO!
 @router.post("/backup/run")
 def disparar_backup_manual(background_tasks: BackgroundTasks):
-    """
-    Ejecuta la rutina de la madrugada de forma inmediata en un hilo de fondo
-    para que la interfaz del usuario no se quede congelada esperando.
-    """
     try:
-        # Usamos background_tasks de FastAPI para que corra asíncrono
+        config = leer_config_json()
+        if not os.path.exists(config["nas_ruta"]):
+            raise Exception("La ruta de destino NAS no existe o el disco está desconectado.")
+            
+        # 🚀 Disparamos la rutina maestra avanzada (.tar.gz) en segundo plano
         background_tasks.add_task(ejecutar_rutina_backup_diario)
+        
         return {
             "status": "success", 
-            "message": "Rutina selectiva de backup iniciada con éxito en segundo plano."
+            "message": "Motor avanzado (Tar.Gz) iniciado en segundo plano. Analizando estados y estructurando en NAS."
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo iniciar el proceso: {str(e)}")
-    
-    from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
-import os
-import shutil
+        raise HTTPException(status_code=400, detail=f"No se pudo iniciar: {str(e)}")
 
-# Asegúrate de importar tus modelos y la dependencia de base de datos
-from app.core.database import get_db
-from app.models.estudio import Estudio
-from app.models.estudio_ia_log import EstudioIALog # Si tienes logs asociados
-
-# Asumiendo que tu router ya está definido arriba así:
-# router = APIRouter()
-
+# 4. DELETE /purgar-importados — Limpieza del sistema
 @router.delete("/purgar-importados")
 def purgar_estudios_importados(dias_retencion: int = 30, db: Session = Depends(get_db)):
-    """
-    Elimina físicamente y de la BD los estudios importados de otras clínicas 
-    que superen los días de retención permitidos para referencia.
-    """
     try:
         fecha_limite = datetime.now() - timedelta(days=dias_retencion)
-        
-        # BUSCAR ESTUDIOS IMPORTADOS VIEJOS
-        # Ajusta "origen" al nombre real de la columna que uses para saber si es importado (ej: es_importado == True)
         estudios_a_purgar = db.query(Estudio).filter(
             Estudio.origen == 'IMPORTADO',
             Estudio.fecha_estudio < fecha_limite
         ).all()
 
         if not estudios_a_purgar:
-            return {"mensaje": "No hay estudios importados caducados para purgar.", "cantidad_purgada": 0}
+            return {"mensaje": "No hay estudios caducados.", "cantidad_purgada": 0}
 
         cantidad_borrada = 0
-
         for estudio in estudios_a_purgar:
-            # 1. BORRADO FÍSICO (Archivos DICOM pesados)
             if estudio.ruta_archivos and os.path.exists(estudio.ruta_archivos):
                 try:
-                    shutil.rmtree(estudio.ruta_archivos) # Borra la carpeta completa del estudio
+                    shutil.rmtree(estudio.ruta_archivos)
                 except Exception as e:
-                    print(f"Error borrando carpeta física {estudio.ruta_archivos}: {e}")
+                    print(f"Error borrando: {e}")
             
-            # 2. BORRADO EN BASE DE DATOS
             db.delete(estudio)
             cantidad_borrada += 1
 
         db.commit()
-
-        # Opcional: Escribir en la tabla de Auditoría aquí
-        
         return {
-            "mensaje": f"Se han purgado {cantidad_borrada} estudios importados exitosamente.",
+            "mensaje": f"Se han purgado {cantidad_borrada} estudios importados.",
             "cantidad_purgada": cantidad_borrada
         }
-
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error ejecutando la purga: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error purga: {str(e)}")
+
+# 5. POST /importar-efilm — INGESTA MASIVA DESDE EFILM / SQL SERVER
+@router.post("/importar-efilm")
+def iniciar_migracion_efilm(config: EfilmConfigRequest, background_tasks: BackgroundTasks):
+    """
+    Botón maestro para iniciar la importación desde un sistema Efilm heredado.
+    Se ejecuta en segundo plano porque puede tardar horas.
+    """
+    db = SessionLocal()
+    try:
+        # Convertimos el modelo a diccionario
+        config_dict = config.dict()
+        
+        # Lo enviamos a procesar en segundo plano para no bloquear el frontend
+        background_tasks.add_task(ejecutar_migracion_efilm, db, config_dict)
+        
+        return {
+            "status": "success",
+            "message": "Migración masiva desde Efilm iniciada. Las imágenes se registrarán como 'Importado' y serán respaldadas automáticamente."
+        }
+    except Exception as e:
+        db.close()
+        raise HTTPException(status_code=500, detail=f"Error al iniciar migración: {str(e)}")
