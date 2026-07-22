@@ -11,7 +11,7 @@ import shutil
 from app.core.database import SessionLocal, get_db
 from app.models.estudio import Estudio
 
-# Motores de servicios (Importados limpiamente en la cabecera)
+# Motores de servicios oficiales
 from app.services.scheduler_service import ejecutar_rutina_backup_diario
 from app.services.efilm_migration_service import ejecutar_migracion_efilm
 
@@ -44,16 +44,24 @@ def guardar_config_json(config: BackupConfigSchema):
         json.dump(config.dict(), f)
 
 def leer_config_json():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    # Valores por defecto si nunca se ha guardado
-    return {
+    # Valores por defecto seguros orientados a la unidad H:
+    config = {
         "dias_maduracion": 30,
         "modalidades": ["CT", "MR", "CR", "US", "DX"],
-        "nas_ruta": "D:\\MI_PACS_NAS_EXTERNAL",
+        "nas_ruta": "H:\\MI_PACS_NAS_EXTERNAL",
         "copia_internacional": False
     }
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                data = json.load(f)
+                config.update(data)
+        except Exception:
+            pass
+            
+    # 🛡️ Blindaje crítico: Forzamos la ruta fija al disco H externo independientemente del JSON viejo
+    config["nas_ruta"] = "H:\\MI_PACS_NAS_EXTERNAL"
+    return config
 
 # ==========================================
 # ENDPOINTS
@@ -84,20 +92,20 @@ def guardar_configuracion_backup(config: BackupConfigSchema, db: Session = Depen
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar regla: {str(e)}")
 
-# 3. POST /backup/run — ¡EL BOTÓN MANUAL QUE LLAMA AL MOTOR MAESTRO!
+# 3. POST /backup/run — ¡BOTÓN OFICIAL CONECTADO AL MOTOR DE MADURACIÓN!
 @router.post("/backup/run")
 def disparar_backup_manual(background_tasks: BackgroundTasks):
     try:
         config = leer_config_json()
         if not os.path.exists(config["nas_ruta"]):
-            raise Exception("La ruta de destino NAS no existe o el disco está desconectado.")
+            raise Exception(f"La ruta de destino NAS ({config['nas_ruta']}) no existe o el disco está desconectado.")
             
-        # 🚀 Disparamos la rutina maestra avanzada (.tar.gz) en segundo plano
+        # Llamada asíncrona al motor maestro oficial con reglas de días y .tar.gz
         background_tasks.add_task(ejecutar_rutina_backup_diario)
         
         return {
             "status": "success", 
-            "message": "Motor avanzado (Tar.Gz) iniciado en segundo plano. Analizando estados y estructurando en NAS."
+            "message": "Rutina automática iniciada en segundo plano aplicando reglas de maduración."
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"No se pudo iniciar: {str(e)}")
@@ -138,21 +146,13 @@ def purgar_estudios_importados(dias_retencion: int = 30, db: Session = Depends(g
 # 5. POST /importar-efilm — INGESTA MASIVA DESDE EFILM / SQL SERVER
 @router.post("/importar-efilm")
 def iniciar_migracion_efilm(config: EfilmConfigRequest, background_tasks: BackgroundTasks):
-    """
-    Botón maestro para iniciar la importación desde un sistema Efilm heredado.
-    Se ejecuta en segundo plano porque puede tardar horas.
-    """
     db = SessionLocal()
     try:
-        # Convertimos el modelo a diccionario
         config_dict = config.dict()
-        
-        # Lo enviamos a procesar en segundo plano para no bloquear el frontend
         background_tasks.add_task(ejecutar_migracion_efilm, db, config_dict)
-        
         return {
             "status": "success",
-            "message": "Migración masiva desde Efilm iniciada. Las imágenes se registrarán como 'Importado' y serán respaldadas automáticamente."
+            "message": "Migración masiva desde Efilm iniciada."
         }
     except Exception as e:
         db.close()
