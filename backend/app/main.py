@@ -283,13 +283,20 @@ async def obtener_audio_paciente(paciente_id: int):
 @app.post("/api/pacientes/{paciente_id}/guardar-audio")
 async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)):
     pid = paciente_id 
-    db = SessionLocal() # 🚀 Abrimos la BD primero para saber la fecha real
+    db = SessionLocal() # 🚀 Abrimos la BD primero para saber la fecha real y los datos del paciente
     
     try:
-        # 1. Buscar el estudio para obtener su fecha original
+        # 1. Buscar el paciente y su estudio
+        registro = db.query(Paciente).filter(Paciente.id == pid).first()
+        if not registro:
+            raise HTTPException(status_code=404, detail="Paciente no localizado")
+            
         estudio = db.query(Estudio).filter(Estudio.paciente_id == pid).first()
         
-        # 🔥 EL FIX: Usar la fecha del estudio original, si no existe, usar la de hoy
+        # 🔥 EL FIX DE LA CÉDULA: Sacamos la identificación real para nombrar el archivo
+        cedula_real = registro.identificacion if registro.identificacion else str(registro.id)
+        
+        # Usar la fecha del estudio original, si no existe, usar la de hoy
         fecha_referencia = estudio.fecha_estudio if (estudio and estudio.fecha_estudio) else datetime.now()
         
         año = str(fecha_referencia.year)
@@ -300,21 +307,18 @@ async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)
         directorio_audios = AUDIOS_DIR / año / mes / dia
         directorio_audios.mkdir(parents=True, exist_ok=True)
         
-        # 3. Guardar archivo con un único proceso limpio y seguro
-        timestamp = datetime.now().strftime("%H%M%S")
-        nombre_archivo = f"dictado_{pid}_{timestamp}.wav"
-        ruta_archivo = directorio_audios / nombre_archivo
+        # 3. Guardar archivo: Respetamos el nombre que viene del frontend o lo forzamos a la cédula
+        nombre_final = audio.filename if (audio.filename and str(cedula_real) in audio.filename) else f"dictado_{cedula_real}.wav"
+        ruta_archivo = directorio_audios / nombre_final
         
         with open(ruta_archivo, "wb") as f:
             f.write(await audio.read())
             
         # 4. Construir la ruta relativa
-        ruta_relativa = f"/static/audios_dictado/{año}/{mes}/{dia}/{nombre_archivo}"
+        ruta_relativa = f"/static/audios_dictado/{año}/{mes}/{dia}/{nombre_final}"
             
         # 5. Persistencia en BD
-        registro = db.query(Paciente).filter(Paciente.id == pid).first()
-        if registro:
-            registro.estado_pacs = "Dictado"
+        registro.estado_pacs = "Dictado"
         
         if estudio:
             estudio.estado_pacs = "Dictado"
@@ -326,7 +330,7 @@ async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)
             setattr(estudio, "tiene_dictado", True)
         
         db.commit()
-        print(f"✅ ÉXITO: Audio guardado con ILM Histórico (Fecha Estudio: {año}/{mes}/{dia}).")
+        print(f"✅ ÉXITO: Audio guardado con cédula {cedula_real} (Fecha Estudio: {año}/{mes}/{dia}).")
 
         await manager.notify_update()
         return {"status": "success"}

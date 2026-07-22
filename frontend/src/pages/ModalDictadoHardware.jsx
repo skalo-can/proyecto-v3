@@ -95,7 +95,10 @@ export default function ModalDictadoHardware({ isWindow }) {
     
     if (audioBlobReal) {
       const formData = new FormData();
-      formData.append("audio", audioBlobReal, `dictado_${paciente.id}.wav`);
+      
+      // 🚀 CORRECCIÓN: Armamos el nombre con la cédula, si no la encuentra usa el ID para no fallar
+      const cedula_real = paciente.identificacion || paciente.id; 
+      formData.append("audio", audioBlobReal, `dictado_${cedula_real}.wav`);
       
       try {
         await fetch(`http://localhost:8000/api/pacientes/${paciente.id}/guardar-audio`, {
@@ -262,7 +265,8 @@ export default function ModalDictadoHardware({ isWindow }) {
         ) : estaGrabando ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '80px', marginBottom: '20px' }}>
-              {volumenVoz.map((h, i) => <div key={i} style={{ width: '12px', backgroundColor: '#ef4444', borderRadius: '4px', height: `${(h * 1.5) + 15}px`, transition: 'height 0.1s' }} />)}
+              {/* 🚀 CORRECCIÓN: Evita el colapso de React si volumenVoz está vacío unos milisegundos */}
+              {(volumenVoz || []).map((h, i) => <div key={i} style={{ width: '12px', backgroundColor: '#ef4444', borderRadius: '4px', height: `${(h * 1.5) + 15}px`, transition: 'height 0.1s' }} />)}
             </div>
             <p style={{ color: '#94a3b8', fontFamily: 'monospace', margin: 0 }}>Usa la <kbd style={kbdStyle}>Barra Espaciadora</kbd> para Pausar</p>
           </>

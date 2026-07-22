@@ -1,5 +1,5 @@
 """
-audio_dictado_api.py — MI_PACS
+dicom_audio_api.py — MI_PACS
 ---------------------------------------------------------
 Gestión clínica de audio dictado asociado a un estudio.
 (Optimizado con ILM y partición temporal YYYY/MM/DD para backups)
@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
 from app.models.estudio import Estudio
+from app.models.paciente import Paciente  # 🔥 IMPORTAMOS EL MODELO (Igual que en firma)
 
 # 🔥 IMPORTAMOS EL ANCLA
 from app.core.config import AUDIOS_DIR
@@ -63,6 +64,10 @@ async def upload_audio_endpoint(
             detail="Formato no permitido. Use .wav o .mp3."
         )
 
+    # 🔥 COPIAMOS LA LÓGICA DE FIRMA: Consulta directa a la tabla Pacientes
+    paciente = db.query(Paciente).filter(Paciente.id == estudio.paciente_id).first()
+    identificacion_paciente = paciente.identificacion if paciente else "SIN_ID"
+
     # -----------------------------------------------------
     # 🔥 LA MAGIA DEL ILM: Partición por Año / Mes / Día
     # -----------------------------------------------------
@@ -75,10 +80,11 @@ async def upload_audio_endpoint(
     ruta_jerarquica = AUDIO_BASE_PATH / año / mes / dia
     ruta_jerarquica.mkdir(parents=True, exist_ok=True)
 
-    # Generar nombre limpio con timestamp
+    # Generar nombre limpio con timestamp y la identificación real
     timestamp = ahora.strftime("%H%M%S")
     extension = archivo.filename.split(".")[-1].lower()
-    nombre_limpio = f"dictado_estudio_{estudio_id}_{timestamp}.{extension}"
+    
+    nombre_limpio = f"dictado_{identificacion_paciente}_{timestamp}.{extension}"
     
     file_path = ruta_jerarquica / nombre_limpio
 
@@ -103,4 +109,4 @@ async def upload_audio_endpoint(
         "path": ruta_relativa,
         "estudio_id": estudio_id,
         "estado_reporte": estudio.reporte_estado
-    }) 
+    })
