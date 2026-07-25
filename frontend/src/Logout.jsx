@@ -1,8 +1,8 @@
 /**
- * Logout.jsx — MI_PACS (Versión corregida con React explícito)
+ * Logout.jsx — MI_PACS (Versión corregida sin bucles infinitos)
  */
 
-import React, { useEffect } from "react"; // 👈 ¡Inyectamos React formalmente aquí!
+import React, { useEffect } from "react";
 import { useAuth } from "./AuthContext";
 
 export default function Logout() {
@@ -15,7 +15,9 @@ export default function Logout() {
     // 2. Forzamos redirección total al login. 
     // Esto hace el "refresh" automático que necesitas.
     window.location.href = "/login";
-  }, [logout]);
+    
+    // 👇 AL DEJAR ESTE ARREGLO VACÍO, GARANTIZAMOS QUE SOLO SE EJECUTE UNA VEZ
+  }, []); 
 
   return (
     <div style={{ textAlign: 'center', marginTop: '50px' }}>

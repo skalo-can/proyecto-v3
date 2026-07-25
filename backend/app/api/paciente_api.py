@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import date, datetime
 from typing import List, Union, Optional  
 from pydantic import BaseModel
+import re
 
 import pydicom
 import numpy as np
@@ -24,12 +25,12 @@ from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.core.database import get_db
 from app.core.auth import obtener_usuario_actual
 from app.models.paciente import Paciente
 from app.models.estudio import Estudio
-
 from app.models.estudio_imagen import EstudioImagen
 
 from app.schemas.paciente import (
@@ -49,7 +50,7 @@ from app.services.generador_pdf import construir_reporte_pdf
 # 🔥 INYECTAMOS LAS ANCLAS ABSOLUTAS
 from app.core.config import STATIC_DIR, THUMBNAILS_DIR, PDF_REPORTS_DIR, DICOM_ARCHIVADOS_DIR
 
-# 🚀 DEFINICIÓN DEL ROUTER Y DIRECTORIOS (👻 FANTASMA ELIMINADO)
+# 🚀 DEFINICIÓN DEL ROUTER Y DIRECTORIOS
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
 security = HTTPBearer()
 
@@ -62,50 +63,56 @@ STATIC_PDF_PATH = PDF_REPORTS_DIR
 @router.get("")
 @router.get("/")
 def listar(
-    fechaDesde: str = Query("2010-01-01"),
-    fechaHasta: str = Query("2030-12-31"),
+    fechaDesde: str = Query(None),
+    fechaHasta: str = Query(None),
     modalidad: str = Query(None),
-    estado: str = Query(None),  # 🔥 NUEVO PARÁMETRO DE ESTADO CONTROLADO
+    estado: str = Query(None),  
     busqueda: str = Query(None),
     sort_by: str = Query("fecha"),  
     order: str = Query("desc"),      
     db: Session = Depends(get_db)
 ):
-    query = db.query(Paciente).join(Estudio)
+    # 🟢 1. CONSULTA CENTRADA EN ESTUDIOS (Permite ver múltiples estudios del mismo paciente por día)
+    query = db.query(Estudio).join(Paciente, Estudio.paciente_id == Paciente.id)
     
-    try:
-        f_desde = date.fromisoformat(fechaDesde)
-        f_hasta = date.fromisoformat(fechaHasta)
-        query = query.filter(Estudio.fecha_estudio >= f_desde, Estudio.fecha_estudio <= f_hasta)
-    except Exception as e:
-        print(f"⚠️ Formato de fecha inválido: {e}")
+    # 🟢 2. PURIFICADOR DE FECHAS
+    def limpiar_fecha(f_str):
+        if not f_str or f_str in ["null", "undefined"]: return None
+        f = str(f_str).strip().split("T")[0][:10]
+        match = re.match(r"^(\d{2})[/.-](\d{2})[/.-](\d{4})$", f)
+        if match: return f"{match.group(3)}-{match.group(1)}-{match.group(2)}"
+        return f
 
-    if modalidad and modalidad.strip() != "":
-        query = query.filter(Estudio.tipo_estudio == modalidad.strip())
+    f_desde_limpia = limpiar_fecha(fechaDesde)
+    f_hasta_limpia = limpiar_fecha(fechaHasta)
 
-    # Filtro previo en base de datos si el estado almacenado coincide
-    if estado and estado.strip() != "":
-        query = query.filter(Estudio.estado_pacs == estado.strip())
+    if f_desde_limpia:
+        query = query.filter(func.date(Estudio.fecha_estudio) >= f_desde_limpia)
+    if f_hasta_limpia:
+        query = query.filter(func.date(Estudio.fecha_estudio) <= f_hasta_limpia)
+
+    if modalidad and modalidad not in ["Todas", "- Todas -", "Todos", ""]:
+        mod_limpia = modalidad.split('-')[0].strip()
+        query = query.filter(Estudio.tipo_estudio.ilike(f"%{mod_limpia}%"))
+
+    if estado and estado not in ["- Todos -", "Todos", "Todas", ""]:
+        query = query.filter(Estudio.estado_pacs.ilike(f"%{estado.strip()}%"))
 
     if busqueda and busqueda.strip() != "":
         termino = f"%{busqueda.strip()}%"
         query = query.filter(
             (Paciente.primer_apellido.ilike(termino)) | 
-            (Paciente.identificacion.like(termino))
+            (Paciente.primer_nombre.ilike(termino)) | 
+            (Paciente.identificacion.ilike(termino))
         )
 
-    resultados = query.all()
+    resultados_estudios = query.all()
     lista_mapeada = []
 
-    for p in resultados:
-        estudios_validos = p.estudios
-        if modalidad and modalidad.strip() != "":
-            estudios_validos = [e for e in p.estudios if e.tipo_estudio == modalidad.strip()]
-            
-        if not estudios_validos:
+    for estudio_principal in resultados_estudios:
+        p = estudio_principal.paciente
+        if not p:
             continue
-            
-        estudio_principal = estudios_validos[0]
         
         hora_final = "00:00"
         if hasattr(estudio_principal, "hora_estudio") and estudio_principal.hora_estudio:
@@ -139,20 +146,13 @@ def listar(
         valor_firmado = getattr(estudio_principal, "esta_firmado", False)
         es_estudio_firmado = estado_bd == "Firmado" or valor_firmado is True or valor_firmado == 1 or valor_firmado == "1"
 
-        if es_estudio_firmado:
-            estado_actual = "Firmado"
-        elif fue_entregado:
-            estado_actual = "Entregado"
-        elif estado_bd == "Rechazado":          # 🔥 ¡NUEVA LÍNEA CRÍTICA! Evita que el sistema borre el rechazo
-            estado_actual = "Rechazado"
-        elif estado_bd == "Cancelado":          # 🔥 NUEVO: Protege el estudio abortado
-            estado_actual = "Cancelado"
-        elif estado_bd == "Urgencia":           # 🔥 ¡INTEGRACIÓN DE ESTADO DE URGENCIAS CLÍNICAS!
-            estado_actual = "Urgencia"
-        elif estado_bd == "Transcrito" or tiene_informe:
-            estado_actual = "Transcrito"
-        elif estado_bd == "Dictado" or tiene_audio:
-            estado_actual = "Dictado"
+        if es_estudio_firmado: estado_actual = "Firmado"
+        elif fue_entregado: estado_actual = "Entregado"
+        elif estado_bd == "Rechazado": estado_actual = "Rechazado"
+        elif estado_bd == "Cancelado": estado_actual = "Cancelado"
+        elif estado_bd == "Urgencia": estado_actual = "Urgencia"
+        elif estado_bd == "Transcrito" or tiene_informe: estado_actual = "Transcrito"
+        elif estado_bd == "Dictado" or tiene_audio: estado_actual = "Dictado"
         else:
             es_externo = getattr(estudio_principal, "es_externo", True)
             estado_actual = "Importado" if es_externo else "Tomado"
@@ -161,12 +161,12 @@ def listar(
             estudio_principal.estado_pacs = estado_actual
             db.commit()
 
-        # 🔥 FILTRADO EN CALIENTE: Si el usuario seleccionó un estado específico, validamos la consistencia dinámica
-        if estado and estado.strip() != "" and estado_actual != estado.strip():
+        if estado and estado not in ["- Todos -", "Todos", "Todas", ""] and estado_actual != estado.strip():
             continue
 
         lista_mapeada.append({
-            "id": p.id,
+            "id": p.id,                        # ID del paciente para acciones generales
+            "estudio_interno_id": estudio_principal.id, # 🟢 Clave única por estudio para evitar colisiones en React
             "identificacion": p.identificacion,
             "primer_nombre": p.primer_nombre,
             "segundo_nombre": getattr(p, "segundo_nombre", "") or "-",
@@ -181,8 +181,8 @@ def listar(
             "tipo_estudio": estudio_principal.tipo_estudio if estudio_principal.tipo_estudio else "CR",
             "hora_estudio": hora_final,
             "descripcion": descripcion_final,
-            "estado_pacs": estado_actual,
-            "pdf_path": getattr(estudio_principal, "pdf_path", None), # <--- AGREGAR ESTA LÍNEA AQUÍ
+            "estado_pacs": estado_actual,      # 🟢 Cada estudio muestra su estado real independiente
+            "pdf_path": getattr(estudio_principal, "pdf_path", None), 
             "flujo_clinico": {
                 "tiene_audio": tiene_audio or (estado_actual == "Dictado"),
                 "tiene_informe": tiene_informe,
@@ -192,20 +192,52 @@ def listar(
             }
         })
 
-    def obtener_llave_orden(item):
-        if sort_by == "id":
-            try:
-                return int(str(item["identificacion"]).strip())
-            except ValueError:
-                return str(item["identificacion"]).strip().lower()
-        elif sort_by == "nombre":
-            return str(item["primer_apellido"]).lower()
-        else:
-            return f"{item['fecha_estudio']} {item['hora_estudio']}"
 
-    es_descendente = (order == "desc")
+# 🟢 MOTOR DE ORDENAMIENTO EXACTO Y UNIVERSAL
+    def obtener_llave_orden(item):
+        # Usamos el id del estudio como desempate para evitar inestabilidad en el orden
+        desempate = item.get("estudio_interno_id", 0)
+        
+        # Estandarizamos el parámetro de búsqueda (minúsculas y sin espacios extra)
+        c = str(sort_by).lower().strip() if sort_by else "fecha_estudio"
+
+        # 1. Ordenamiento de IDs (Menor a Mayor / Mayor a Menor)
+        if c in ["identificacion", "id_paciente", "id"]:
+            # Rellenamos con ceros a la izquierda para un orden numérico perfecto en formato texto
+            return (str(item.get("identificacion", "")).zfill(20), desempate)
+        
+        # 2. Ordenamiento por Fecha y Hora cronológica
+        elif c in ["fecha", "fecha_estudio", "hora", "hora_estudio", "fechahora"]:
+            return (f"{item.get('fecha_estudio', '0000-00-00')} {item.get('hora_estudio', '00:00')}", desempate)
+        
+        # 3. Ordenamiento por Modalidad (A-Z / Z-A)
+        elif c in ["mod", "modalidad", "tipo_estudio"]:
+            return (str(item.get("tipo_estudio", "")).lower(), desempate)
+        
+        # 4. Ordenamiento por Estado (A-Z / Z-A)
+        elif c in ["estado", "estado_pacs"]:
+            return (str(item.get("estado_pacs", "")).lower(), desempate)
+            
+        # 5. Ordenamiento por Género / Sexo (A-Z / Z-A)
+        elif c in ["genero", "sexo"]:
+            return (str(item.get("sexo", "")).lower(), desempate)
+
+        # 6. Ordenamiento Universal (A-Z / Z-A) para Nombres, Apellidos, Departamentos, etc.
+        if c in item:
+            val = item[c]
+            # Si el valor resulta ser numérico, lo ordenamos como tal
+            if isinstance(val, (int, float)):
+                return (val, desempate)
+            # De lo contrario, lo tratamos como texto
+            return (str(val).lower() if val is not None else "", desempate)
+            
+        # Fallback (Por defecto si la columna no existe)
+        return (f"{item.get('fecha_estudio', '0000-00-00')} {item.get('hora_estudio', '00:00')}", desempate)
+
+    es_descendente = (str(order).lower().strip() == "desc")
     lista_mapeada.sort(key=obtener_llave_orden, reverse=es_descendente)
         
+    # ESTA LÍNEA ES CRÍTICA PARA QUE LOS DATOS LLEGUEN AL FRONTEND
     return lista_mapeada
 
 
@@ -260,9 +292,59 @@ def reabrir_flujo_estudio(paciente_id: int, control: PacienteFlujoAdminUpdate, d
     db.commit()
     return {"status": "success", "message": "Flujo reabierto con éxito."}
 
-
 class TranscripcionInput(BaseModel):
     informe: str
+
+from fastapi import UploadFile, File
+
+@router.post("/{paciente_id}/guardar-audio")
+def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...), db: Session = Depends(get_db)):
+    paciente_db = db.query(Paciente).filter(Paciente.id == paciente_id).first()
+    if not paciente_db:
+        raise HTTPException(status_code=404, detail="Paciente no localizado")
+    
+    # 1. Traemos todos los estudios del paciente ordenados del más antiguo al más reciente
+    estudios = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).order_by(Estudio.id.asc()).all()
+    if not estudios: 
+        raise HTTPException(status_code=404, detail="Estudios no localizados")
+    
+    # 2. INTELIGENCIA DE SELECCIÓN: Buscamos el estudio que esté pendiente de lectura
+    # Ignora los que ya están Firmados o Cancelados, para no sobreescribir su flujo
+    estudio_actual = next((e for e in estudios if e.estado_pacs in ["Importado", "Tomado", "Urgencia", "Rechazado", None]), estudios[-1])
+    
+    try:
+        # 3. Usamos la fecha exacta de ESE estudio para la carpeta
+        fecha_referencia = estudio_actual.fecha_estudio if estudio_actual.fecha_estudio else datetime.now()
+        año = str(fecha_referencia.year)
+        mes = f"{fecha_referencia.month:02d}"
+        dia = f"{fecha_referencia.day:02d}"
+        
+        ruta_jerarquica = Path(STATIC_DIR) / "audios_dictado" / año / mes / dia
+        ruta_jerarquica.mkdir(parents=True, exist_ok=True)
+        
+        # 4. 🔥 EL CONSECUTIVO PERFECTO: Añadimos el ID del estudio al nombre del archivo
+        consecutivo = estudio_actual.id
+        nombre_limpio = f"dictado_{paciente_db.identificacion}_estudio_{consecutivo}.wav"
+        file_path = ruta_jerarquica / nombre_limpio
+        
+        with open(file_path, "wb") as buffer:
+            import shutil
+            shutil.copyfileobj(audio.file, buffer)
+            
+        ruta_relativa = f"/static/audios_dictado/{año}/{mes}/{dia}/{nombre_limpio}"
+        
+        # 5. 🔥 SOLO ACTUALIZAMOS ESTE ESTUDIO ESPECÍFICO
+        estudio_actual.audio_path = ruta_relativa
+        estudio_actual.estado_pacs = "Dictado"
+        if hasattr(estudio_actual, "tiene_dictado"):
+            setattr(estudio_actual, "tiene_dictado", True)
+        
+        db.commit()
+        return {"status": "success", "message": f"Audio acoplado con éxito al estudio {consecutivo}."}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{paciente_id}/guardar-transcripcion")
 def guardar_transcripcion(paciente_id: int, datos: TranscripcionInput, db: Session = Depends(get_db)):
@@ -285,20 +367,12 @@ def obtener_transcripcion(paciente_id: int, db: Session = Depends(get_db)):
     texto_informe = getattr(estudio, "informe_texto", "") if estudio else ""
     return {"informe_texto": texto_informe, "informe_text": texto_informe, "texto": texto_informe}
 
-
-# ---------------------------------------------------------
-# 🚨 ENDPOINT DEL FLUJO DE URGENCIAS (SALA DE EMERGENCIAS)
-# ---------------------------------------------------------
 class NotaUrgenciaInput(BaseModel):
     nota_urgencia: str
     requiere_lectura: bool = True
 
 @router.post("/{paciente_id}/guardar-nota-urgencia")
 def guardar_nota_urgencia(paciente_id: int, datos: NotaUrgenciaInput, db: Session = Depends(get_db)):
-    """
-    Registra los hallazgos críticos del Urgenciólogo y marca el estudio en estado
-    'Urgencia' para alertar al radiólogo de que se requiere lectura oficial.
-    """
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
     if not estudio:
         raise HTTPException(status_code=404, detail="Estudio clínico no localizado")
@@ -307,17 +381,12 @@ def guardar_nota_urgencia(paciente_id: int, datos: NotaUrgenciaInput, db: Sessio
         estudio.nota_urgencia = datos.nota_urgencia
         estudio.estado_pacs = "Urgencia"
         setattr(estudio, "requiere_lectura_radiologo", datos.requiere_lectura)
-        
         db.commit()
         return {"status": "success", "message": "Nota de evidencia clínica registrada en urgencias."}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al guardar la nota clínica: {str(e)}")
 
-
-# =========================================================
-# 🔥 GENERACIÓN DE PDF, FIRMA Y RECHAZO
-# =========================================================
 class FirmaInput(BaseModel):
     informe_final: str
     medico_firma: Optional[str] = ""
@@ -326,33 +395,22 @@ class FirmaInput(BaseModel):
     nota_rechazo: Optional[str] = ""  
 
 @router.post("/{paciente_id}/firmar-informe")
-def firmar_informe(
-    paciente_id: int, 
-    datos: FirmaInput, 
-    db: Session = Depends(get_db)  # 🔥 ELIMINAMOS EL CANDADO DEL TOKEN AQUÍ
-):
+def firmar_informe(paciente_id: int, datos: FirmaInput, db: Session = Depends(get_db)):
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
     if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
     
     paciente_db = estudio.paciente
     
     try:
-        # ❌ FLUJO DE RECHAZO (Devolver al transcriptor)
         if not datos.aprobado:
             estudio.informe_texto = datos.informe_final
             estudio.estado_pacs = "Dictado"
             if hasattr(estudio, "nota_medico"):
                 setattr(estudio, "nota_medico", datos.nota_rechazo) 
-                
             setattr(estudio, "esta_firmado", False)
             db.commit()
-            return {
-                "status": "success", 
-                "message": "Estudio devuelto a transcripción para correcciones.",
-                "pdf_path": None
-            }
+            return {"status": "success", "message": "Estudio devuelto a transcripción para correcciones.", "pdf_path": None}
 
-        # ✅ FLUJO DE APROBACIÓN (Firma normal usando los datos del formulario)
         nombre_medico_final = datos.medico_firma.strip() if datos.medico_firma else "Médico Radiólogo"
         rm_final = datos.registro_medico.strip() if datos.registro_medico else "SIN REGISTRO MÉDICO"
 
@@ -373,7 +431,6 @@ def firmar_informe(
             "nombre_medico": nombre_medico_final,
             "registro_medico": rm_final 
         }
-        # 🔥 LA MAGIA DEL ILM PARA LOS PDFs: Partición por Año / Mes / Día ORIGINAL DEL ESTUDIO
         fecha_referencia = estudio.fecha_estudio if estudio.fecha_estudio else datetime.now()
         
         año = str(fecha_referencia.year)
@@ -386,20 +443,13 @@ def firmar_informe(
         nombre_archivo = f"Reporte_{identificacion}.pdf"
         ruta_fisica_salida = os.path.join(str(ruta_destino_fecha), nombre_archivo)
 
-        # Generar el PDF en su nueva ubicación organizada
         construir_reporte_pdf(datos_para_pdf, ruta_fisica_salida)
         
-        # Guardamos la ruta relativa estructurada en la BD
         ruta_pdf_relativa = f"/static/pdf_reports/{año}/{mes}/{dia}/{nombre_archivo}"
         setattr(estudio, "pdf_path", ruta_pdf_relativa) 
         
         db.commit()
-        
-        return {
-            "status": "success", 
-            "message": "Informe firmado digitalmente y PDF estructurado generado.",
-            "pdf_path": ruta_pdf_relativa
-        }
+        return {"status": "success", "message": "Informe firmado digitalmente y PDF estructurado generado.", "pdf_path": ruta_pdf_relativa}
         
     except Exception as e:
         db.rollback()
@@ -407,34 +457,19 @@ def firmar_informe(
     
 @router.get("/{paciente_id}/descargar-pdf")
 def descargar_pdf_paciente(paciente_id: int, db: Session = Depends(get_db)):
-    """
-    Escáner profundo infalible (Compatible con Windows/Linux): 
-    Busca el PDF en la estructura ILM.
-    """
     paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
-    if not paciente:
-        raise HTTPException(status_code=404, detail="Paciente no localizado")
+    if not paciente: raise HTTPException(status_code=404, detail="Paciente no localizado")
 
     identificacion = paciente.identificacion or paciente.id
     nombre_pdf = f"Reporte_{identificacion}.pdf"
 
-    # 1. Búsqueda profunda usando os.walk (Nunca falla en Windows)
-    import os
     for raiz, directorios, archivos in os.walk(str(STATIC_PDF_PATH)):
         if nombre_pdf in archivos:
             ruta_exacta = os.path.join(raiz, nombre_pdf)
-            # El header 'inline' fuerza al navegador a abrirlo en vez de descargarlo
-            return FileResponse(
-                ruta_exacta, 
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"inline; filename={nombre_pdf}"}
-            )
+            return FileResponse(ruta_exacta, media_type="application/pdf", headers={"Content-Disposition": f"inline; filename={nombre_pdf}"})
 
     raise HTTPException(status_code=404, detail=f"No se encontró el PDF: {nombre_pdf}")
 
-# =========================================================
-# 🔥 MOTOR FÍSICO DE EXPORTACIÓN (CD/DVD vs EXPLORADOR)
-# =========================================================
 class ExportacionInput(BaseModel):
     estudios_ids: List[Union[int, str]]
     incluir_visor: bool = True  
@@ -443,8 +478,7 @@ class ExportacionInput(BaseModel):
 @router.post("/exportar/medios-externos")
 def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_db)):
     try:
-        if not datos.estudios_ids:
-            raise ValueError("No se suministraron estudios al motor físico.")
+        if not datos.estudios_ids: raise ValueError("No se suministraron estudios al motor físico.")
 
         unidad_destino = None
 
@@ -458,29 +492,24 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
                 "carpeta = filedialog.askdirectory(title='MI_PACS: Seleccione destino'); "
                 "print(carpeta)"
             )
-            
             try:
                 resultado = subprocess.check_output(["python", "-c", codigo_tk], text=True, stderr=subprocess.DEVNULL)
                 carpeta_seleccionada = resultado.strip()
             except Exception:
                 carpeta_seleccionada = ""
 
-            if not carpeta_seleccionada:
-                raise ValueError("Operación cancelada. No seleccionaste ninguna carpeta de destino.")
-                
+            if not carpeta_seleccionada: raise ValueError("Operación cancelada. No seleccionaste ninguna carpeta de destino.")
             unidad_destino = os.path.join(carpeta_seleccionada, "MI_PACS_EXPORT")
             os.makedirs(unidad_destino, exist_ok=True)
 
         elif datos.modo_destino == "CD_DVD":
             letras_unidades = [f"{chr(i)}:" for i in range(68, 91)]
-            
             for letra in letras_unidades:
                 ruta_base = f"{letra}\\"
                 try:
                     if os.path.exists(ruta_base):
                         archivo_prueba = os.path.join(ruta_base, ".mipacs_test")
-                        with open(archivo_prueba, 'w') as f:
-                            f.write('1')
+                        with open(archivo_prueba, 'w') as f: f.write('1')
                         os.remove(archivo_prueba)
                         
                         ruta_definitiva = f"{letra}\\MI_PACS_EXPORT"
@@ -490,8 +519,7 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
                 except Exception:
                     continue
 
-            if not unidad_destino:
-                raise ValueError("No se detectó ningún CD o DVD grabable insertado.")
+            if not unidad_destino: raise ValueError("No se detectó ningún CD o DVD grabable insertado.")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         carpeta_lote = os.path.join(unidad_destino, f"Lote_Diagnostico_{timestamp}")
@@ -501,109 +529,75 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
 
         for item_id in datos.estudios_ids:
             paciente_db = db.query(Paciente).filter(Paciente.id == item_id).first()
-
-            if not paciente_db or not paciente_db.estudios:
-                continue
+            if not paciente_db or not paciente_db.estudios: continue
 
             estudio_db = paciente_db.estudios[0]
 
             p_nombre = (paciente_db.primer_nombre or "").strip()
             p_apellido = (paciente_db.primer_apellido or "").strip()
             nombre_paciente = f"{p_nombre}_{p_apellido}".replace(" ", "_")
-            if not nombre_paciente or nombre_paciente == "_":
-                nombre_paciente = "PACIENTE_DESCONOCIDO"
+            if not nombre_paciente or nombre_paciente == "_": nombre_paciente = "PACIENTE_DESCONOCIDO"
             
             identificacion = paciente_db.identificacion or paciente_db.id
-            
             carpeta_paciente = os.path.join(carpeta_lote, f"{nombre_paciente}_ID{identificacion}")
             os.makedirs(carpeta_paciente, exist_ok=True)
 
             ruta_dicom_origen = getattr(estudio_db, "ruta_archivos", getattr(estudio_db, "ruta_dicom", None))
             if not ruta_dicom_origen:
-                # 👻 FANTASMA ELIMINADO: Anclaje absoluto a DICOM_ARCHIVADOS_DIR
                 ruta_dicom_origen = os.path.join(str(DICOM_ARCHIVADOS_DIR), str(paciente_db.id), str(estudio_db.id))
 
             carpeta_dicom_destino = os.path.join(carpeta_paciente, "IMAGENES_DICOM")
             if ruta_dicom_origen and os.path.exists(ruta_dicom_origen):
-                try:
-                    shutil.copytree(ruta_dicom_origen, carpeta_dicom_destino, dirs_exist_ok=True)
+                try: shutil.copytree(ruta_dicom_origen, carpeta_dicom_destino, dirs_exist_ok=True)
                 except Exception: pass
             else:
                 os.makedirs(carpeta_dicom_destino, exist_ok=True) 
 
             pdf_nombre = f"Reporte_{identificacion}.pdf"
-            
-            # 👻 FANTASMA ELIMINADO: Anclaje absoluto a la variable unificada de PDFs
             ruta_pdf_origen = os.path.join(str(STATIC_PDF_PATH), pdf_nombre)
             
             if os.path.exists(ruta_pdf_origen):
-                try:
-                    shutil.copy2(ruta_pdf_origen, carpeta_paciente)
+                try: shutil.copy2(ruta_pdf_origen, carpeta_paciente)
                 except Exception: pass
 
             estudios_procesados += 1
 
         if datos.incluir_visor:
-            # 👻 FANTASMA ELIMINADO: Anclaje absoluto a la carpeta estática para el visor
             ruta_visor_origen = os.path.join(str(STATIC_DIR), "visor_portable")
             carpeta_visor_destino = os.path.join(carpeta_lote, "MI_PACS_Visor_Lite")
             if os.path.exists(ruta_visor_origen):
-                try:
-                    shutil.copytree(ruta_visor_origen, carpeta_visor_destino, dirs_exist_ok=True)
+                try: shutil.copytree(ruta_visor_origen, carpeta_visor_destino, dirs_exist_ok=True)
                 except Exception: pass
 
         estado_visor_msg = " (Con Visor Lite incluido)" if datos.incluir_visor else ""
-
-        return {
-            "status": "success", 
-            "message": f"Se grabaron y empaquetaron {estudios_procesados} estudios{estado_visor_msg} en:\n{unidad_destino}"
-        }
+        return {"status": "success", "message": f"Se grabaron y empaquetaron {estudios_procesados} estudios{estado_visor_msg} en:\n{unidad_destino}"}
 
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fallo del Motor Físico: {str(e)}")
 
-# =========================================================
-# 🤖 ASISTENTE DE DIAGNÓSTICO CON INTELIGENCIA ARTIFICIAL (PRODUCCIÓN BLINDADA)
-# =========================================================
 class IARequest(BaseModel):
     texto_actual: str
 
 @router.post("/{paciente_id}/asistencia-ia")
-def asistencia_ia(
-    paciente_id: int, 
-    datos: IARequest, 
-    db: Session = Depends(get_db)
-):
-    # 1. CAPA DE INTEGRIDAD RELACIONAL (Carga estricta y segura)
+def asistencia_ia(paciente_id: int, datos: IARequest, db: Session = Depends(get_db)):
     try:
-        # Validar existencia del estudio
         estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
-        if not estudio: 
-            raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
+        if not estudio: raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
 
-        # Validar existencia de la ruta en la base de datos
         imagen_db = db.query(EstudioImagen).filter(EstudioImagen.estudio_id == estudio.id).first()
-        if not imagen_db or not imagen_db.thumbnail:
-            raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
+        if not imagen_db or not imagen_db.thumbnail: raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
 
-        # Construir y validar la ruta física absoluta
         ruta_relativa = imagen_db.thumbnail.lstrip("/")
-        imagen_a_usar = BASE_DIR / ruta_relativa
+        imagen_a_usar = Path(STATIC_DIR).parent / ruta_relativa
 
-        if not imagen_a_usar.exists():
-            raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
-
-        # Apertura segura
+        if not imagen_a_usar.exists(): raise HTTPException(status_code=404, detail="Imagen o estudio no encontrado.")
         img = Image.open(imagen_a_usar)
         
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Fallo técnico al cargar la imagen: {str(e)}")
+    except HTTPException as he: raise he
+    except Exception as e: raise HTTPException(status_code=500, detail=f"Fallo técnico al cargar la imagen: {str(e)}")
 
-    # 2. CAPA DE SEGURIDAD CLÍNICA (Filtro Anti-Malapraxis en el Prompt)
     try:
         load_dotenv()
         api_key_gemini = os.getenv("GEMINI_API_KEY")
@@ -627,15 +621,11 @@ def asistencia_ia(
         1. VALIDACIÓN VISUAL OBLIGATORIA: Analiza los píxeles de la imagen proporcionada. Si la estructura anatómica visible NO coincide con la región declarada en el sistema ({descripcion_esperada}), debes asumir inmediatamente que hay un cruce de archivos o un error de indexación en el servidor.
         
         2. ACCIÓN ANTE MISMATCH (ABORTAR): Si la validación anatómica falla (por ejemplo, ves un cráneo/columna pero el estudio dice ser un Tórax), tienes estrictamente prohibido realizar cualquier análisis clínico. Debes responder única y exclusivamente con este mensaje de alerta estructurado:
-           "[💡 SUGERENCIA IA: 🚨 ERROR CRÍTICO DE SEGURIDAD: Se ha detectado una falta de correspondencia anatómica. La imagen visualizada en el servidor no coincide con la descripción de '{descripcion_esperada}' registrada para este estudio. Por favor, suspenda la firma y reporte este caso al administrador del PACS para verificar la integridad del archivo DICOM.]"
+            "[💡 SUGERENCIA IA: 🚨 ERROR CRÍTICO DE SEGURIDAD: Se ha detectado una falta de correspondencia anatómica. La imagen visualizada en el servidor no coincide con la descripción de '{descripcion_esperada}' registrada para este estudio. Por favor, suspenda la firma y reporte este caso al administrador del PACS para verificar la integridad del archivo DICOM.]"
         
         3. ACCIÓN ANTE COINCIDENCIA (PROCESAR): Si la imagen coincide plenamente con la región anatómica declarada, procede a evaluar el informe preliminar del transcriptor de forma normal. Comienza tu respuesta con "[💡 SUGERENCIA IA: " y ciérrala con "]". Sé conciso y directo.
         """
-        
-        response = client.models.generate_content(
-            model='gemini-3.5-flash', 
-            contents=[img, prompt]
-        )
+        response = client.models.generate_content(model='gemini-3.5-flash', contents=[img, prompt])
         return {"sugerencia": response.text}
         
     except Exception as e:
@@ -645,61 +635,36 @@ class RechazoImagenInput(BaseModel):
     nota_rechazo: str
 
 @router.post("/{paciente_id}/rechazar-estudio-imagen")
-def rechazar_estudio_imagen(
-    paciente_id: int, 
-    datos: RechazoImagenInput, 
-    db: Session = Depends(get_db)  # <-- Eliminamos la exigencia estricta del token de usuario aquí
-):
+def rechazar_estudio_imagen(paciente_id: int, datos: RechazoImagenInput, db: Session = Depends(get_db)):
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
-    if not estudio: 
-        raise HTTPException(status_code=404, detail="Estudio no localizado")
-    
-    if not datos.nota_rechazo.strip():
-        raise HTTPException(status_code=400, detail="Debe proporcionar un motivo médico para el rechazo técnico.")
+    if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
+    if not datos.nota_rechazo.strip(): raise HTTPException(status_code=400, detail="Debe proporcionar un motivo médico para el rechazo técnico.")
 
     try:
         estudio.estado_pacs = "Rechazado"
-        
-        # Guardamos la nota sin requerir el nombre del usuario logueado
         if hasattr(estudio, "nota_medico"):
             setattr(estudio, "nota_medico", f"🚨 RECHAZO TÉCNICO ({datetime.now().strftime('%Y-%m-%d')}): {datos.nota_rechazo.strip()}")
-        
         db.commit()
         return {"status": "success", "message": "Estudio marcado como Rechazado por control de calidad técnica."}
-        
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error en el guardado del rechazo: {str(e)}")
-    
-    # =========================================================
-# 🚫 CANCELACIÓN DEFINITIVA DE ESTUDIO (VÁLVULA DE ESCAPE)
-# =========================================================
+
 class CancelacionInput(BaseModel):
     motivo_cancelacion: str
 
 @router.post("/{paciente_id}/cancelar-estudio")
 def cancelar_estudio_definitivo(paciente_id: int, datos: CancelacionInput, db: Session = Depends(get_db)):
-    """
-    Aborta el flujo de un estudio por limitaciones técnicas o traslado del paciente,
-    archivándolo permanentemente para no afectar la productividad.
-    """
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
-    if not estudio: 
-        raise HTTPException(status_code=404, detail="Estudio no localizado")
-    
-    if not datos.motivo_cancelacion.strip():
-        raise HTTPException(status_code=400, detail="Debe proporcionar un motivo para la cancelación.")
+    if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
+    if not datos.motivo_cancelacion.strip(): raise HTTPException(status_code=400, detail="Debe proporcionar un motivo para la cancelación.")
 
     try:
         estudio.estado_pacs = "Cancelado"
-        
-        # Reutilizamos el campo de notas para guardar la evidencia legal de la cancelación
         if hasattr(estudio, "nota_medico"):
             setattr(estudio, "nota_medico", f"🚫 CANCELADO DEFINITIVO ({datetime.now().strftime('%Y-%m-%d')}): {datos.motivo_cancelacion.strip()}")
-        
         db.commit()
         return {"status": "success", "message": "Estudio abortado y archivado correctamente."}
-        
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al cancelar: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error al cancelar: {str(e)}")

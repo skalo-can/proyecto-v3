@@ -92,7 +92,7 @@ async def upload_audio_endpoint(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(archivo.file, buffer)
 
-    # -----------------------------------------------------
+# -----------------------------------------------------
     # 6. Actualizar estudio clínico con la RUTA RELATIVA
     # -----------------------------------------------------
     # Guardamos la ruta que usará el Frontend para el tag <audio src="...">
@@ -100,13 +100,13 @@ async def upload_audio_endpoint(
     
     estudio.reporte_audio_path = ruta_relativa
     estudio.reporte_estado = "borrador"
+
+    # 👇 ESTAS SON LAS 3 LÍNEAS MÁGICAS QUE FALTABAN
+    estudio.estado_pacs = "Dictado"
+    estudio.audio_path = ruta_relativa
+    if hasattr(estudio, "tiene_dictado"):
+        setattr(estudio, "tiene_dictado", True)
+    # 👆 FIN DE LO NUEVO
+
     db.commit()
     db.refresh(estudio)
-
-    # 7. Respuesta clínica
-    return JSONResponse({
-        "message": "Audio estructurado por fecha guardado correctamente.",
-        "path": ruta_relativa,
-        "estudio_id": estudio_id,
-        "estado_reporte": estudio.reporte_estado
-    })

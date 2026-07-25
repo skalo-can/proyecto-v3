@@ -89,23 +89,23 @@ export default function TablaPacientes({
     <table style={styles.tableStyle}>
       <thead style={styles.theadStyle}>
         <tr>
-          <th style={styles.thStyle}><input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} /></th>
-          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("estado_pacs")}>ESTADO {renderIconoOrden("estado_pacs")}</th>
-          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>ID PACIENTE {renderIconoOrden("id")}</th>
-          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("paciente")}>1ER APELLIDO {renderIconoOrden("paciente")}</th>
-          <th style={styles.thStyle}>2DO APELLIDO</th>
-          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("primer_nombre")}>1ER NOMBRE {renderIconoOrden("primer_nombre")}</th>
-          <th style={styles.thStyle}>2DO NOMBRE</th>
-          <th style={styles.thStyle}>EMAIL CORREO</th>
-          <th style={styles.thStyle}>TELÉFONO / WHATSAPP</th>
-          <th style={styles.thStyle}>FLUJO / ADJUNTOS</th>
-          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("fecha")}>FECHA {renderIconoOrden("fecha")}</th> 
-          <th style={styles.thStyle}>SEXO</th>
-          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("modalidad")}>MOD {renderIconoOrden("modalidad")}</th>
-          <th style={{ ...styles.thStyle, cursor: 'pointer', color: '#fbbf24' }} onClick={() => solicitarOrdenamiento("descripcion")}>ESTUDIO {renderIconoOrden("descripcion")}</th>
-          <th style={{ ...styles.thStyle, cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("departamento")}>DEPTO {renderIconoOrden("departamento")}</th>
-          <th style={styles.thStyle}>ADMIN / EDITAR</th>
-          <th style={styles.thStyle}>VISOR</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}><input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} /></th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("estado_pacs")}>ESTADO {renderIconoOrden("estado_pacs")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>ID PACIENTE {renderIconoOrden("id")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("paciente")}>1ER APELLIDO {renderIconoOrden("paciente")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>2DO APELLIDO</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("primer_nombre")}>1ER NOMBRE {renderIconoOrden("primer_nombre")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>2DO NOMBRE</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>EMAIL CORREO</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>TELÉFONO / WHATSAPP</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>FLUJO / ADJUNTOS</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("fecha")}>FECHA {renderIconoOrden("fecha")}</th> 
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>SEXO</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("modalidad")}>MOD {renderIconoOrden("modalidad")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer', color: '#fbbf24' }} onClick={() => solicitarOrdenamiento("descripcion")}>ESTUDIO {renderIconoOrden("descripcion")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("departamento")}>DEPTO {renderIconoOrden("departamento")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>ADMIN / EDITAR</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>VISOR</th>
         </tr>
       </thead>
       <tbody>
@@ -135,7 +135,7 @@ export default function TablaPacientes({
             const canEditPaciente = canUseHerramientasMedicas || ((userRol === "recepcion" || userRol === "tecnologo") && esEstadoInicial) || (tienePermisoDinamicoEditar && estudioAbierto);
 
             return (
-              <tr key={p.id} onMouseDown={(e) => handleRowMouseDown(e, index, p.id)} onMouseEnter={() => handleRowMouseEnter(index, p.id)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
+              <tr key={p.estudio_interno_id} onMouseDown={(e) => handleRowMouseDown(e, index, p.id)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}><input type="checkbox" checked={estaSeleccionado} onChange={() => toggleSeleccionarPaciente(p.id)} /></td>
                 <td style={styles.tdStyle}><span style={{ ...styles.badge, backgroundColor: p.estado_pacs === "Cancelado" ? "#171717" : p.estado_pacs === "Urgencia" ? "#f97316" : p.estado_pacs === "Rechazado" ? "#ef4444" : p.estado_pacs === "Entregado" ? "#a855f7" : p.estado_pacs === "Firmado" ? "#10b981" : p.estado_pacs === "Transcrito" ? "#2563eb" : p.estado_pacs === "Dictado" ? "#d97706" : p.estado_pacs === "Tomado" ? "#3b82f6" : "#475569", border: p.estado_pacs === "Cancelado" ? "1px solid #475569" : "none" }}>{p.estado_pacs || "Importado"}</span></td>
                 <td style={styles.tdStyle}>{idReal}</td>

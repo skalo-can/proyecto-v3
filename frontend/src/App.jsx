@@ -18,7 +18,7 @@ import EmailLogsPage from "./pages/EmailLogsPage";
 import SecureLinksPage from "./pages/SecureLinksPage";
 import WhatsAppLogsPage from "./pages/WhatsAppLogsPage";
 import DashboardStats from "./pages/DashboardStats";
-import ReporteCobrosPage from "./pages/ReporteCobrosPage";
+import FacturacionServicio from "./pages/FacturacionServicio";
 import RecepcionPage from "./pages/RecepcionPage";
 import ConfigMapeoPage from './pages/ConfigMapeoPage';
 import Productividad from "./pages/Productividad";
@@ -174,7 +174,10 @@ export default function App() {
         <Route path="/portal-paciente" element={<Layout><ProtectedRoute allowedRoles={['paciente']}><PortalPaciente /></ProtectedRoute></Layout>} />
         <Route path="/email-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><EmailLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/whatsapp-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
-        <Route path="/reporte-cobros" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'auxiliar']}><ReporteCobrosPage /></ProtectedRoute></Layout>} />
+        
+        {/* 🔥 RUTA CORREGIDA: Facturación Servicio */}
+        <Route path="/facturacion-servicio" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'auxiliar']}><FacturacionServicio /></ProtectedRoute></Layout>} />
+        
         <Route path="/perfil-institucion" element={
           <Layout onOpenDicom={openDicom}>
             <ProtectedRoute allowedRoles={['superadmin']}>

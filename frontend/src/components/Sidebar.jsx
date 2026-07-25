@@ -10,11 +10,12 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const isActive = (path) => location.pathname === path;
 
+  // 🔥 RUTA ACTUALIZADA AQUÍ
   const rutasAdmin = [
     "/gestion-usuarios", 
     "/gestion-backups", 
     "/config-mapeo", 
-    "/reporte-cobros", 
+    "/facturacion-servicio", 
     "/auditoria", 
     "/email-logs", 
     "/whatsapp-logs",
@@ -152,7 +153,9 @@ return (
             {isSkalo && (<Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>⚙️ Configuración MI_PACS</Link>)}
             {isSkalo && (<Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#34d399', fontWeight: 'bold' }}>📦 Ciclo de Vida / Backups</Link>)}
             {isSkalo && (<Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#60a5fa', fontWeight: '500' }}>🏷️ Configurar Tags DICOM</Link>)}
-            <Link to="/reporte-cobros" className={`submenu-link ${isActive("/reporte-cobros") ? "active" : ""}`}>📈 Reporte Cobros / Glosas</Link>
+            
+            {/* 🔥 ENLACE ACTUALIZADO AQUÍ */}
+            <Link to="/facturacion-servicio" className={`submenu-link ${isActive("/facturacion-servicio") ? "active" : ""}`}>📈 Facturación de Servicios</Link>
             
             {isAdmin && (
               <>

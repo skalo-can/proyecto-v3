@@ -1,0 +1,172 @@
+/* ==========================================================================
+   Módulo: Facturación de Servicios (SaaS)
+   Tema: MI_PACS Dark Theme & Gold
+   ========================================================================== */
+
+/* 1. CONTENEDOR PRINCIPAL */
+.cobros-container {
+  padding: 20px 30px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  width: 100%;
+  height: 100vh;
+}
+
+/* 2. TÍTULO DE LA PÁGINA */
+.cobros-title {
+  font-size: 26px;
+  color: #FFD700 !important;
+  margin-bottom: 25px;
+  font-weight: 700;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* 3. TARJETA PRINCIPAL (Fondo de los formularios) */
+.cobros-card {
+  background-color: #1e222d !important;
+  padding: 30px;
+  border-radius: 12px;
+  border: 1px solid #333;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  
+  /* Altura dinámica para scroll interno sin afectar el menú global */
+  max-height: calc(100vh - 140px); 
+  overflow-y: auto; 
+  display: flex;
+  flex-direction: column;
+  gap: 35px; /* Separación amplia entre secciones */
+}
+
+/* Custom Scrollbar para la tarjeta */
+.cobros-card::-webkit-scrollbar { 
+  width: 8px; 
+}
+.cobros-card::-webkit-scrollbar-thumb { 
+  background: #3d4253; 
+  border-radius: 10px; 
+}
+.cobros-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 4. SECCIONES INTERNAS (Títulos secundarios) */
+.section-wrapper {
+  background: rgba(42, 46, 61, 0.3);
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #FFD700;
+}
+
+.section-label { 
+  color: #FFD700 !important; 
+  margin-top: 0;
+  margin-bottom: 20px; 
+  font-size: 1.2rem; 
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 5. FORMULARIOS Y CONTROLES (Inputs, Selects) */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  align-items: end;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  color: #a0aabf;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.pacs-input, .pacs-select { 
+  background-color: #2a2e3d !important; 
+  border: 1px solid #4a5066; 
+  color: #ffffff !important; 
+  padding: 10px 14px; 
+  border-radius: 6px; 
+  font-size: 0.95rem;
+  width: 100%;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+.pacs-input:focus, .pacs-select:focus {
+  outline: none;
+  border-color: #FFD700;
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.2);
+}
+
+/* 6. BOTONES */
+.button-row {
+  display: flex;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.pacs-btn-gold { 
+  background: linear-gradient(135deg, #FFD700 0%, #F5B041 100%);
+  color: #000 !important; 
+  border: none; 
+  padding: 10px 24px; 
+  border-radius: 6px; 
+  font-weight: 700; 
+  font-size: 0.95rem;
+  cursor: pointer; 
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pacs-btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.pacs-btn-gold:active {
+  transform: translateY(0);
+}
+
+.pacs-btn-outline {
+  background: transparent;
+  color: #FFD700 !important;
+  border: 1px solid #FFD700;
+  padding: 10px 24px; 
+  border-radius: 6px; 
+  font-weight: 600; 
+  cursor: pointer; 
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pacs-btn-outline:hover {
+  background: rgba(255, 215, 0, 0.1);
+}
+
+/* 7. TEXTOS DE AYUDA */
+.help-text {
+  color: #7b849c;
+  font-size: 0.85rem;
+  margin-top: 5px;
+  font-style: italic;
+}
