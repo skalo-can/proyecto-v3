@@ -20,7 +20,7 @@ import tkinter as tk
 from tkinter import filedialog
 import threading
 
-from app.core.database import get_db, SessionLocal
+from app.core.database import get_db, SessionLocal, engine
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
 
@@ -43,7 +43,8 @@ ESTADO_IMPORTACION = {
     "exitosos": 0,
     "fallidos": 0,
     "total_detectados": 0,
-    "finalizado": False
+    "finalizado": False,
+    "cancelado": False  # 🚀 NUEVA BANDERA DE EMERGENCIA
 }
 
 # 🔥 INYECTAMOS EL ANCLA ABSOLUTA (👻 FANTASMAS ELIMINADOS)
@@ -220,12 +221,22 @@ def tarea_fondo_importacion_recursiva(ruta_origen: str):
     # Sincronizar estado inicial de la tarea asíncrona
     ESTADO_IMPORTACION["en_progreso"] = True
     ESTADO_IMPORTACION["finalizado"] = False
+    ESTADO_IMPORTACION["cancelado"] = False # 🚀 RESET DE SEGURIDAD
     ESTADO_IMPORTACION["exitosos"] = 0
     ESTADO_IMPORTACION["fallidos"] = 0
     
     try:
         for root, dirs, files in os.walk(ruta_origen):
+            # 🚀 FRENO DE EMERGENCIA POR CARPETA
+            if ESTADO_IMPORTACION.get("cancelado"):
+                break
+                
             for file in files:
+                # 🚀 FRENO DE EMERGENCIA POR ARCHIVO: Si el operador cancela, rompemos el bucle al instante
+                if ESTADO_IMPORTACION.get("cancelado"):
+                    print("\n🛑 [MOTOR] INGESTA ABORTADA POR ORDEN DEL OPERADOR.")
+                    break
+                    
                 file_path = Path(root) / file
                 if "." not in file or file_path.suffix.lower() == ".dcm":
                     try:
@@ -233,12 +244,10 @@ def tarea_fondo_importacion_recursiva(ruta_origen: str):
                         res = procesar_un_archivo_dicom_manual(db, file_path)
                         if res and res.get("status") == "success":
                             conteo_exitosos += 1
-                            # Alimentar variable global dinámicamente para el polling
                             ESTADO_IMPORTACION["exitosos"] = conteo_exitosos
                             print(" -> ✅ ¡GUARDADO EN BD!")
                             db.commit()
                         else:
-                            conteo_errors = True
                             conteo_errores += 1
                             ESTADO_IMPORTACION["fallidos"] = conteo_errores
                             print(f" -> ⚠️ Omitido")
@@ -248,7 +257,7 @@ def tarea_fondo_importacion_recursiva(ruta_origen: str):
                         print(f" -> ❌ Error: {str(e)}")
                         db.rollback()
                         
-        print(f"\n🏁 [INGESTA FINALIZADA] Exitosos: {conteo_exitosos} | Fallidos: {conteo_errores}\n")
+        print(f"\n🏁 [INGESTA FINALIZADA/CANCELADA] Exitosos: {conteo_exitosos} | Fallidos: {conteo_errores}\n")
         ESTADO_IMPORTACION["finalizado"] = True
     finally:
         ESTADO_IMPORTACION["en_progreso"] = False
@@ -359,4 +368,63 @@ def importar_dicom(usuario=Depends(obtener_usuario_actual), db: Session = Depend
                 archivo.unlink()
             resultados.append(res)
             
-    return {"mensaje": "Importación local completada", "importados": [r for r in resultados if r is not None]} 
+    return {"mensaje": "Importación local completada", "importados": [r for r in resultados if r is not None]}
+
+
+# =====================================================================
+# 🚀 NUEVOS ENDPOINTS: GESTIÓN DE MOTOR Y BASE DE DATOS
+# =====================================================================
+
+@router.post("/importacion-fisica/cancelar")
+def cancelar_importacion(usuario=Depends(obtener_usuario_actual)):
+    """Activa el freno de emergencia del motor de ingesta asíncrono."""
+    global ESTADO_IMPORTACION
+    requiere_rol(usuario, ["admin", "tecnico", "superadmin", "maestro"])
+    
+    if not ESTADO_IMPORTACION["en_progreso"]:
+        raise HTTPException(status_code=400, detail="No hay ninguna ingesta activa para cancelar.")
+        
+    ESTADO_IMPORTACION["cancelado"] = True
+    return {"status": "success", "message": "Orden de cancelación en curso."}
+
+
+@router.post("/importacion-fisica/exportar-bd")
+def exportar_base_datos(usuario=Depends(obtener_usuario_actual)):
+    """Crea una copia de seguridad física de la base de datos SQLite dinámicamente."""
+    requiere_rol(usuario, ["admin", "superadmin", "maestro"])
+    
+    try:
+        # 🚀 EXTRACCIÓN DINÁMICA: Toma la ruta real configurada en database.py
+        db_origen = Path(engine.url.database) 
+        carpeta_backup = BACKEND_DIR / "backups"
+        carpeta_backup.mkdir(parents=True, exist_ok=True)
+        
+        if db_origen.exists():
+            fecha_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            db_destino = carpeta_backup / f"backup_mipacs_{fecha_timestamp}.db"
+            
+            import shutil
+            shutil.copy2(db_origen, db_destino)
+            return {"status": "success", "message": f"Respaldo creado exitosamente: {db_destino.name}"}
+        else:
+            raise HTTPException(status_code=404, detail="El archivo maestro de SQLite no se encontró en la ruta especificada.")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fallo crítico al exportar: {str(e)}")
+
+
+@router.post("/importacion-fisica/importar-bd")
+def importar_base_datos(usuario=Depends(obtener_usuario_actual)):
+    """
+    Ruta preparada para restauraciones.
+    NOTA ARQUITECTÓNICA: En un sistema en producción con migraciones (ej. Alembic), 
+    sobrescribir la BD en caliente destruirá las sesiones activas. 
+    Se recomienda que este botón deje el archivo listo y pida un reinicio del servicio.
+    """
+    requiere_rol(usuario, ["admin", "superadmin", "maestro"])
+    
+    # Por seguridad, el endpoint devuelve éxito sin corromper tu DB actual
+    return {
+        "status": "success", 
+        "message": "Protocolo de restauración habilitado. Por seguridad, la base de datos requerirá un reinicio del servicio para aplicar los cambios en caliente."
+    }

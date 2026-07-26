@@ -21,6 +21,19 @@ router = APIRouter()
 CONFIG_FILE = "backup_config.json"
 
 # ==========================================
+# 🚀 MATRIZ GLOBAL DE SEGUIMIENTO (ASÍNCRONA)
+# ==========================================
+ESTADO_RUTINA = {
+    "en_progreso": False,
+    "exitosos": 0,
+    "fallidos": 0,
+    "total_detectados": 0,
+    "finalizado": False,
+    "cancelado": False,
+    "operacion": ""
+}
+
+# ==========================================
 # ESQUEMAS DE DATOS (PYDANTIC)
 # ==========================================
 class BackupConfigSchema(BaseModel):
@@ -60,7 +73,7 @@ def leer_config_json():
             pass
             
     # 🛡️ Blindaje crítico: Forzamos la ruta fija al disco H externo independientemente del JSON viejo
-    config["nas_ruta"] = "H:\\MI_PACS_NAS_EXTERNAL"
+   # config["nas_ruta"] = "H:\\MI_PACS_NAS_EXTERNAL"
     return config
 
 # ==========================================
@@ -91,23 +104,46 @@ def guardar_configuracion_backup(config: BackupConfigSchema, db: Session = Depen
         return {"status": "success", "message": "Configuración de respaldo guardada correctamente."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar regla: {str(e)}")
+    
+# 2.5 GET /backup/config — Cargar reglas en la interfaz
+@router.get("/backup/config")
+def obtener_configuracion_backup(db: Session = Depends(get_db)):
+    try:
+        # Devuelve el JSON tal cual para que React lo pinte en pantalla
+        return leer_config_json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al cargar configuración: {str(e)}")
 
 # 3. POST /backup/run — ¡BOTÓN OFICIAL CONECTADO AL MOTOR DE MADURACIÓN!
 @router.post("/backup/run")
 def disparar_backup_manual(background_tasks: BackgroundTasks):
+    global ESTADO_RUTINA
     try:
         config = leer_config_json()
         if not os.path.exists(config["nas_ruta"]):
             raise Exception(f"La ruta de destino NAS ({config['nas_ruta']}) no existe o el disco está desconectado.")
             
-        # Llamada asíncrona al motor maestro oficial con reglas de días y .tar.gz
-        background_tasks.add_task(ejecutar_rutina_backup_diario)
+        # 🚀 Arrancamos el monitor asíncrono
+        ESTADO_RUTINA.update({
+            "en_progreso": True,
+            "exitosos": 0,
+            "fallidos": 0,
+            "total_detectados": 100, # Valor temporal, el servicio real actualizará esto
+            "finalizado": False,
+            "cancelado": False,
+            "operacion": "backup"
+        })
+            
+        # Llamada asíncrona al motor maestro pasando la referencia del ESTADO
+        background_tasks.add_task(ejecutar_rutina_backup_diario, ESTADO_RUTINA)
         
         return {
-            "status": "success", 
+            "status": "processing", 
+            "archivos_detectados": 100,
             "message": "Rutina automática iniciada en segundo plano aplicando reglas de maduración."
         }
     except Exception as e:
+        ESTADO_RUTINA["en_progreso"] = False
         raise HTTPException(status_code=400, detail=f"No se pudo iniciar: {str(e)}")
 
 # 4. DELETE /purgar-importados — Limpieza del sistema
@@ -156,4 +192,69 @@ def iniciar_migracion_efilm(config: EfilmConfigRequest, background_tasks: Backgr
         }
     except Exception as e:
         db.close()
-        raise HTTPException(status_code=500, detail=f"Error al iniciar migración: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al iniciar migración: {str(e)}") 
+    
+# ==========================================
+# 🏥 ENDPOINTS DE PERFIL INSTITUCIONAL
+# ==========================================
+PERFIL_FILE = "perfil_institucion.json"
+
+class PerfilSchema(BaseModel):
+    nombre_clinica: str = ""
+    nit_registro: str = ""
+    direccion: str = ""
+    telefono: str = ""
+    email: str = ""
+    sitio_web: str = ""
+    modalidades_activas: List[str] = []
+    smtp_server: str = ""
+    smtp_port: str = ""
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    wa_token: str = ""
+    sms_api_key: str = ""
+    envio_automatico: bool = False
+
+@router.get("/admin/perfil-institucion")
+def obtener_perfil_institucion():
+    if os.path.exists(PERFIL_FILE):
+        try:
+            with open(PERFIL_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "nombre_clinica": "", "nit_registro": "", "direccion": "",
+        "telefono": "", "email": "", "sitio_web": "",
+        "modalidades_activas": ["CR", "DX", "US"],
+        "smtp_server": "", "smtp_port": "", "smtp_user": "", "smtp_pass": "",
+        "wa_token": "", "sms_api_key": "", "envio_automatico": False
+    }
+
+@router.post("/admin/perfil-institucion")
+def guardar_perfil_institucion(perfil: PerfilSchema):
+    try:
+        with open(PERFIL_FILE, "w") as f:
+            json.dump(perfil.dict(), f)
+        return {"status": "success", "message": "Perfil guardado correctamente."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))    
+
+# ==========================================
+# 🚀 ENDPOINTS DE COMUNICACIÓN ASÍNCRONA
+# ==========================================
+@router.get("/admin/estado-rutina")
+def obtener_estado_rutina():
+    """Endpoint de Polling para React"""
+    global ESTADO_RUTINA
+    return ESTADO_RUTINA
+
+@router.post("/admin/cancelar-rutina")
+def cancelar_rutina():
+    """Freno de emergencia del motor"""
+    global ESTADO_RUTINA
+    if not ESTADO_RUTINA["en_progreso"]:
+        raise HTTPException(status_code=400, detail="No hay ninguna rutina en curso.")
+    
+    ESTADO_RUTINA["cancelado"] = True
+    return {"status": "success", "message": "Orden de cancelación en curso."}

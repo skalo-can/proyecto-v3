@@ -15,18 +15,28 @@ scheduler = BackgroundScheduler()
 CONFIG_FILE = "backup_config.json"
 
 def leer_config_json():
-    """Lee las reglas dictadas desde el panel de control del Frontend"""
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    return {
+    # Valores por defecto si el usuario aún no ha guardado nada en el panel
+    config = {
         "dias_maduracion": 30,
         "modalidades": ["CT", "MR", "DX", "US", "MG", "CR", "DXA", "PET", "RF", "XA"],
-        "nas_ruta": "H:\\MI_PACS_NAS_EXTERNAL",
+        "nas_ruta": "D:\\MI_PACS_NAS_EXTERNAL", 
         "copia_internacional": False
     }
+    
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                data = json.load(f)
+                config.update(data)
+        except Exception:
+            pass
+            
+    # 🚀 Se eliminó el blindaje que forzaba la ruta. Ahora el sistema confía 100% 
+    # en la configuración guardada ('data') proveniente de tu frontend.
+    return config
 
-def ejecutar_rutina_backup_diario():
+
+def ejecutar_rutina_backup_diario(estado_rutina=None):
     print(f"📦 [BACKUP PACS] Iniciando ciclo automático de análisis: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     db = SessionLocal()
     
@@ -42,100 +52,103 @@ def ejecutar_rutina_backup_diario():
         
         fecha_limite = datetime.now() - timedelta(days=dias_espera)
         
-        estados_validos = [
-            "Atendido", "Finalizado Sin Reporte", "Firmado", "Importado", 
-            "Completado", "Transcrito", "firmado", "importado", "completado"
-        ]
-        
-        estudios_encontrados_total = 0
+        # 🚀 1. PRE-CÁLCULO PARA LA BARRA DE PROGRESO DE REACT
+        total_estudios_procesar = 0
+        estudios_por_modalidad = {}
         
         for mod in modalidades_activas:
-            query = db.query(Estudio).filter(
-                Estudio.fecha_estudio <= fecha_limite
-            )
-            
+            query = db.query(Estudio).filter(Estudio.fecha_estudio <= fecha_limite)
             if hasattr(Estudio, "tipo_estudio"):
                 query = query.filter(Estudio.tipo_estudio == mod)
-                
-            estudios_a_respaldar = query.all()
+            estudios = query.all()
+            if estudios:
+                estudios_por_modalidad[mod] = estudios
+                total_estudios_procesar += len(estudios)
+
+        # Sincronizamos el total detectado con el frontend
+        if estado_rutina:
+            estado_rutina["total_detectados"] = total_estudios_procesar
+            estado_rutina["exitosos"] = 0
+            estado_rutina["fallidos"] = 0
+
+        # Si no hay nada que empaquetar, terminamos limpio
+        if total_estudios_procesar == 0:
+            print(f"⚠️ [BACKUP PACS] Ciclo finalizado: No hay estudios que superen el umbral de {dias_espera} días de maduración.")
+            return
+
+        for mod, estudios_a_respaldar in estudios_por_modalidad.items():
             
-            if not estudios_a_respaldar:
-                continue
+            # 🚀 2. FRENO DE EMERGENCIA GLOBAL
+            if estado_rutina and estado_rutina.get("cancelado"):
+                print("🛑 [MOTOR] Rutina de Backup ABORTADA por orden del operador clínico.")
+                break
                 
-            estudios_encontrados_total += len(estudios_a_respaldar)
             print(f"📂 [BACKUP] Empaquetando {len(estudios_a_respaldar)} estudios maduros de la modalidad [{mod}] (>{dias_espera} días)")
             
             for estudio in estudios_a_respaldar:
-                fecha_est = getattr(estudio, "fecha_estudio", None) or datetime.now()
-                año, mes, dia = str(fecha_est.year), f"{fecha_est.month:02d}", f"{fecha_est.day:02d}"
-                
-                ruta_destino_nas = os.path.join(NAS_LOCAL_DIR, mod, año, mes, dia)
-                os.makedirs(ruta_destino_nas, exist_ok=True)
-                
-                estudio_id = getattr(estudio, "id", "1")
-                paciente_id = getattr(estudio, "paciente_id", "Desconocido")
-                accession_number = getattr(estudio, "accession_number", str(estudio_id))
-                
-                nombre_archivo_backup = f"PACIENTE_{paciente_id}_EST_{accession_number}.tar.gz"
-                ruta_final_tar = os.path.join(ruta_destino_nas, nombre_archivo_backup)
-                ruta_replica_internacional = os.path.join(CLOUD_OFFSITE_DIR, nombre_archivo_backup)
-                
-                if not os.path.exists(ruta_final_tar):
-                    print(f"⏳ Comprimiendo estudio ID {estudio_id} (Accession: {accession_number})...")
-                    with tarfile.open(ruta_final_tar, "w:gz") as tar:
-                        
-                        # -----------------------------------------------------
-                        # 1. EMPAQUETAR IMÁGENES DICOM
-                        # -----------------------------------------------------
-                        ruta_dicom = getattr(estudio, "ruta_archivos", "")
-                        if not ruta_dicom or not os.path.exists(ruta_dicom):
-                            ruta_dicom = os.path.join(str(DICOM_ARCHIVADOS_DIR), accession_number)
-                        
-                        if os.path.exists(ruta_dicom):
-                            tar.add(ruta_dicom, arcname=f"1_IMAGENES_DICOM_{accession_number}")
+                # 🚀 3. FRENO DE EMERGENCIA POR ESTUDIO
+                if estado_rutina and estado_rutina.get("cancelado"):
+                    break
+
+                try:
+                    fecha_est = getattr(estudio, "fecha_estudio", None) or datetime.now()
+                    año, mes, dia = str(fecha_est.year), f"{fecha_est.month:02d}", f"{fecha_est.day:02d}"
+                    
+                    ruta_destino_nas = os.path.join(NAS_LOCAL_DIR, mod, año, mes, dia)
+                    os.makedirs(ruta_destino_nas, exist_ok=True)
+                    
+                    estudio_id = getattr(estudio, "id", "1")
+                    paciente_id = getattr(estudio, "paciente_id", "Desconocido")
+                    accession_number = getattr(estudio, "accession_number", str(estudio_id))
+                    
+                    nombre_archivo_backup = f"PACIENTE_{paciente_id}_EST_{accession_number}.tar.gz"
+                    ruta_final_tar = os.path.join(ruta_destino_nas, nombre_archivo_backup)
+                    ruta_replica_internacional = os.path.join(CLOUD_OFFSITE_DIR, nombre_archivo_backup)
+                    
+                    if not os.path.exists(ruta_final_tar):
+                        print(f"⏳ Comprimiendo estudio ID {estudio_id} (Accession: {accession_number})...")
+                        with tarfile.open(ruta_final_tar, "w:gz") as tar:
                             
-                        # -----------------------------------------------------
-                        # 2. EMPAQUETAR REPORTE PDF FIRMADO
-                        # -----------------------------------------------------
-                        ruta_pdf = os.path.join(str(PDF_REPORTS_DIR), f"{accession_number}.pdf")
-                        if os.path.exists(ruta_pdf):
-                            tar.add(ruta_pdf, arcname=f"2_REPORTE_CLINICO_{accession_number}.pdf")
+                            # 1. EMPAQUETAR IMÁGENES DICOM
+                            ruta_dicom = getattr(estudio, "ruta_archivos", "")
+                            if not ruta_dicom or not os.path.exists(ruta_dicom):
+                                ruta_dicom = os.path.join(str(DICOM_ARCHIVADOS_DIR), accession_number)
+                            
+                            if os.path.exists(ruta_dicom):
+                                tar.add(ruta_dicom, arcname=f"1_IMAGENES_DICOM_{accession_number}")
+                                
+                            # 2. EMPAQUETAR REPORTE PDF FIRMADO
+                            ruta_pdf = os.path.join(str(PDF_REPORTS_DIR), f"{accession_number}.pdf")
+                            if os.path.exists(ruta_pdf):
+                                tar.add(ruta_pdf, arcname=f"2_REPORTE_CLINICO_{accession_number}.pdf")
 
-                        # -----------------------------------------------------
-                        # 3. EMPAQUETAR AUDIO / DICTADO (Soporte mp3 o wav)
-                        # -----------------------------------------------------
-                        # Ruta exacta basada en la estructura: static/audios_dictado/YYYY/MM/DD/dictado_ID.wav
-                        base_audios_dir = os.path.join("static", "audios_dictado")
-                        
-                        ruta_audio_wav = os.path.join(base_audios_dir, año, mes, dia, f"dictado_{accession_number}.wav")
-                        ruta_audio_mp3 = os.path.join(base_audios_dir, año, mes, dia, f"dictado_{accession_number}.mp3")
-                        
-                        # Si el ID guardado en el archivo difiere del accession, intentamos también con el estudio_id
-                        ruta_audio_wav_alt = os.path.join(base_audios_dir, año, mes, dia, f"dictado_{estudio_id}.wav")
-                        ruta_audio_mp3_alt = os.path.join(base_audios_dir, año, mes, dia, f"dictado_{estudio_id}.mp3")
-                        
-                        if os.path.exists(ruta_audio_mp3):
-                            tar.add(ruta_audio_mp3, arcname=f"3_DICTADO_VOZ_{accession_number}.mp3")
-                        elif os.path.exists(ruta_audio_wav):
-                            tar.add(ruta_audio_wav, arcname=f"3_DICTADO_VOZ_{accession_number}.wav")
-                        elif os.path.exists(ruta_audio_wav_alt):
-                            tar.add(ruta_audio_wav_alt, arcname=f"3_DICTADO_VOZ_{estudio_id}.wav")
-                        elif os.path.exists(ruta_audio_mp3_alt):
-                            tar.add(ruta_audio_mp3_alt, arcname=f"3_DICTADO_VOZ_{estudio_id}.mp3")
+                            # 3. EMPAQUETAR AUDIO / DICTADO
+                            base_audios_dir = os.path.join("static", "audios_dictado")
+                            ruta_audio_wav = os.path.join(base_audios_dir, año, mes, dia, f"dictado_{accession_number}.wav")
+                            ruta_audio_mp3 = os.path.join(base_audios_dir, año, mes, dia, f"dictado_{accession_number}.mp3")
+                            ruta_audio_wav_alt = os.path.join(base_audios_dir, año, mes, dia, f"dictado_{estudio_id}.wav")
+                            ruta_audio_mp3_alt = os.path.join(base_audios_dir, año, mes, dia, f"dictado_{estudio_id}.mp3")
+                            
+                            if os.path.exists(ruta_audio_mp3):
+                                tar.add(ruta_audio_mp3, arcname=f"3_DICTADO_VOZ_{accession_number}.mp3")
+                            elif os.path.exists(ruta_audio_wav):
+                                tar.add(ruta_audio_wav, arcname=f"3_DICTADO_VOZ_{accession_number}.wav")
+                            elif os.path.exists(ruta_audio_wav_alt):
+                                tar.add(ruta_audio_wav_alt, arcname=f"3_DICTADO_VOZ_{estudio_id}.wav")
+                            elif os.path.exists(ruta_audio_mp3_alt):
+                                tar.add(ruta_audio_mp3_alt, arcname=f"3_DICTADO_VOZ_{estudio_id}.mp3")
 
-                        # -----------------------------------------------------
-                        # 4. NOTA DESCRIPTIVA DE METADATOS
-                        # -----------------------------------------------------
-                        nota_clinica_path = os.path.join(ruta_destino_nas, f"NOTAS_EST_{estudio_id}.txt")
-                        with open(nota_clinica_path, "w", encoding="utf-8") as f:
-                            f.write(f"--- RESPALDO MÉDICO ---\n")
-                            f.write(f"Accession Number: {accession_number}\n")
-                            f.write(f"Estudio ID: {estudio_id}\n")
-                            f.write(f"Paciente ID: {paciente_id}\n")
-                            f.write(f"Modalidad: {mod}\n")
-                            f.write(f"Fecha Respaldo: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                        tar.add(nota_clinica_path, arcname="4_INFORMACION_ANEXA.txt")
-                        os.remove(nota_clinica_path)
+                            # 4. NOTA DESCRIPTIVA DE METADATOS
+                            nota_clinica_path = os.path.join(ruta_destino_nas, f"NOTAS_EST_{estudio_id}.txt")
+                            with open(nota_clinica_path, "w", encoding="utf-8") as f:
+                                f.write(f"--- RESPALDO MÉDICO ---\n")
+                                f.write(f"Accession Number: {accession_number}\n")
+                                f.write(f"Estudio ID: {estudio_id}\n")
+                                f.write(f"Paciente ID: {paciente_id}\n")
+                                f.write(f"Modalidad: {mod}\n")
+                                f.write(f"Fecha Respaldo: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                            tar.add(nota_clinica_path, arcname="4_INFORMACION_ANEXA.txt")
+                            os.remove(nota_clinica_path)
 
                     if config_front.get("copia_internacional", False):
                         os.makedirs(CLOUD_OFFSITE_DIR, exist_ok=True)
@@ -143,16 +156,30 @@ def ejecutar_rutina_backup_diario():
                             shutil.copy2(ruta_final_tar, ruta_replica_internacional)
                             
                     print(f"✅ Backup Exitoso Completo: {accession_number} -> {mod}/{año}/{mes}/{dia}")
-
-        if estudios_encontrados_total == 0:
-            print(f"⚠️ [BACKUP PACS] Ciclo finalizado: No hay estudios que superen el umbral de {dias_espera} días de maduración.")
-        else:
-            print("🏁 [BACKUP PACS] Ciclo de compresión y respaldo en segundo plano finalizado con éxito.")
+                    
+                    # 🚀 4. SINCRONIZAR ÉXITO CON REACT
+                    if estado_rutina:
+                        estado_rutina["exitosos"] += 1
                         
+                except Exception as e_interno:
+                    print(f"⚠️ Error empaquetando el estudio ID {getattr(estudio, 'id', 'Desconocido')}: {str(e_interno)}")
+                    # 🚀 SINCRONIZAR FALLO CON REACT
+                    if estado_rutina:
+                        estado_rutina["fallidos"] += 1
+
+        if not (estado_rutina and estado_rutina.get("cancelado")):
+            print("🏁 [BACKUP PACS] Ciclo de compresión y respaldo en segundo plano finalizado con éxito.")
+                    
     except Exception as e:
         print(f"❌ Error crítico en la rutina de backup: {str(e)}")
+        if estado_rutina:
+            estado_rutina["fallidos"] += 1
     finally:
         db.close()
+        # 🚀 5. APAGAR EL MONITOR DE LA INTERFAZ
+        if estado_rutina:
+            estado_rutina["finalizado"] = True
+            estado_rutina["en_progreso"] = False
 
 
 def inicializar_scheduler():
