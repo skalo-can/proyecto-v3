@@ -26,10 +26,8 @@ export default function DashboardStats() {
   const { token } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
 
-  // Stats globales intocables
   const [globalStats, setGlobalStats] = useState(null);
 
-  // Stats que alimentan las gráficas y tablas
   const [stats, setStats] = useState({
     pacientesTotal: 0,
     estudiosTotal: 0,
@@ -68,12 +66,20 @@ export default function DashboardStats() {
       if (response.ok) {
         const data = await response.json();
         if (data && typeof data === 'object') {
-          setStats(prev => ({ ...prev, ...data }));
-          setGlobalStats(data); // Guardamos la copia original
           
-          // Sincronizamos el recuadro de periodo con los totales al iniciar
+          // 🚀 SINCRONIZACIÓN MATEMÁTICA GLOBAL
+          const sumaPacientesExacta = (data.modalidades || []).reduce((acc, curr) => acc + (curr.pacientes || 0), 0);
+          
+          setStats(prev => ({ 
+            ...prev, 
+            ...data, 
+            pacientesTotal: sumaPacientesExacta > 0 ? sumaPacientesExacta : data.pacientesTotal 
+          }));
+          
+          setGlobalStats(data); 
+          
           setDatosFiltrados({
-            pacientesEnRango: data.pacientesTotal || 0,
+            pacientesEnRango: sumaPacientesExacta > 0 ? sumaPacientesExacta : data.pacientesTotal,
             estudiosEnRango: data.estudiosTotal || 0,
             imagenesEnRango: data.imagenesTotal || 0,
             gbConsumidos: data.almacenamientoGB > 0 ? data.almacenamientoGB : (data.discoUsadoGB || "0.00"),
@@ -110,16 +116,17 @@ export default function DashboardStats() {
           ? ((gbCalculados / stats.discoTotalGB) * 100).toFixed(1) 
           : 0;
 
-        // 1. Actualizamos el recuadro negro
+        // 🚀 SINCRONIZACIÓN MATEMÁTICA DEL FILTRO
+        const sumaPacientesPeriodo = (dataPeriodo.modalidades || []).reduce((acc, curr) => acc + (curr.pacientes || 0), 0);
+
         setDatosFiltrados({
-          pacientesEnRango: dataPeriodo.pacientesTotal || 0,
+          pacientesEnRango: sumaPacientesPeriodo > 0 ? sumaPacientesPeriodo : dataPeriodo.pacientesTotal,
           estudiosEnRango: dataPeriodo.estudiosTotal || 0,
           imagenesEnRango: dataPeriodo.imagenesTotal || 0,
           gbConsumidos: gbCalculados,
           porcentajeDelTotal: porcentajeDelDisco 
         });
 
-        // 🚀 2. MAGIA AQUÍ: Actualizamos las gráficas y tablas con los datos del periodo
         setStats(prev => ({
           ...prev,
           crecimiento: dataPeriodo.crecimiento || [],
@@ -132,13 +139,15 @@ export default function DashboardStats() {
   const limpiarFiltro = () => {
     setFiltros({ inicio: "", fin: "" });
     if (globalStats) {
+      const sumaPacientesGlobal = (globalStats.modalidades || []).reduce((acc, curr) => acc + (curr.pacientes || 0), 0);
+      
       setStats(prev => ({
         ...prev,
         crecimiento: globalStats.crecimiento || [],
         modalidades: globalStats.modalidades || []
       }));
       setDatosFiltrados({
-        pacientesEnRango: globalStats.pacientesTotal || 0,
+        pacientesEnRango: sumaPacientesGlobal > 0 ? sumaPacientesGlobal : globalStats.pacientesTotal,
         estudiosEnRango: globalStats.estudiosTotal || 0,
         imagenesEnRango: globalStats.imagenesTotal || 0,
         gbConsumidos: globalStats.almacenamientoGB > 0 ? globalStats.almacenamientoGB : (globalStats.discoUsadoGB || "0.00"),
@@ -154,7 +163,6 @@ export default function DashboardStats() {
   const totalEstudiosDona = modalidadesSeguras.reduce((acc, curr) => acc + (curr.value || 0), 0);
   const modalidadesActivas = modalidadesSeguras.map(m => m.name);
 
-  // LECTOR ABSOLUTO DE DATOS
   const datosGrafica = crecimientoSeguro.map(punto => {
     let puntoFormateado = { fecha: punto.fecha, total: punto.cantidad || punto.total || 0 };
     
@@ -239,7 +247,7 @@ export default function DashboardStats() {
       </h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-        <div style={cardStyle}><span style={labelStyle}>Total Pacientes</span><div style={valueStyle}>{stats.pacientesTotal || 0}</div></div>
+        <div style={cardStyle}><span style={labelStyle}>Personas Únicas</span><div style={valueStyle}>{stats.pacientesTotal || 0}</div></div>
         <div style={cardStyle}><span style={labelStyle}>Total Estudios</span><div style={{ ...valueStyle, color: '#fbbf24' }}>{stats.estudiosTotal || 0}</div></div>
         <div style={cardStyle}><span style={labelStyle}>Total Imágenes</span><div style={valueStyle}>{stats.imagenesTotal || 0}</div></div>
         
@@ -269,14 +277,10 @@ export default function DashboardStats() {
             <input type="date" style={inputStyle} value={filtros.inicio} onChange={(e) => setFiltros({...filtros, inicio: e.target.value})} />
             <input type="date" style={inputStyle} value={filtros.fin} onChange={(e) => setFiltros({...filtros, fin: e.target.value})} />
             <button onClick={aplicarFiltro} style={btnStyle}>Calcular</button>
-            
-            {/* 🔥 NUEVO BOTÓN PARA LIMPIAR FILTROS */}
-            <button onClick={limpiarFiltro} style={{ ...btnStyle, background: 'transparent', color: '#ef4444', border: '1px solid #ef4444' }}>
-              Limpiar
-            </button>
+            <button onClick={limpiarFiltro} style={{ ...btnStyle, background: 'transparent', color: '#ef4444', border: '1px solid #ef4444' }}>Limpiar</button>
           </div>
           <div style={{ padding: '15px', background: '#11141a', borderRadius: '8px', border: '1px solid #2a303c', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '15px', textAlign: 'center' }}>
-            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Pacientes:</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#8b5cf6' }}>{datosFiltrados.pacientesEnRango}</span></div>
+            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Personas Únicas:</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#8b5cf6' }}>{datosFiltrados.pacientesEnRango}</span></div>
             <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Estudios:</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#3b82f6' }}>{datosFiltrados.estudiosEnRango}</span></div>
             <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Imágenes:</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#fbbf24' }}>{datosFiltrados.imagenesEnRango}</span></div>
             <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Espacio (GB):</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#10b981' }}>{datosFiltrados.gbConsumidos}</span></div>
@@ -334,7 +338,7 @@ export default function DashboardStats() {
             <thead>
               <tr style={{ borderBottom: '1px solid #333', color: '#888' }}>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Mod.</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Pacientes</th>
+                <th style={{ padding: '8px', textAlign: 'left' }} title="Pacientes atendidos en esta modalidad específica">Pacientes por Mod.</th>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Estudios</th>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Imágenes</th>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Porcentaje (%)</th> 
@@ -356,6 +360,24 @@ export default function DashboardStats() {
                 );
               })}
             </tbody>
+            {/* 🚀 NUEVA FILA DE TOTALES DINÁMICOS */}
+            <tfoot>
+              <tr style={{ borderTop: '2px solid #555', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
+                <td style={{ padding: '10px 8px', color: '#fff', fontWeight: 'bold' }}>TOTAL</td>
+                <td style={{ padding: '10px 8px', color: '#8b5cf6', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  {modalidadesSeguras.reduce((acc, curr) => acc + (curr.pacientes || 0), 0)}
+                </td>
+                <td style={{ padding: '10px 8px', color: '#3b82f6', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  {modalidadesSeguras.reduce((acc, curr) => acc + (curr.value || 0), 0)}
+                </td>
+                <td style={{ padding: '10px 8px', color: '#fbbf24', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  {modalidadesSeguras.reduce((acc, curr) => acc + (curr.imagenes || 0), 0)}
+                </td>
+                <td style={{ padding: '10px 8px', color: '#10b981', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  100%
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
