@@ -511,7 +511,6 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
                         archivo_prueba = os.path.join(ruta_base, ".mipacs_test")
                         with open(archivo_prueba, 'w') as f: f.write('1')
                         os.remove(archivo_prueba)
-                        
                         ruta_definitiva = f"{letra}\\MI_PACS_EXPORT"
                         os.makedirs(ruta_definitiva, exist_ok=True)
                         unidad_destino = ruta_definitiva
@@ -528,37 +527,116 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
         estudios_procesados = 0
 
         for item_id in datos.estudios_ids:
-            paciente_db = db.query(Paciente).filter(Paciente.id == item_id).first()
-            if not paciente_db or not paciente_db.estudios: continue
+            # 1. RECUPERAR EL ESTUDIO EXACTO
+            estudio_db = db.query(Estudio).filter(Estudio.id == item_id).first()
+            if not estudio_db: continue
 
-            estudio_db = paciente_db.estudios[0]
-
+            paciente_db = estudio_db.paciente
             p_nombre = (paciente_db.primer_nombre or "").strip()
             p_apellido = (paciente_db.primer_apellido or "").strip()
             nombre_paciente = f"{p_nombre}_{p_apellido}".replace(" ", "_")
             if not nombre_paciente or nombre_paciente == "_": nombre_paciente = "PACIENTE_DESCONOCIDO"
             
-            identificacion = paciente_db.identificacion or paciente_db.id
-            carpeta_paciente = os.path.join(carpeta_lote, f"{nombre_paciente}_ID{identificacion}")
+            identificacion_paciente = str(paciente_db.identificacion or paciente_db.id).strip()
+            carpeta_paciente = os.path.join(carpeta_lote, f"{nombre_paciente}_ID{identificacion_paciente}")
             os.makedirs(carpeta_paciente, exist_ok=True)
 
-            ruta_dicom_origen = getattr(estudio_db, "ruta_archivos", getattr(estudio_db, "ruta_dicom", None))
-            if not ruta_dicom_origen:
-                ruta_dicom_origen = os.path.join(str(DICOM_ARCHIVADOS_DIR), str(paciente_db.id), str(estudio_db.id))
+            # 2. IDENTIFICADORES DEL ESTUDIO (Para el aislamiento)
+            target_uid = str(getattr(estudio_db, "study_instance_uid", "")).strip()
+            target_modality = str(getattr(estudio_db, "tipo_estudio", getattr(estudio_db, "modalidad", ""))).strip().upper()
+            
+            if not target_uid and hasattr(estudio_db, "dicom_metadata") and estudio_db.dicom_metadata:
+                import json
+                try: 
+                    meta = json.loads(estudio_db.dicom_metadata)
+                    target_uid = str(meta.get("StudyInstanceUID", "")).strip()
+                except: pass
+
+            # 3. RECOPILACIÓN DE RUTAS SOSPECHOSAS
+            rutas_validas = set()
+            r1 = getattr(estudio_db, "ruta_archivos", None)
+            r2 = getattr(estudio_db, "ruta_dicom", None)
+            if r1 and os.path.exists(r1): rutas_validas.add(r1)
+            if r2 and os.path.exists(r2): rutas_validas.add(r2)
+            if target_uid:
+                ruid = os.path.join(str(DICOM_ARCHIVADOS_DIR), target_uid)
+                if os.path.exists(ruid): rutas_validas.add(ruid)
+
+            base_dir = str(DICOM_ARCHIVADOS_DIR)
+            if os.path.exists(base_dir):
+                import pydicom
+                for folder_name in os.listdir(base_dir):
+                    folder_path = os.path.join(base_dir, folder_name)
+                    if os.path.isdir(folder_path) and folder_path not in rutas_validas:
+                        all_files = [os.path.join(dp, f) for dp, dn, filenames in os.walk(folder_path) for f in filenames]
+                        for f in all_files[:5]: 
+                            try:
+                                ds = pydicom.dcmread(f, stop_before_pixels=True, force=True)
+                                p_id = str(getattr(ds, "PatientID", "")).strip()
+                                # Solo marcamos la carpeta si vemos que Melquecidec está ahí
+                                if identificacion_paciente in p_id or p_id in identificacion_paciente:
+                                    rutas_validas.add(folder_path)
+                                    break
+                            except:
+                                continue
 
             carpeta_dicom_destino = os.path.join(carpeta_paciente, "IMAGENES_DICOM")
-            if ruta_dicom_origen and os.path.exists(ruta_dicom_origen):
-                try: shutil.copytree(ruta_dicom_origen, carpeta_dicom_destino, dirs_exist_ok=True)
-                except Exception: pass
-            else:
-                os.makedirs(carpeta_dicom_destino, exist_ok=True) 
+            os.makedirs(carpeta_dicom_destino, exist_ok=True)
 
-            pdf_nombre = f"Reporte_{identificacion}.pdf"
+            # 🚀 4. EL BUCLE DE BARRERA DE TITANIO (FILTRO ARCHIVO POR ARCHIVO)
+            archivos_copiados = 0
+            if rutas_validas:
+                import pydicom
+                try:
+                    for ruta in rutas_validas:
+                        for root, dirs, files in os.walk(ruta):
+                            for file in files:
+                                src_file = os.path.join(root, file)
+                                
+                                try:
+                                    ds = pydicom.dcmread(src_file, stop_before_pixels=True, force=True)
+                                    file_pid = str(getattr(ds, "PatientID", "")).strip()
+                                    file_uid = str(getattr(ds, "StudyInstanceUID", "")).strip()
+                                    file_mod = str(getattr(ds, "Modality", "")).strip().upper()
+                                    
+                                    # 🚨 BARRERA 1: IDENTIDAD ESTRICTA DEL PACIENTE
+                                    # Si la cédula del archivo no coincide con Melquecidec, IGNORA EL ARCHIVO (Bloquea a Leidy)
+                                    if identificacion_paciente not in file_pid and file_pid not in identificacion_paciente:
+                                        continue 
+
+                                    # 🚨 BARRERA 2: AISLAMIENTO EXACTO DEL ESTUDIO
+                                    if target_uid and file_uid and target_uid != file_uid:
+                                        continue # Es Melquecidec, pero pertenece a un TAC que no seleccionaste
+                                        
+                                    # BARRERA 2 DE RESPALDO: Si no tenemos UID en la DB, filtramos por Modalidad
+                                    elif not target_uid and target_modality and file_mod:
+                                        if target_modality not in file_mod and file_mod not in target_modality:
+                                            # Los equipos antiguos a veces mezclan DX con CR. Les damos permiso de convivir.
+                                            if target_modality in ["CR", "DX"] and file_mod in ["CR", "DX"]:
+                                                pass
+                                            else:
+                                                continue # Es Melquecidec, pero es CT y tú pediste CR/DX.
+                                
+                                except Exception:
+                                    continue # Si no es un archivo DICOM, lo ignoramos
+
+                                # ¡SI LLEGA AQUÍ, ES EL ARCHIVO CORRECTO Y PURO!
+                                archivos_copiados += 1
+                                nombre_unico = f"IMG_{archivos_copiados:05d}.dcm"
+                                dest_file = os.path.join(carpeta_dicom_destino, nombre_unico)
+                                shutil.copy2(src_file, dest_file)
+                                
+                    print(f"✅ EXPORTACIÓN AISLADA DE GRADO MÉDICO: {archivos_copiados} archivos DICOM transferidos para estudio ID: {item_id}.")
+                except Exception as e:
+                    print(f"❌ Error en copia multiserie: {e}")
+            else:
+                print(f"⚠️ No se encontró la ruta para el estudio {item_id}.")
+
+            pdf_nombre = f"Reporte_{identificacion_paciente}.pdf"
             ruta_pdf_origen = os.path.join(str(STATIC_PDF_PATH), pdf_nombre)
-            
             if os.path.exists(ruta_pdf_origen):
                 try: shutil.copy2(ruta_pdf_origen, carpeta_paciente)
-                except Exception: pass
+                except: pass
 
             estudios_procesados += 1
 
@@ -567,7 +645,7 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
             carpeta_visor_destino = os.path.join(carpeta_lote, "MI_PACS_Visor_Lite")
             if os.path.exists(ruta_visor_origen):
                 try: shutil.copytree(ruta_visor_origen, carpeta_visor_destino, dirs_exist_ok=True)
-                except Exception: pass
+                except: pass
 
         estado_visor_msg = " (Con Visor Lite incluido)" if datos.incluir_visor else ""
         return {"status": "success", "message": f"Se grabaron y empaquetaron {estudios_procesados} estudios{estado_visor_msg} en:\n{unidad_destino}"}
@@ -597,6 +675,39 @@ def asistencia_ia(paciente_id: int, datos: IARequest, db: Session = Depends(get_
         
     except HTTPException as he: raise he
     except Exception as e: raise HTTPException(status_code=500, detail=f"Fallo técnico al cargar la imagen: {str(e)}")
+
+    try:
+        load_dotenv()
+        api_key_gemini = os.getenv("GEMINI_API_KEY")
+        client = genai.Client(api_key=api_key_gemini)
+        
+        modalidad_esperada = estudio.tipo_estudio or "No especificada"
+        descripcion_esperada = estudio.descripcion or "No especificada"
+        
+        prompt = f"""
+        INSTRUCCIÓN CRÍTICA DE SEGURIDAD MÉDICA — TOLERANCIA CERO A ERRORES DE IDENTIDAD.
+        Eres un radiólogo experto encargado de la auditoría final de calidad. Antes de evaluar el texto del informe, debes ejecutar de forma obligatoria un protocolo estricto de correspondencia anatómica.
+
+        DATOS REGISTRADOS EN LA BASE DE DATOS DEL SISTEMA:
+        - Modalidad técnica configurada: {modalidad_esperada}
+        - Región anatómica declarada: {descripcion_esperada}
+        
+        INFORME PRELIMINAR DEL TRANSCRIPTOR:
+        "{datos.texto_actual}"
+
+        PROTOCOLOS DE CONTROL DE RIESGO:
+        1. VALIDACIÓN VISUAL OBLIGATORIA: Analiza los píxeles de la imagen proporcionada. Si la estructura anatómica visible NO coincide con la región declarada en el sistema ({descripcion_esperada}), debes asumir inmediatamente que hay un cruce de archivos o un error de indexación en el servidor.
+        
+        2. ACCIÓN ANTE MISMATCH (ABORTAR): Si la validación anatómica falla (por ejemplo, ves un cráneo/columna pero el estudio dice ser un Tórax), tienes estrictamente prohibido realizar cualquier análisis clínico. Debes responder única y exclusivamente con este mensaje de alerta estructurado:
+            "[💡 SUGERENCIA IA: 🚨 ERROR CRÍTICO DE SEGURIDAD: Se ha detectado una falta de correspondencia anatómica. La imagen visualizada en el servidor no coincide con la descripción de '{descripcion_esperada}' registrada para este estudio. Por favor, suspenda la firma y reporte este caso al administrador del PACS para verificar la integridad del archivo DICOM.]"
+        
+        3. ACCIÓN ANTE COINCIDENCIA (PROCESAR): Si la imagen coincide plenamente con la región anatómica declarada, procede a evaluar el informe preliminar del transcriptor de forma normal. Comienza tu respuesta con "[💡 SUGERENCIA IA: " y ciérrala con "]". Sé conciso y directo.
+        """
+        response = client.models.generate_content(model='gemini-3.5-flash', contents=[img, prompt])
+        return {"sugerencia": response.text}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fallo en el motor de análisis clínico automatizado: {str(e)}")
 
     try:
         load_dotenv()
