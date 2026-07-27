@@ -26,6 +26,10 @@ export default function DashboardStats() {
   const { token } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
 
+  // Stats globales intocables
+  const [globalStats, setGlobalStats] = useState(null);
+
+  // Stats que alimentan las gráficas y tablas
   const [stats, setStats] = useState({
     pacientesTotal: 0,
     estudiosTotal: 0,
@@ -65,6 +69,16 @@ export default function DashboardStats() {
         const data = await response.json();
         if (data && typeof data === 'object') {
           setStats(prev => ({ ...prev, ...data }));
+          setGlobalStats(data); // Guardamos la copia original
+          
+          // Sincronizamos el recuadro de periodo con los totales al iniciar
+          setDatosFiltrados({
+            pacientesEnRango: data.pacientesTotal || 0,
+            estudiosEnRango: data.estudiosTotal || 0,
+            imagenesEnRango: data.imagenesTotal || 0,
+            gbConsumidos: data.almacenamientoGB > 0 ? data.almacenamientoGB : (data.discoUsadoGB || "0.00"),
+            porcentajeDelTotal: 100
+          });
         }
       }
     } catch (error) { console.error("Error stats:", error); }
@@ -84,11 +98,11 @@ export default function DashboardStats() {
       if (response.ok) {
         const dataPeriodo = await response.json();
         
-        const discoRealGlobal = stats.discoUsadoGB || 0;
+        const discoRealGlobal = globalStats?.discoUsadoGB || stats.discoUsadoGB || 0;
         let gbCalculados = "0.00";
         
-        if (stats.imagenesTotal > 0 && dataPeriodo.imagenesTotal > 0) {
-            const proporcionPeriodo = dataPeriodo.imagenesTotal / stats.imagenesTotal;
+        if (globalStats?.imagenesTotal > 0 && dataPeriodo.imagenesTotal > 0) {
+            const proporcionPeriodo = dataPeriodo.imagenesTotal / globalStats.imagenesTotal;
             gbCalculados = (discoRealGlobal * proporcionPeriodo).toFixed(2);
         }
 
@@ -96,6 +110,7 @@ export default function DashboardStats() {
           ? ((gbCalculados / stats.discoTotalGB) * 100).toFixed(1) 
           : 0;
 
+        // 1. Actualizamos el recuadro negro
         setDatosFiltrados({
           pacientesEnRango: dataPeriodo.pacientesTotal || 0,
           estudiosEnRango: dataPeriodo.estudiosTotal || 0,
@@ -103,9 +118,34 @@ export default function DashboardStats() {
           gbConsumidos: gbCalculados,
           porcentajeDelTotal: porcentajeDelDisco 
         });
+
+        // 🚀 2. MAGIA AQUÍ: Actualizamos las gráficas y tablas con los datos del periodo
+        setStats(prev => ({
+          ...prev,
+          crecimiento: dataPeriodo.crecimiento || [],
+          modalidades: dataPeriodo.modalidades || []
+        }));
       }
-    } catch (error) { 
-      console.error("Error al filtrar stats por periodo:", error); 
+    } catch (error) { console.error("Error al filtrar stats por periodo:", error); }
+  };
+
+  const limpiarFiltro = () => {
+    setFiltros({ inicio: "", fin: "" });
+    if (globalStats) {
+      setStats(prev => ({
+        ...prev,
+        crecimiento: globalStats.crecimiento || [],
+        modalidades: globalStats.modalidades || []
+      }));
+      setDatosFiltrados({
+        pacientesEnRango: globalStats.pacientesTotal || 0,
+        estudiosEnRango: globalStats.estudiosTotal || 0,
+        imagenesEnRango: globalStats.imagenesTotal || 0,
+        gbConsumidos: globalStats.almacenamientoGB > 0 ? globalStats.almacenamientoGB : (globalStats.discoUsadoGB || "0.00"),
+        porcentajeDelTotal: 100
+      });
+    } else {
+      fetchGlobalStats();
     }
   };
 
@@ -114,29 +154,38 @@ export default function DashboardStats() {
   const totalEstudiosDona = modalidadesSeguras.reduce((acc, curr) => acc + (curr.value || 0), 0);
   const modalidadesActivas = modalidadesSeguras.map(m => m.name);
 
-  // 🟢 LECTURA ESTRICTA DE LA BASE DE DATOS (CERO ESTIMACIONES)
+  // LECTOR ABSOLUTO DE DATOS
   const datosGrafica = crecimientoSeguro.map(punto => {
-    let puntoFormateado = { fecha: punto.fecha, total: punto.cantidad };
-    let desglosesBackend = punto.modalidades || {};
+    let puntoFormateado = { fecha: punto.fecha, total: punto.cantidad || punto.total || 0 };
     
-    // Solo agrega modalidades si el backend las envía explícitamente para ese día
-    if (Object.keys(desglosesBackend).length > 0) {
-      puntoFormateado = { ...puntoFormateado, ...desglosesBackend };
-    } 
+    if (Array.isArray(punto.modalidades)) {
+      punto.modalidades.forEach(m => {
+        if (m.name || m.modalidad) puntoFormateado[m.name || m.modalidad] = m.value || m.cantidad || 0;
+      });
+    } else if (punto.modalidades && typeof punto.modalidades === 'object') {
+      Object.assign(puntoFormateado, punto.modalidades);
+    }
+
+    Object.keys(MODALIDAD_COLORS).forEach(mod => {
+      if (punto[mod] !== undefined) {
+        puntoFormateado[mod] = punto[mod];
+      }
+    });
+    
     return puntoFormateado;
   });
 
-  // 🟢 TOOLTIP ESTRICTO: Solo muestra lo que existe
+  const tieneDesglose = datosGrafica.some(d => modalidadesActivas.some(m => d[m] !== undefined && d[m] > 0));
+
   const CustomTooltipLine = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const total = data.total || data.cantidad || 0;
+      const originalData = payload[0].payload;
+      const total = originalData.total || originalData.cantidad || 0;
       
-      let desgloses = [];
+      const desgloses = [];
       Object.keys(MODALIDAD_COLORS).forEach(mod => {
-        // Solo lista la modalidad si existe en el objeto y es mayor a 0
-        if (data[mod] !== undefined && data[mod] > 0 && mod !== 'total' && mod !== 'cantidad') {
-          desgloses.push({ mod, valor: data[mod] });
+        if (originalData[mod] !== undefined && originalData[mod] > 0) {
+          desgloses.push({ dataKey: mod, value: originalData[mod], color: MODALIDAD_COLORS[mod] });
         }
       });
 
@@ -149,20 +198,19 @@ export default function DashboardStats() {
           {desgloses.length > 0 ? (
             <>
               {desgloses.map(item => (
-                <div key={item.mod} style={{ display: 'flex', justifyContent: 'space-between', gap: '30px', marginBottom: '6px' }}>
-                  <span style={{ color: MODALIDAD_COLORS[item.mod], fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: MODALIDAD_COLORS[item.mod] }}></span>
-                    {item.mod}
+                <div key={item.dataKey} style={{ display: 'flex', justifyContent: 'space-between', gap: '30px', marginBottom: '6px' }}>
+                  <span style={{ color: item.color, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: item.color }}></span>
+                    {item.dataKey}
                   </span>
-                  <span>{item.valor} Estudios</span>
+                  <span>{item.value} Estudios</span>
                 </div>
               ))}
-              {desgloses.length > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '30px', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #444' }}>
-                  <span style={{ color: '#fff', fontWeight: 'bold' }}>Total Día:</span>
-                  <span style={{ fontWeight: 'bold', color: '#fff' }}>{total} Estudios</span>
-                </div>
-              )}
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '30px', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #444' }}>
+                <span style={{ color: '#fff', fontWeight: 'bold' }}>Total Día:</span>
+                <span style={{ fontWeight: 'bold', color: '#fff' }}>{total} Estudios</span>
+              </div>
             </>
           ) : (
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '30px' }}>
@@ -214,19 +262,18 @@ export default function DashboardStats() {
         </div>
       </div>
 
-      {stats.porcentajeNAS >= stats.limitePurga && (
-        <div style={{ padding: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444', borderWidth: '1px', borderStyle: 'solid', borderRadius: '8px', color: '#ef4444', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '20px', textAlign: 'center' }}>
-          ⚠️ ADVERTENCIA DE INFRAESTRUCTURA: Disco del PACS superior al {stats.limitePurga}%. Ciclo de depuración y purga hacia el NAS externo activo.
-        </div>
-      )}
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
         <div style={cardStyle}>
           <h3 style={labelStyle}>🔍 Consumo por Periodo</h3>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-            <input type="date" style={inputStyle} onChange={(e) => setFiltros({...filtros, inicio: e.target.value})} />
-            <input type="date" style={inputStyle} onChange={(e) => setFiltros({...filtros, fin: e.target.value})} />
+            <input type="date" style={inputStyle} value={filtros.inicio} onChange={(e) => setFiltros({...filtros, inicio: e.target.value})} />
+            <input type="date" style={inputStyle} value={filtros.fin} onChange={(e) => setFiltros({...filtros, fin: e.target.value})} />
             <button onClick={aplicarFiltro} style={btnStyle}>Calcular</button>
+            
+            {/* 🔥 NUEVO BOTÓN PARA LIMPIAR FILTROS */}
+            <button onClick={limpiarFiltro} style={{ ...btnStyle, background: 'transparent', color: '#ef4444', border: '1px solid #ef4444' }}>
+              Limpiar
+            </button>
           </div>
           <div style={{ padding: '15px', background: '#11141a', borderRadius: '8px', border: '1px solid #2a303c', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '15px', textAlign: 'center' }}>
             <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Pacientes:</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#8b5cf6' }}>{datosFiltrados.pacientesEnRango}</span></div>
@@ -247,12 +294,11 @@ export default function DashboardStats() {
                   <YAxis stroke="#888" fontSize={10} label={{ value: "Cantidad de Estudios", angle: -90, position: "insideLeft", offset: -5, fill: "#888", fontSize: 11 }} />
                   <Tooltip content={<CustomTooltipLine />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                   
-                  {modalidadesActivas.map(mod => (
+                  {tieneDesglose && modalidadesActivas.map(mod => (
                     <Area key={mod} type="monotone" dataKey={mod} stackId="1" stroke={MODALIDAD_COLORS[mod]} fillOpacity={0.6} fill={MODALIDAD_COLORS[mod]} isAnimationActive={true} />
                   ))}
                   
-                  {/* Línea Neutra de respaldo si el backend no manda desgloses por modalidad */}
-                  {(!datosGrafica.some(d => modalidadesActivas.some(m => d[m] !== undefined))) && (
+                  {!tieneDesglose && (
                     <Area type="monotone" dataKey="total" stroke="#a0aabf" fillOpacity={0.3} fill="#a0aabf" />
                   )}
                 </AreaChart>

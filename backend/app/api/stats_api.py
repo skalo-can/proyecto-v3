@@ -78,12 +78,14 @@ def get_stats_dashboard(
         q_estudios = db.query(Estudio)
         q_imagenes = db.query(EstudioImagen)
         
+        # 🚀 MODIFICADO: Agrupamos también por tipo de estudio para alimentar la gráfica de red a color
         q_crecimiento = db.query(
             func.strftime("%Y-%m-%d", Estudio.fecha_estudio).label("fecha"),
+            Estudio.tipo_estudio.label("modalidad"),
             func.count(Estudio.id).label("cantidad")
         )
 
-        # 🟢 NUEVO: Consulta experta agrupada por modalidades (Pacientes distintos, Estudios e Imágenes)
+        # 🟢 Consulta experta agrupada por modalidades (Pacientes distintos, Estudios e Imágenes)
         q_modalidades = db.query(
             Estudio.tipo_estudio, 
             func.count(func.distinct(Estudio.paciente_id)).label("pacientes"),
@@ -104,7 +106,7 @@ def get_stats_dashboard(
         e_count = q_estudios.count()
         i_count = q_imagenes.count()
         
-        crecimiento_query = q_crecimiento.group_by("fecha").order_by("fecha").all()
+        crecimiento_query = q_crecimiento.group_by("fecha", Estudio.tipo_estudio).order_by("fecha").all()
         
         # Ejecutar agrupación por modalidad
         modalidades_query = q_modalidades.group_by(Estudio.tipo_estudio).all()
@@ -118,16 +120,31 @@ def get_stats_dashboard(
         else:
             gb_consumidos = f"{metricas_disco['carpeta_dicom_gb']:.2f}"
 
-        # 🟢 NUEVO: Empaquetar las modalidades con sus 3 valores para el Frontend
+        # Empaquetar las modalidades con sus 3 valores para el Frontend
         modalidades_formateadas = []
         for m in modalidades_query:
             if m.tipo_estudio:
                 modalidades_formateadas.append({
                     "name": str(m.tipo_estudio).upper(),
                     "pacientes": m.pacientes or 0,
-                    "value": m.estudios or 0,  # 'value' se usa para la dona de Recharts
+                    "value": m.estudios or 0,  
                     "imagenes": m.imagenes or 0
                 })
+
+        # 🚀 CONSTRUCCIÓN DEL DICCIONARIO DE CRECIMIENTO AGRUPADO POR DÍA Y MODALIDAD
+        crecimiento_dict = {}
+        for c in crecimiento_query:
+            f_str = c.fecha
+            mod = str(c.modalidad or "CR").upper()
+            cant = c.cantidad or 0
+
+            if f_str not in crecimiento_dict:
+                crecimiento_dict[f_str] = {"fecha": f_str, "total": 0, "modalidades": {}}
+            
+            crecimiento_dict[f_str]["modalidades"][mod] = cant
+            crecimiento_dict[f_str]["total"] += cant
+
+        crecimiento_final = list(crecimiento_dict.values())
 
         return {
             "pacientesTotal": p_count,
@@ -141,11 +158,13 @@ def get_stats_dashboard(
             "discoLibreGB": metricas_disco['libre_disco_gb'],
             "limitePurga": metricas_disco['limite_purga_porcentaje'],
             
-            "crecimiento": [{"fecha": c.fecha, "cantidad": c.cantidad} for c in crecimiento_query],
-            "modalidades": modalidades_formateadas, # 🚀 Lista enriquecida con desglose total
+            "crecimiento": crecimiento_final, # 🎨 Ahora incluye el desglose exacto por modalidad para cada día
+            "modalidades": modalidades_formateadas, 
             "success": True
         }
     except Exception as e:
+        print(f"❌ Error en stats-dashboard: {e}")
+        traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 # --- 🚀 ENDPOINT DE PRODUCTIVIDAD (ULTRA-RESILIENTE) ---

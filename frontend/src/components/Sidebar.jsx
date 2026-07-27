@@ -154,8 +154,16 @@ return (
             {isSkalo && (<Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#34d399', fontWeight: 'bold' }}>📦 Ciclo de Vida / Backups</Link>)}
             {isSkalo && (<Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#60a5fa', fontWeight: '500' }}>🏷️ Configurar Tags DICOM</Link>)}
             
-            {/* 🔥 ENLACE ACTUALIZADO AQUÍ */}
-            <Link to="/facturacion-servicio" className={`submenu-link ${isActive("/facturacion-servicio") ? "active" : ""}`}>📈 Facturación de Servicios</Link>
+            {/* 🛡️ BARRERA DE TITANIO PARA FACTURACIÓN */}
+            {isSkalo && (
+              <Link 
+                to="/facturacion-servicio" 
+                className={`submenu-link ${isActive("/facturacion-servicio") ? "active" : ""}`} 
+                style={{ color: '#f59e0b', fontWeight: 'bold' }}
+              >
+                📈 Facturación de Servicios
+              </Link>
+            )}
             
             {isAdmin && (
               <>
