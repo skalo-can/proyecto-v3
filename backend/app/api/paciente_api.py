@@ -454,11 +454,38 @@ def firmar_informe(paciente_id: int, datos: FirmaInput, db: Session = Depends(ge
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error en el proceso: {str(e)}")
+
+from fastapi import Request
+from app.models.auditoria_descarga import AuditoriaDescarga # 👈 Import corregido a tu estructura
+
+def registrar_auditoria(db: Session, request: Request, estudio_id: int, tipo: str, resultado: str = "ok", usuario_id: int = None, email: str = None):
+    try:
+        ip_real = request.client.host if request.client else "Local"
+        if "x-forwarded-for" in request.headers:
+            ip_real = request.headers["x-forwarded-for"].split(",")[0]
+        
+        nueva_auditoria = AuditoriaDescarga(
+            estudio_id=estudio_id,
+            usuario_id=usuario_id,
+            email=email,
+            ip=ip_real,
+            tipo=tipo.lower(),
+            resultado=resultado.lower()
+        )
+        db.add(nueva_auditoria)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error silencioso al registrar auditoría: {e}")
+        db.rollback()
     
 @router.get("/{paciente_id}/descargar-pdf")
-def descargar_pdf_paciente(paciente_id: int, db: Session = Depends(get_db)):
+def descargar_pdf_paciente(paciente_id: int, request: Request, db: Session = Depends(get_db)):
     paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
     if not paciente: raise HTTPException(status_code=404, detail="Paciente no localizado")
+
+    # Necesitamos el estudio para cumplir con tu modelo relacional
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+    if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
 
     identificacion = paciente.identificacion or paciente.id
     nombre_pdf = f"Reporte_{identificacion}.pdf"
@@ -466,8 +493,14 @@ def descargar_pdf_paciente(paciente_id: int, db: Session = Depends(get_db)):
     for raiz, directorios, archivos in os.walk(str(STATIC_PDF_PATH)):
         if nombre_pdf in archivos:
             ruta_exacta = os.path.join(raiz, nombre_pdf)
+            
+            # 🛡️ GATILLO DE AUDITORÍA: DESCARGA EXITOSA
+            registrar_auditoria(db, request, estudio_id=estudio.id, tipo="pdf", resultado="ok")
+            
             return FileResponse(ruta_exacta, media_type="application/pdf", headers={"Content-Disposition": f"inline; filename={nombre_pdf}"})
 
+    # 🛡️ GATILLO DE AUDITORÍA: INTENTO FALLIDO (Archivo no encontrado)
+    registrar_auditoria(db, request, estudio_id=estudio.id, tipo="pdf", resultado="denegado")
     raise HTTPException(status_code=404, detail=f"No se encontró el PDF: {nombre_pdf}")
 
 class ExportacionInput(BaseModel):
@@ -476,7 +509,7 @@ class ExportacionInput(BaseModel):
     modo_destino: str = "EXPLORADOR"
 
 @router.post("/exportar/medios-externos")
-def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_db)):
+def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Session = Depends(get_db)):
     try:
         if not datos.estudios_ids: raise ValueError("No se suministraron estudios al motor físico.")
 
@@ -627,6 +660,8 @@ def exportar_medios_externos(datos: ExportacionInput, db: Session = Depends(get_
                                 shutil.copy2(src_file, dest_file)
                                 
                     print(f"✅ EXPORTACIÓN AISLADA DE GRADO MÉDICO: {archivos_copiados} archivos DICOM transferidos para estudio ID: {item_id}.")
+                    # 🛡️ GATILLO DE AUDITORÍA: EXPORTACIÓN EXITOSA
+                    registrar_auditoria(db, request, estudio_id=estudio_db.id, tipo=datos.modo_destino, resultado="ok")
                 except Exception as e:
                     print(f"❌ Error en copia multiserie: {e}")
             else:

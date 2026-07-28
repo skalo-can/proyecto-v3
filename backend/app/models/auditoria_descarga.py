@@ -18,4 +18,4 @@ class AuditoriaDescarga(Base):
     creado_en = Column(DateTime, default=datetime.utcnow)
 
     estudio = relationship("Estudio", backref="descargas")
-    usuario = relationship("Usuario", backref="descargas")
+    usuario = relationship("Usuario", backref="descargas") 

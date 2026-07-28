@@ -340,4 +340,4 @@ async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)
         print(f"❌ ERROR GENERAL: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close()
+        db.close() 
