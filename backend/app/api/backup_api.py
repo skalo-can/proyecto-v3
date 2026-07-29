@@ -258,3 +258,77 @@ def cancelar_rutina():
     
     ESTADO_RUTINA["cancelado"] = True
     return {"status": "success", "message": "Orden de cancelación en curso."}
+
+from fastapi import Query
+
+# ==========================================
+# 🔍 BUSCADOR DE BACKUPS EN EL NAS (MEJORADO)
+# ==========================================
+@router.get("/backup/buscar-en-nas")
+def buscar_en_nas(q: str = Query(..., min_length=2)):
+    try:
+        config = leer_config_json()
+        nas_ruta = config["nas_ruta"]
+        
+        if not os.path.exists(nas_ruta):
+            raise HTTPException(status_code=400, detail="El disco NAS no está conectado o la ruta es inaccesible.")
+        
+        resultados = []
+        # 🚀 TRUCO DE BÚSQUEDA: Dividimos lo que escribes en palabras separadas
+        terminos_busqueda = q.lower().strip().split()
+        
+        for root, dirs, files in os.walk(nas_ruta):
+            # Optimización: ignoramos carpetas internas
+            dirs[:] = [d for d in dirs if not d.startswith("1_IMAGENES_DICOM") and d != "MI_PACS_Visor_Lite"]
+            
+            for dir_name in dirs:
+                # Convertimos el nombre de la carpeta a minúsculas
+                nombre_carpeta = dir_name.lower()
+                
+                # 🔥 LÓGICA INTELIGENTE: Verificamos que TODAS las palabras que escribiste estén en el nombre
+                coincide = all(termino in nombre_carpeta for termino in terminos_busqueda)
+                
+                if coincide and "_ID" in dir_name and "_EST_" in dir_name:
+                    ruta_completa = os.path.join(root, dir_name)
+                    
+                    # Extraer datos de la estructura
+                    partes_ruta = root.replace(nas_ruta, "").strip("\\/").split(os.sep)
+                    modalidad = partes_ruta[0] if len(partes_ruta) > 0 else "N/A"
+                    fecha_str = f"{partes_ruta[1]}-{partes_ruta[2]}-{partes_ruta[3]}" if len(partes_ruta) >= 4 else "Desconocida"
+                    
+                    try:
+                        p_nombre = dir_name.split("_ID")[0].replace("_", " ")
+                        p_id = dir_name.split("_ID")[1].split("_EST_")[0]
+                        p_est = dir_name.split("_EST_")[1]
+                    except:
+                        p_nombre = dir_name
+                        p_id = "-"
+                        p_est = "-"
+                    
+                    resultados.append({
+                        "nombre_paciente": p_nombre,
+                        "identificacion": p_id,
+                        "accession_number": p_est,
+                        "modalidad": modalidad,
+                        "fecha_backup": fecha_str,
+                        "ruta": ruta_completa
+                    })
+                        
+        return resultados
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+class RutaRequest(BaseModel):
+    ruta: str
+
+@router.post("/backup/abrir-ubicacion")
+def abrir_ubicacion(datos: RutaRequest):
+    """Abre mágicamente la carpeta local en el explorador de Windows del servidor"""
+    try:
+        if os.path.exists(datos.ruta):
+            os.startfile(datos.ruta)
+            return {"status": "success", "message": "Carpeta abierta en el servidor."}
+        else:
+            raise HTTPException(status_code=404, detail="La ruta ya no existe en el disco.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo abrir la carpeta: {str(e)}")

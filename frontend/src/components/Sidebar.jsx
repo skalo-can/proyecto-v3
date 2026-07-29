@@ -13,7 +13,8 @@ export default function Sidebar({ isOpen, onClose }) {
   // 🔥 RUTA ACTUALIZADA AQUÍ
   const rutasAdmin = [
     "/gestion-usuarios", 
-    "/gestion-backups", 
+    "/gestion-backups",
+    "/recuperar-backups", // 👈 NUEVA RUTA AGREGADA
     "/config-mapeo", 
     "/facturacion-servicio", 
     "/auditoria", 
@@ -152,6 +153,7 @@ return (
             {isSkalo && (<Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} style={{ color: '#818cf8', fontWeight: 'bold' }}><span className="icon"><FaUsersCog /></span> Gestión Usuarios</Link>)}
             {isSkalo && (<Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>⚙️ Configuración MI_PACS</Link>)}
             {isSkalo && (<Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#34d399', fontWeight: 'bold' }}>📦 Ciclo de Vida / Backups</Link>)}
+            {isSkalo && (<Link to="/recuperar-backups" className={`submenu-link ${isActive("/recuperar-backups") ? "active" : ""}`} style={{ color: '#facc15', fontWeight: 'bold' }}>🔍 Recuperar Backups</Link>)}
             {isSkalo && (<Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#60a5fa', fontWeight: '500' }}>🏷️ Configurar Tags DICOM</Link>)}
             
             {/* 🛡️ BARRERA DE TITANIO PARA FACTURACIÓN */}

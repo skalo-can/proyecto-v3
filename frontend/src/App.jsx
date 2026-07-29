@@ -25,6 +25,7 @@ import Productividad from "./pages/Productividad";
 import TecnologoConsole from "./pages/TecnologoConsole";
 import GestionUsuarios from "./pages/GestionUsuarios";
 import BackupConfigPage from "./pages/BackupConfigPage";
+import RecuperarBackupsPage from './pages/RecuperarBackupsPage.jsx';
 import { PortalPaciente } from "./components/PortalPaciente/PortalPaciente";
 import ImportarPage from './pages/ImportarPage';
 import ExportarPage from './pages/ExportarPage';
@@ -171,6 +172,7 @@ export default function App() {
         <Route path="/auditoria" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><AuditoriaPage /></ProtectedRoute></Layout>} />
         <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'recepcion']}><RecepcionPage /></ProtectedRoute></Layout>} />
         <Route path="/gestion-backups" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><BackupConfigPage /></ProtectedRoute></Layout>} />
+        <Route path="/recuperar-backups" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><RecuperarBackupsPage /></ProtectedRoute></Layout>} />
         <Route path="/portal-paciente" element={<Layout><ProtectedRoute allowedRoles={['paciente']}><PortalPaciente /></ProtectedRoute></Layout>} />
         <Route path="/email-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><EmailLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/whatsapp-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
