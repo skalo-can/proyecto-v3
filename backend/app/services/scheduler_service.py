@@ -202,24 +202,52 @@ def ejecutar_rutina_backup_diario(estado_rutina=None):
                         else:
                             print(f"  └─ ⚠️ ALERTA: No se localizó carpeta DICOM específica.")
 
+# ====================================================================
                         # 2. COPIAR REPORTE PDF FIRMADO
-                        ruta_pdf = os.path.join(str(PDF_REPORTS_DIR), f"{accession_number}.pdf")
-                        if os.path.exists(ruta_pdf):
+                        # ====================================================================
+                        nombre_pdf = f"Reporte_{identificacion_paciente}.pdf"
+                        # Buscamos en la ruta exacta donde el sistema guarda los PDFs (año/mes/dia)
+                        ruta_pdf_exacta = os.path.join(str(PDF_REPORTS_DIR), año, mes, dia, nombre_pdf)
+                        ruta_pdf_raiz = os.path.join(str(PDF_REPORTS_DIR), nombre_pdf) # Por si es un archivo antiguo
+                        
+                        ruta_pdf_final = ruta_pdf_exacta if os.path.exists(ruta_pdf_exacta) else (ruta_pdf_raiz if os.path.exists(ruta_pdf_raiz) else None)
+                        
+                        if ruta_pdf_final:
                             destino_pdf = os.path.join(ruta_estudio_nas, f"2_REPORTE_CLINICO_{accession_number}.pdf")
-                            shutil.copy2(ruta_pdf, destino_pdf)
+                            shutil.copy2(ruta_pdf_final, destino_pdf)
+                            print(f"  └─ ✅ PDF Clínico respaldado.")
+                        else:
+                            print(f"  └─ ⚠️ No se encontró PDF para respaldar.")
 
+                        # ====================================================================
                         # 3. COPIAR AUDIO / DICTADO
-                        base_audios_dir = os.path.join("static", "audios_dictado")
+                        # ====================================================================
+                        from app.core.config import STATIC_DIR
+                        base_audios_dir = os.path.join(str(STATIC_DIR), "audios_dictado", año, mes, dia)
+                        
+                        # Buscamos con la nomenclatura estricta que usa tu backend
+                        nombre_audio_1 = f"dictado_{identificacion_paciente}_estudio_{estudio_id}.wav"
+                        nombre_audio_2 = f"dictado_{identificacion_paciente}_estudio_{estudio_id}.mp3"
+                        
                         rutas_audio = [
-                            (os.path.join(base_audios_dir, año, mes, dia, f"dictado_{accession_number}.mp3"), f"3_DICTADO_VOZ_{accession_number}.mp3"),
-                            (os.path.join(base_audios_dir, año, mes, dia, f"dictado_{accession_number}.wav"), f"3_DICTADO_VOZ_{accession_number}.wav"),
-                            (os.path.join(base_audios_dir, año, mes, dia, f"dictado_{estudio_id}.mp3"), f"3_DICTADO_VOZ_{estudio_id}.mp3"),
-                            (os.path.join(base_audios_dir, año, mes, dia, f"dictado_{estudio_id}.wav"), f"3_DICTADO_VOZ_{estudio_id}.wav")
+                            os.path.join(base_audios_dir, nombre_audio_1),
+                            os.path.join(base_audios_dir, nombre_audio_2),
+                            # Respaldo por si hay audios guardados con la nomenclatura antigua
+                            os.path.join(str(STATIC_DIR), "audios_dictado", año, mes, dia, f"dictado_{estudio_id}.wav")
                         ]
-                        for ruta_origen, nombre_archivo in rutas_audio:
+                        
+                        audio_copiado = False
+                        for ruta_origen in rutas_audio:
                             if os.path.exists(ruta_origen):
-                                shutil.copy2(ruta_origen, os.path.join(ruta_estudio_nas, nombre_archivo))
+                                ext = ruta_origen.split('.')[-1]
+                                destino_audio = os.path.join(ruta_estudio_nas, f"3_DICTADO_VOZ_{accession_number}.{ext}")
+                                shutil.copy2(ruta_origen, destino_audio)
+                                print(f"  └─ ✅ Audio/Dictado respaldado.")
+                                audio_copiado = True
                                 break
+                                
+                        if not audio_copiado:
+                            print(f"  └─ ℹ️ Estudio sin archivo de audio asociado.")
 
                         # 4. NOTA DESCRIPTIVA DE METADATOS
                         nota_clinica_path = os.path.join(ruta_estudio_nas, "4_INFORMACION_ANEXA.txt")
