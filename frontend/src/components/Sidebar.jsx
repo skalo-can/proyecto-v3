@@ -116,6 +116,28 @@ return (
         </Link>
         )}
 
+          <Link 
+            to="/gestion-firmas" 
+            style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "12px", 
+              padding: "14px 18px", 
+              backgroundColor: location.pathname === "/gestion-firmas" ? "#fbbf24" : "rgba(255, 255, 255, 0.05)", 
+              border: "1px solid rgba(255, 255, 255, 0.1)", 
+              borderRadius: "16px", 
+              color: location.pathname === "/gestion-firmas" ? "#000" : "#fff", 
+              textDecoration: "none", 
+              fontWeight: location.pathname === "/gestion-firmas" ? "bold" : "500",
+              marginBottom: "10px",
+              boxShadow: location.pathname === "/gestion-firmas" ? "0 0 15px rgba(251, 191, 36, 0.4)" : "none",
+              transition: "all 0.2s ease"
+            }}
+          >
+            <span style={{ fontSize: "1.2rem" }}>🔒</span> 
+            <span>Gestión de Firmas</span>
+          </Link>
+
           {(isAdmin || isRecepcion) && (
             <Link to="/recepcion" className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`} onClick={onClose}>
               <span className="icon"><FaUserPlus /></span> Recepción / RIS

@@ -31,6 +31,7 @@ import ImportarPage from './pages/ImportarPage';
 import ExportarPage from './pages/ExportarPage';
 import PerfilInstitucion from "./components/PerfilInstitucion";
 import GestorPlantillas from "./components/GestorPlantillas";
+import GestorFirmas from "./pages/GestorFirmas";
 
 // 🚀 IMPORTACIONES PARA MÓDULOS MULTIMONITOR
 import ModalDictadoHardware from "./pages/ModalDictadoHardware";
@@ -166,6 +167,15 @@ export default function App() {
           <Layout onOpenDicom={openDicom}>
             <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'transcriptor']}>
               <GestorPlantillas />
+            </ProtectedRoute>
+          </Layout>
+        } />
+
+        {/* 🔒 GESTOR DE FIRMAS DIGITALES */}
+        <Route path="/gestion-firmas" element={
+          <Layout onOpenDicom={openDicom}>
+            <ProtectedRoute allowedRoles={['superadmin', 'admin', 'radiologo']}>
+              <GestorFirmas />
             </ProtectedRoute>
           </Layout>
         } />
