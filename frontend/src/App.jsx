@@ -30,6 +30,7 @@ import { PortalPaciente } from "./components/PortalPaciente/PortalPaciente";
 import ImportarPage from './pages/ImportarPage';
 import ExportarPage from './pages/ExportarPage';
 import PerfilInstitucion from "./components/PerfilInstitucion";
+import GestorPlantillas from "./components/GestorPlantillas";
 
 // 🚀 IMPORTACIONES PARA MÓDULOS MULTIMONITOR
 import ModalDictadoHardware from "./pages/ModalDictadoHardware";
@@ -159,6 +160,15 @@ export default function App() {
 
         {/* 🛠️ GESTIÓN DE USUARIOS */}
         <Route path="/gestion-usuarios" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><GestionUsuarios /></ProtectedRoute></Layout>} />
+
+        {/* 📚 GESTOR DE PLANTILLAS */}
+        <Route path="/plantillas" element={
+          <Layout onOpenDicom={openDicom}>
+            <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'transcriptor']}>
+              <GestorPlantillas />
+            </ProtectedRoute>
+          </Layout>
+        } />
 
         {/* 📊 ESTADÍSTICAS Y PRODUCTIVIDAD */}
         <Route path="/estadisticas" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'invitado']}><DashboardStats /></ProtectedRoute></Layout>} />

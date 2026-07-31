@@ -10,6 +10,10 @@ export default function ModalTranscriptor({ isWindow }) {
   const [plantillas, setPlantillas] = useState([]);
   const [plantillaSeleccionada, setPlantillaSeleccionada] = useState("");
   
+  // 🔥 NUEVOS ESTADOS PARA EL FILTRO DE MÉDICOS
+  const [medicos, setMedicos] = useState([]);
+  const [medicoSeleccionado, setMedicoSeleccionado] = useState("");
+  
   // 🚀 ESTADO PARA LA IA
   const [isTranscribing, setIsTranscribing] = useState(false);
   
@@ -28,20 +32,40 @@ export default function ModalTranscriptor({ isWindow }) {
     }
   }, [estudioId]);
 
+  // 🔥 NUEVO EFECTO DE CARGA MULTIPLE (Plantillas + Médicos)
   useEffect(() => {
-    const fetchPlantillas = async () => {
+    const fetchDatosInit = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/plantillas`);
-        if (response.ok) {
-          const data = await response.json();
-          setPlantillas(data);
+        // 1. Cargar Plantillas
+        const resPlantillas = await fetch(`http://localhost:8000/api/plantillas`);
+        if (resPlantillas.ok) {
+          const dataPlantillas = await resPlantillas.json();
+          setPlantillas(dataPlantillas);
+        }
+        
+        // 2. Cargar Médicos (Solo radiólogos)
+        const resMedicos = await fetch("http://localhost:8000/api/usuarios");
+        if (resMedicos.ok) {
+          const dataMedicos = await resMedicos.json();
+          const radiologos = dataMedicos.filter(u => u.rol && u.rol.toLowerCase().includes('radiologo'));
+          setMedicos(radiologos);
         }
       } catch (error) {
-        console.error("Error cargando plantillas:", error);
+        console.error("Error cargando datos para el modal:", error);
       }
     };
-    fetchPlantillas();
+    fetchDatosInit();
   }, []);
+
+  // 🔥 LÓGICA DE FILTRADO EN TIEMPO REAL
+  const plantillasFiltradas = plantillas.filter(p => {
+    // Siempre mostramos las plantillas globales (las que no tienen médico asignado)
+    if (!p.medico_id) return true;
+    // Si el transcriptor seleccionó un médico, mostramos también las de ese médico específico
+    if (medicoSeleccionado && p.medico_id === parseInt(medicoSeleccionado)) return true;
+    // Todo lo demás se oculta
+    return false;
+  });
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -58,7 +82,7 @@ export default function ModalTranscriptor({ isWindow }) {
         }
       }
       
-      // 3. Alt + Flechas: Atrasar / Adelantar (Evita el conflicto nativo del navegador con Ctrl)
+      // 3. Alt + Flechas: Atrasar / Adelantar
       if (e.altKey && e.code === 'ArrowLeft') {
         e.preventDefault();
         if (audioRef.current) audioRef.current.currentTime -= 5;
@@ -87,7 +111,6 @@ export default function ModalTranscriptor({ isWindow }) {
     setPlantillaSeleccionada("");
   };
 
-  // 🪄 FUNCIÓN PARA LLAMAR A LA IA
   const handleAutoTranscribir = async () => {
     setIsTranscribing(true);
     try {
@@ -162,7 +185,6 @@ export default function ModalTranscriptor({ isWindow }) {
       <div style={{ padding: "15px", backgroundColor: "#111418", borderRadius: "8px", border: "1px solid #333", marginBottom: "20px", display: "flex", gap: "20px", alignItems: "center" }}>
         <audio ref={audioRef} src={audioUrl} controls style={{ flex: 1 }} />
         
-        {/* 🪄 BOTÓN MÁGICO DE INTELIGENCIA ARTIFICIAL AQUÍ */}
         <button 
           onClick={handleAutoTranscribir} 
           disabled={isTranscribing}
@@ -184,20 +206,42 @@ export default function ModalTranscriptor({ isWindow }) {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#1e293b", padding: "10px 15px", borderRadius: "6px", border: "1px solid #475569" }}>
-          <span style={{ color: "#fbbf24", fontWeight: "bold", whiteSpace: "nowrap" }}>📋 Insertar Plantilla:</span>
-          <select 
-            value={plantillaSeleccionada}
-            onChange={inyectarPlantilla}
-            style={{ padding: "8px 12px", backgroundColor: "#0f172a", color: "#fff", border: "1px solid #64748b", borderRadius: "4px", minWidth: "250px", outline: "none", cursor: "pointer" }}
-          >
-            <option value="">-- Seleccione una plantilla --</option>
-            {plantillas.map(p => (
-              <option key={p.id} value={p.id}>
-                [{p.modalidad}] - {p.nombre}
-              </option>
-            ))}
-          </select>
+        {/* 🔥 ZONA IZQUIERDA: LOS DOS SELECTORES */}
+        <div style={{ display: "flex", gap: "15px" }}>
+          
+          {/* SELECTOR DEL RADIÓLOGO */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#1e293b", padding: "10px 15px", borderRadius: "6px", border: "1px solid #475569" }}>
+            <span style={{ color: "#38bdf8", fontWeight: "bold", whiteSpace: "nowrap" }}>👨‍⚕️ Dictado por:</span>
+            <select 
+              value={medicoSeleccionado}
+              onChange={(e) => setMedicoSeleccionado(e.target.value)}
+              style={{ padding: "8px 12px", backgroundColor: "#0f172a", color: "#fff", border: "1px solid #64748b", borderRadius: "4px", outline: "none", cursor: "pointer" }}
+            >
+              <option value="">-- Seleccione Doctor --</option>
+              {medicos.map(m => (
+                <option key={m.id} value={m.id}>
+                  Dr(a). {m.nombre_completo || m.username}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* SELECTOR DE PLANTILLAS */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#1e293b", padding: "10px 15px", borderRadius: "6px", border: "1px solid #475569" }}>
+            <span style={{ color: "#fbbf24", fontWeight: "bold", whiteSpace: "nowrap" }}>📋 Insertar:</span>
+            <select 
+              value={plantillaSeleccionada}
+              onChange={inyectarPlantilla}
+              style={{ padding: "8px 12px", backgroundColor: "#0f172a", color: "#fff", border: "1px solid #64748b", borderRadius: "4px", minWidth: "250px", outline: "none", cursor: "pointer" }}
+            >
+              <option value="">-- Seleccione una plantilla --</option>
+              {plantillasFiltradas.map(p => (
+                <option key={p.id} value={p.id}>
+                  [{p.modalidad}] - {p.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: "15px" }}>

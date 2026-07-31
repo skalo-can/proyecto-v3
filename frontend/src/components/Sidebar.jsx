@@ -109,6 +109,13 @@ return (
           <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`} onClick={onClose}>
             <span className="icon">👥</span> Pacientes
           </Link>
+        {/* 🔥 NUEVO BOTÓN: Gestor de Plantillas */}
+        {['admin', 'superadmin', 'radiologo', 'transcriptor'].includes(user?.rol) && (
+        <Link to="/plantillas" className={`sidebar-link ${isActive("/plantillas") ? "active" : ""}`} onClick={onClose}>
+          <span className="icon">📚</span> Gestor de Plantillas
+        </Link>
+        )}
+
           {(isAdmin || isRecepcion) && (
             <Link to="/recepcion" className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`} onClick={onClose}>
               <span className="icon"><FaUserPlus /></span> Recepción / RIS
