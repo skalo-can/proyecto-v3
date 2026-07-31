@@ -31,6 +31,7 @@ from app.models.estudio_imagen import EstudioImagen
 from app.models.dicom_config import DicomConfig
 from app.models.ris_orden import RISOrden
 from app.models.estudio_ia_log import EstudioIALog
+from app.api import plantillas_api
 
 # --- ROUTERS CLÍNICOS ---
 from app.api.paciente_api import router as paciente_router
@@ -214,6 +215,7 @@ app.include_router(dicom_modalities_router)
 app.include_router(tecnologo_api, prefix="/api")
 app.include_router(admin_config_router)
 app.include_router(backup_router, prefix="/api", tags=["Gestión de Backups"])
+app.include_router(plantillas_api.router, prefix="/api")
 
 @app.post("/api/notify-new-study")
 async def trigger_notification():

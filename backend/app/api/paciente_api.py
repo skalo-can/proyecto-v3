@@ -814,3 +814,66 @@ def cancelar_estudio_definitivo(paciente_id: int, datos: CancelacionInput, db: S
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al cancelar: {str(e)}")
+
+
+# =====================================================================
+# 🪄 AUTO-TRANSCRIPCIÓN CON INTELIGENCIA ARTIFICIAL (WHISPER)
+# =====================================================================
+try:
+    import whisper
+    # Cargamos el modelo en memoria globalmente al iniciar el servidor 
+    modelo_ia_voz = whisper.load_model("base")
+except ImportError:
+    modelo_ia_voz = None
+    print("⚠️ Advertencia: La librería 'openai-whisper' no está instalada.")
+
+@router.post("/{paciente_id}/transcribir-audio")
+def auto_transcribir_con_ia(paciente_id: int, db: Session = Depends(get_db)):
+    if modelo_ia_voz is None:
+        raise HTTPException(status_code=500, detail="Whisper no está instalado en el servidor.")
+        
+    try:
+        # 1. 🧠 CORRECCIÓN DEL "FALSO AMIGO": Recibimos el ID del Paciente (Ej: 22)
+        # Buscamos todos sus estudios y tomamos el más reciente que tenga un audio asociado.
+        estudios = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).order_by(Estudio.id.desc()).all()
+        estudio_con_audio = next((e for e in estudios if getattr(e, "audio_path", None)), None)
+        
+        if not estudio_con_audio:
+            raise HTTPException(status_code=404, detail=f"El paciente en la posición {paciente_id} no tiene audios en la base de datos.")
+
+        # 2. Extraemos el nombre exacto del archivo que tu sistema guardó con la cédula real
+        # Ejemplo: "dictado_1110570281_estudio_24.wav"
+        ruta_audio_db = estudio_con_audio.audio_path
+        nombre_archivo = ruta_audio_db.split("/")[-1]
+        
+        # 3. 🎯 Búsqueda física a prueba de fallos en el disco duro
+        ruta_base = os.path.join(str(STATIC_DIR), "audios_dictado")
+        archivo_encontrado = None
+        
+        if os.path.exists(ruta_base):
+            for root, dirs, files in os.walk(ruta_base):
+                if nombre_archivo in files:
+                    archivo_encontrado = os.path.join(root, nombre_archivo)
+                    break
+                    
+        if not archivo_encontrado:
+            raise HTTPException(status_code=404, detail=f"Falta el archivo físico en el disco: {nombre_archivo}")
+
+        # 🪄 MAGIA DE LA IA: Transcribimos el archivo encontrado
+        resultado = modelo_ia_voz.transcribe(archivo_encontrado, language="es")
+        texto_medico = resultado.get("text", "").strip()
+        
+        if not texto_medico:
+            raise HTTPException(status_code=400, detail="La IA analizó el archivo, pero estaba vacío o contenía solo ruido.")
+            
+        return {"status": "success", "texto": texto_medico}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print("\n" + "="*50)
+        print("🚨 ERROR FATAL DE WHISPER 🚨")
+        traceback.print_exc()
+        print("="*50 + "\n")
+        raise HTTPException(status_code=500, detail=f"Fallo crítico: {str(e)}")
