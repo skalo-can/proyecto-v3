@@ -25,6 +25,9 @@ const FacturacionServicio = () => {
   const [modoEdicionReglas, setModoEdicionReglas] = useState(false);
   const [guardandoParametros, setGuardandoParametros] = useState(false);
 
+  // 🔥 NUEVO ESTADO PARA EL BOTÓN DE ARCHIVAR
+  const [archivando, setArchivando] = useState(false);
+
   const [datosEmisor, setDatosEmisor] = useState(() => {
     try { const saved = localStorage.getItem('mi_pacs_emisor'); if (saved) { const parsed = JSON.parse(saved); if (parsed && typeof parsed === 'object') return parsed; } } catch (e) {}
     return { nombre: 'SADAT KARIM LUNA OSORIO', idFiscal: '100000000', direccion: 'Calle 1# 11-20', ciudad: 'Ibagué, Colombia', telefono: '3000000000', email: 'skalo@mipacs.com', firmaDigital: null };
@@ -113,7 +116,6 @@ const FacturacionServicio = () => {
       if (response.ok) {
         const data = await response.json();
         
-        // 🚀 AHORA GUARDAMOS LOS DATOS ÚNICOS GLOBALES PARA MOSTRARLOS EN LA INTERFAZ
         setDatosConsumo({ 
             modalidades: data.modalidades || [],
             totalesReales: {
@@ -144,7 +146,7 @@ const FacturacionServicio = () => {
     if (!datosConsumo || !Array.isArray(datosConsumo.modalidades)) return { cantidadBase: 0, subtotal: 0, impuesto: 0, retencion: 0, neto: 0, etiquetaUnidad: '', pesoGB: '0.00', desgloseIngresos: [] };
     
     let subtotal = 0, cantidadBase = 0, pesoEstimadoGB = 0, desgloseIngresos = [];
-    let etiquetaUnidad = clienteActivo.modeloCobro === 'estudios' ? 'Estudios' : (clienteActivo.modeloCobro === 'imagenes' ? 'Imágenes' : 'Cobros'); // Cambiamos a 'Cobros' para no confundir
+    let etiquetaUnidad = clienteActivo.modeloCobro === 'estudios' ? 'Estudios' : (clienteActivo.modeloCobro === 'imagenes' ? 'Imágenes' : 'Cobros');
 
     datosConsumo.modalidades.forEach(mod => {
       let qty = clienteActivo.modeloCobro === 'estudios' ? (mod.value || 0) : (clienteActivo.modeloCobro === 'imagenes' ? (mod.imagenes || 0) : (mod.pacientes || 0));
@@ -187,13 +189,127 @@ const FacturacionServicio = () => {
     setMostrarModalFactura(true);
   };
 
-  const handleImprimirYGuardar = () => {
-    window.print(); 
-    if (!facturaGenerada) {
-      const nuevaFactura = { id: numeroFacturaActual, clienteId: clienteActivo.id, clinica: clienteActivo.nombre || 'Cliente', fecha: new Date().toISOString().split('T')[0], total: finanzas.neto, estado: 'Pendiente', mora: 0, acuseRecibo: false };
+  // 🔥 NUEVA FUNCIÓN CONECTADA AL BACKEND
+const handleImprimirYGuardar = async () => {
+    if (facturaGenerada) {
+      alert("Esta factura ya fue archivada previamente.");
+      return;
+    }
+
+    setArchivando(true);
+    try {
+      // 🔥 CAPTURA AUTOMÁTICA DE LA GRÁFICA DESDE EL VISOR
+      let graficaBase64 = null;
+      const svgElement = document.querySelector('.printable-invoice .recharts-surface');
+      if (svgElement) {
+        const svgString = new XMLSerializer().serializeToString(svgElement);
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const URL = window.URL || window.webkitURL || window;
+        const blobURL = URL.createObjectURL(svgBlob);
+        
+        await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = svgElement.clientWidth || 500;
+            canvas.height = svgElement.clientHeight || 200;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            graficaBase64 = canvas.toDataURL('image/png').split(',')[1];
+            URL.revokeObjectURL(blobURL);
+            resolve();
+          };
+          img.src = blobURL;
+        });
+      }
+
+      // 🔥 ESTRUCTURA COMPLETA CON LA GRÁFICA INCLUIDA
+      const payloadFactura = {
+        numero_factura: numeroFacturaActual,
+        tipo_documento: clienteActivo.tipoEmision === 'factura' ? 'FACTURA DE VENTA' : 'CUENTA DE COBRO',
+        fecha_emision: new Date().toLocaleDateString(),
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        moneda: clienteActivo.moneda,
+        
+        emisor: {
+          nombre: datosEmisor.nombre,
+          idFiscal: datosEmisor.idFiscal,
+          direccion: datosEmisor.direccion,
+          ciudad: datosEmisor.ciudad,
+          telefono: datosEmisor.telefono,
+          email: datosEmisor.email
+        },
+        cliente: {
+          nombre: clienteActivo.nombre,
+          idFiscal: clienteActivo.idFiscal,
+          direccion: clienteActivo.direccion,
+          ciudad: clienteActivo.ciudad
+        },
+        
+        items: finanzas.desgloseIngresos.map(item => ({
+          nombre: item.name,
+          volumen: item.volumen,
+          tarifa: item.tarifaAplicada.toFixed(2),
+          subtotal: item.ingresos.toFixed(2)
+        })),
+
+        // 🔥 INYECTAMOS LA GRÁFICA CAPTURADA
+        grafica_base64: graficaBase64,
+
+        subtotal: finanzas.subtotal,
+        impuesto_nombre: clienteActivo.nombreImpuesto,
+        impuesto_porcentaje: clienteActivo.porcentajeImpuesto,
+        impuesto_valor: finanzas.impuesto,
+        retencion_nombre: clienteActivo.nombreRetencion,
+        retencion_porcentaje: clienteActivo.porcentajeRetencion,
+        retencion_valor: finanzas.retencion,
+        neto: finanzas.neto
+      };
+
+      const response = await fetch("http://127.0.0.1:8000/api/pdf/facturacion/archivar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payloadFactura)
+      });
+
+      if (!response.ok) throw new Error("Error en el servidor al archivar la factura");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `Factura_${numeroFacturaActual}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      const nuevaFactura = { 
+        id: numeroFacturaActual, 
+        clienteId: clienteActivo.id, 
+        clinica: clienteActivo.nombre || 'Cliente', 
+        fecha: new Date().toISOString().split('T')[0], 
+        total: finanzas.neto, 
+        estado: 'Pendiente', 
+        mora: 0, 
+        acuseRecibo: false 
+      };
+      
       setCartera([nuevaFactura, ...cartera]);
       setFacturaGenerada(true);
-      alert(`✅ PDF Generado Correctamente.\n\n📁 Copia de seguridad almacenada en el archivo local:\n/proyecto_v3/facturas_archivadas/${numeroFacturaActual}.pdf`);
+
+      alert(`✅ ¡Factura procesada con éxito!\n\n📁 El sistema la ha firmado y archivado automáticamente en la ruta:\n/proyecto v3/facturas_archivadas/`);
+
+    } catch (error) {
+      console.error("Error archivando:", error);
+      alert("⚠️ Hubo un problema al archivar la factura. Revisa que el backend esté corriendo.");
+    } finally {
+      setArchivando(false);
     }
   };
 
@@ -212,20 +328,31 @@ const FacturacionServicio = () => {
     const modalidadesActivas = Object.keys(clienteActivo.modalidadesSeleccionadas || {}).filter(m => clienteActivo.modalidadesSeleccionadas[m]);
     
     return (
-      <div style={{ width: width, height: height }}>
+      <div style={{ width: width, height: height, background: '#ffffff', borderRadius: '4px', padding: '4px' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={tendenciaVolumen} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={isPrint ? "#cbd5e1" : "#3d4253"} vertical={false} />
-            <XAxis dataKey="fecha" stroke={isPrint ? "#64748b" : "#a0aabf"} fontSize={isPrint ? 10 : 8} />
-            <YAxis stroke={isPrint ? "#64748b" : "#a0aabf"} fontSize={isPrint ? 10 : 8} />
-            {!isPrint && <RechartsTooltip contentStyle={{ backgroundColor: '#1e222d', borderColor: '#4a5066', color: '#fff', fontSize: '9px' }}/>}
+          <AreaChart data={tendenciaVolumen} margin={{ top: 10, right: 10, left: 15, bottom: 15 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} />
+            
+            <XAxis 
+              dataKey="fecha" 
+              stroke="#64748b" 
+              fontSize={8} 
+              label={{ value: 'TIEMPO (DÍAS)', position: 'bottom', offset: 0, fill: '#64748b', fontSize: 7, fontWeight: 'bold' }}
+            />
+            
+            <YAxis 
+              stroke="#64748b" 
+              fontSize={8} 
+            />
+
+            <RechartsTooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a', fontSize: '9px' }}/>
             
             {(!tendenciaVolumen.length || !modalidadesActivas.some(mod => tendenciaVolumen[0].hasOwnProperty(mod))) && (
-              <Area type="monotone" dataKey="total" stroke="#FFD700" fillOpacity={isPrint ? 0.3 : 0.15} fill="#FFD700" isAnimationActive={!isPrint} />
+              <Area type="monotone" dataKey="total" stroke="#3b82f6" fillOpacity={0.2} fill="#3b82f6" isAnimationActive={false} />
             )}
             
             {modalidadesActivas.map((mod) => (
-               <Area key={mod} type="monotone" dataKey={mod} stackId="1" stroke={MODALIDAD_COLORS[mod]} fillOpacity={isPrint ? 0.7 : 0.4} fill={MODALIDAD_COLORS[mod]} isAnimationActive={!isPrint} />
+               <Area key={mod} type="monotone" dataKey={mod} stackId="1" stroke={MODALIDAD_COLORS[mod]} fillOpacity={0.5} fill={MODALIDAD_COLORS[mod]} isAnimationActive={false} />
             ))}
           </AreaChart>
         </ResponsiveContainer>
@@ -413,13 +540,11 @@ const FacturacionServicio = () => {
         {datosConsumo && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '6px', marginTop: '10px' }}>
             
-            {/* 🚀 EL CAMBIO ESTÁ AQUÍ: TRANSPARENCIA TOTAL PARA EL AUDITOR */}
             <div style={{ background: '#1e222d', border: '1px solid #FFD700', padding: '8px 4px', borderRadius: '6px', textAlign: 'center' }}>
               <p style={{ color: '#FFD700', fontSize: '0.6rem', fontWeight: 'bold', margin: '0 0 2px 0' }}>A COBRAR</p>
               <p style={{ color: '#FFD700', fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>{finanzas.cantidadBase}</p>
               <p style={{ color: '#a0aabf', fontSize: '0.6rem', margin: 0 }}>
                 {finanzas.etiquetaUnidad}
-                {/* Si estamos cobrando por paciente, aclaramos cuántas personas únicas fueron para que cuadre con la estadística global */}
                 {clienteActivo.modeloCobro === 'pacientes' && ` (de ${datosConsumo.totalesReales.pacientes} Personas)`}
               </p>
             </div>
@@ -440,7 +565,6 @@ const FacturacionServicio = () => {
         )}
       </div>
 
-      {/* GRÁFICAS */}
       {datosConsumo && (
         <div className="section-wrapper" style={{ background: 'rgba(30, 34, 45, 0.6)', border: '1px dashed #4a5066', padding: '8px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -470,7 +594,6 @@ const FacturacionServicio = () => {
         </div>
       )}
 
-      {/* BOTÓN DE CARTERA Y MODALES OMITIDOS EN ESTA VISTA RESUMIDA POR ESPACIO, TODO LO DEMÁS QUEDA EXACTAMENTE IGUAL A TU CÓDIGO ORIGINAL */}
       <div className="no-print" onClick={() => setModalCarteraAbierto(true)} style={{ position: 'fixed', bottom: '15px', left: '50%', transform: 'translateX(-50%)', width: '85%', maxWidth: '800px', background: 'linear-gradient(135deg, #1a1d26 0%, #252a37 100%)', border: '1px solid #FFD700', borderRadius: '6px', padding: '8px 15px', textAlign: 'center', cursor: 'pointer', boxShadow: '0 10px 25px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#FFD700', fontWeight: '700', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
           <span>✨ MI_PACS SYSTEM: Innovación y Precisión en Telemedicina</span><ChevronUp size={14} />
@@ -578,7 +701,9 @@ const FacturacionServicio = () => {
           
           <div style={{ width: '100%', maxWidth: '215.9mm', display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
             <button onClick={() => setMostrarModalFactura(false)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}><X size={16}/> Cerrar Visor</button>
-            <button onClick={handleImprimirYGuardar} style={{ background: '#10b981', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}><FolderDown size={16}/> Descargar PDF y Archivar</button>
+            <button disabled={archivando} onClick={handleImprimirYGuardar} style={{ background: '#10b981', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: archivando ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', opacity: archivando ? 0.7 : 1 }}>
+              <FolderDown size={16}/> {archivando ? 'Archivando PDF...' : 'Descargar PDF y Archivar'}
+            </button>
           </div>
 
           <div className="printable-invoice" style={{ width: '100%', maxWidth: '215.9mm', minHeight: '279.4mm', background: 'white', padding: '20mm', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', boxShadow: '0 5px 15px rgba(0,0,0,0.5)', color: '#1e293b' }}>
