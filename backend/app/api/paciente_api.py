@@ -32,6 +32,7 @@ from app.core.auth import obtener_usuario_actual
 from app.models.paciente import Paciente
 from app.models.estudio import Estudio
 from app.models.estudio_imagen import EstudioImagen
+from app.models.firma import FirmaRadiologo # 🔥 IMPORTAMOS LA ENTIDAD FIRMA
 
 from app.schemas.paciente import (
     PacienteCreate,
@@ -394,8 +395,9 @@ class FirmaInput(BaseModel):
     aprobado: bool = True              
     nota_rechazo: Optional[str] = ""  
 
+# 🔥 SOLUCIÓN: INYECCIÓN DE LA ANCLA ABSOLUTA
 @router.post("/{paciente_id}/firmar-informe")
-def firmar_informe(paciente_id: int, datos: FirmaInput, db: Session = Depends(get_db)):
+def firmar_informe(paciente_id: int, datos: FirmaInput, usuario=Depends(obtener_usuario_actual), db: Session = Depends(get_db)):
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
     if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
     
@@ -410,6 +412,13 @@ def firmar_informe(paciente_id: int, datos: FirmaInput, db: Session = Depends(ge
             setattr(estudio, "esta_firmado", False)
             db.commit()
             return {"status": "success", "message": "Estudio devuelto a transcripción para correcciones.", "pdf_path": None}
+
+        # 🚀 LA MAGIA SUCEDE AQUÍ: BUSCAMOS LA RUTA ABSOLUTA
+        BASE_DIR = Path(__file__).resolve().parent.parent.parent
+        CARPETA_FIRMAS = BASE_DIR / "storage" / "firmas_seguras"
+        
+        firma_local = db.query(FirmaRadiologo).filter(FirmaRadiologo.usuario_id == usuario.id).first()
+        ruta_firma_fisica = str(CARPETA_FIRMAS / firma_local.nombre_archivo) if firma_local else None
 
         nombre_medico_final = datos.medico_firma.strip() if datos.medico_firma else "Médico Radiólogo"
         rm_final = datos.registro_medico.strip() if datos.registro_medico else "SIN REGISTRO MÉDICO"
@@ -429,7 +438,8 @@ def firmar_informe(paciente_id: int, datos: FirmaInput, db: Session = Depends(ge
             "modalidad": getattr(estudio, "tipo_estudio", getattr(estudio, "modalidad", "CR")),
             "texto_diagnostico": datos.informe_final,
             "nombre_medico": nombre_medico_final,
-            "registro_medico": rm_final 
+            "registro_medico": rm_final,
+            "ruta_firma": ruta_firma_fisica # 🚀 PASAMOS LA RUTA A WEASYPRINT
         }
         fecha_referencia = estudio.fecha_estudio if estudio.fecha_estudio else datetime.now()
         

@@ -14,14 +14,15 @@ export default function Sidebar({ isOpen, onClose }) {
   const rutasAdmin = [
     "/gestion-usuarios", 
     "/gestion-backups",
-    "/recuperar-backups", // 👈 NUEVA RUTA AGREGADA
+    "/recuperar-backups", 
     "/config-mapeo", 
     "/facturacion-servicio", 
     "/auditoria", 
     "/email-logs", 
     "/whatsapp-logs",
     "/configuracion",
-    "/perfil-institucion"
+    "/perfil-institucion",
+    "/gestion-firmas" // Añadimos la ruta de firmas a las rutas admin para que abra el acordeón si es necesario
   ];
 
   const isAdminRoute = rutasAdmin.some(ruta => location.pathname.includes(ruta)) || location.pathname === "/";
@@ -116,6 +117,8 @@ return (
         </Link>
         )}
 
+        {/* 🔒 BARRERA DE SEGURIDAD PARA GESTIÓN DE FIRMAS */}
+        {isAdmin && (
           <Link 
             to="/gestion-firmas" 
             style={{ 
@@ -137,6 +140,7 @@ return (
             <span style={{ fontSize: "1.2rem" }}>🔒</span> 
             <span>Gestión de Firmas</span>
           </Link>
+        )}
 
           {(isAdmin || isRecepcion) && (
             <Link to="/recepcion" className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`} onClick={onClose}>

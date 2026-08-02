@@ -13,8 +13,6 @@ from app.models.estudio import Estudio
 from app.models.paciente import Paciente
 from app.models.firma import FirmaRadiologo
 
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
 from app.core.config import PDF_REPORTS_DIR
 from app.services.generador_pdf import construir_reporte_pdf
 
@@ -29,7 +27,7 @@ def _get_estudio(estudio_id: int, db: Session) -> Estudio:
     _ = est.paciente
     return est
 
-# --- ENDPOINT CLÍNICO (INTACTO) ---
+# --- ENDPOINT CLÍNICO (ACTUALIZADO A WEASYPRINT Y PLANTILLA HTML) ---
 @router.get("/estudio/{estudio_id}")
 def generar_pdf_estudio(
     estudio_id: int, 
@@ -39,57 +37,48 @@ def generar_pdf_estudio(
     est = _get_estudio(estudio_id, db)
     paciente: Paciente = est.paciente
 
-    pdf_path = PDF_REPORTS_DIR / f"estudio_{estudio_id}.pdf"
-    c = canvas.Canvas(str(pdf_path), pagesize=A4)
-    width, height = A4
-
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, height - 50, "Reporte de Estudio")
-
-    c.setFont("Helvetica", 12)
-    y = height - 100
-    
+    # 1. Preparar las variables para la plantilla HTML (plantilla_reporte.html)
     nombre_completo = f"{getattr(paciente, 'primer_nombre', getattr(paciente, 'nombre', ''))} {getattr(paciente, 'primer_apellido', getattr(paciente, 'apellidos', ''))}".strip()
     
-    c.drawString(50, y, f"Paciente: {nombre_completo}")
-    y -= 20
-    c.drawString(50, y, f"ID Paciente: {paciente.id}")
-    y -= 20
-    c.drawString(50, y, f"Estudio ID: {est.id}")
-    y -= 20
-    c.drawString(50, y, f"Modalidad: {getattr(est, 'modalidad', '')}")
-    y -= 20
-    c.drawString(50, y, f"Fecha: {getattr(est, 'fecha_estudio', '')}")
-    y -= 40
-    c.drawString(50, y, f"Generado en: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-    y -= 100 
-    firma_db = db.query(FirmaRadiologo).filter(FirmaRadiologo.usuario_id == usuario.id).first()
-    
-    if firma_db:
-        ruta_firma = os.path.join(CARPETA_FIRMAS, firma_db.nombre_archivo)
-        if os.path.exists(ruta_firma):
-            try:
-                c.drawImage(ruta_firma, 50, y, width=150, height=50, preserveAspectRatio=True, mask='auto')
-            except Exception as e:
-                print(f"Advertencia: No se pudo incrustar la imagen de la firma. Error: {e}")
-
-    c.setLineWidth(1)
-    c.line(50, y - 5, 250, y - 5)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(50, y - 20, "Firma Autorizada")
-    c.setFont("Helvetica", 10)
     nombre_medico = f"{getattr(usuario, 'primer_nombre', '')} {getattr(usuario, 'primer_apellido', '')}".strip()
     if not nombre_medico:
         nombre_medico = getattr(usuario, 'username', 'Usuario Autorizado')
-    c.drawString(50, y - 35, nombre_medico)
 
-    c.showPage()
-    c.save()
+    # Extraer el diagnóstico (ajusta 'texto_diagnostico' o 'hallazgos' si tu modelo en la BD se llama diferente)
+    texto_diag = getattr(est, 'texto_diagnostico', getattr(est, 'hallazgos', 'Estudio radiológico sin hallazgos registrados.'))
+
+    datos_estudio = {
+        "nombre_paciente": nombre_completo,
+        "id_paciente": getattr(paciente, 'documento', getattr(paciente, 'id', '')),
+        "fecha_estudio": getattr(est, 'fecha_estudio', ''),
+        "modalidad": getattr(est, 'modalidad', ''),
+        "texto_diagnostico": texto_diag,
+        "nombre_medico": nombre_medico,
+        "registro_medico": getattr(usuario, 'registro_medico', getattr(usuario, 'licencia', '')),
+    }
+
+    # 2. Buscar e inyectar la ruta física de la firma del radiólogo 🔥
+    firma_db = db.query(FirmaRadiologo).filter(FirmaRadiologo.usuario_id == usuario.id).first()
+    if firma_db:
+        ruta_firma_fisica = os.path.join(CARPETA_FIRMAS, firma_db.nombre_archivo)
+        datos_estudio["ruta_firma"] = ruta_firma_fisica
+    else:
+        datos_estudio["ruta_firma"] = None
+
+    # 3. Definir la ruta donde se guardará el PDF temporal o final
+    pdf_path = PDF_REPORTS_DIR / f"estudio_{estudio_id}.pdf"
+    os.makedirs(PDF_REPORTS_DIR, exist_ok=True)
+
+    # 4. Compilar el PDF usando tu motor WeasyPrint y la plantilla clínica
+    exito = construir_reporte_pdf(datos_estudio, str(pdf_path), "plantilla_reporte.html")
+
+    if not exito:
+        raise HTTPException(status_code=500, detail="Error al generar el reporte radiológico con WeasyPrint")
 
     return FileResponse(path=str(pdf_path), filename=pdf_path.name, media_type="application/pdf")
 
-# --- ENDPOINT FACTURACIÓN (NUEVO) ---
+
+# --- ENDPOINT FACTURACIÓN (INTACTO Y PERFECTO) ---
 @router.post("/facturacion/archivar")
 def archivar_cuenta_cobro(
     datos_factura: Dict,
@@ -112,7 +101,7 @@ def archivar_cuenta_cobro(
         else:
             datos_factura["ruta_firma"] = None
 
-        # 🔥 AQUÍ LE DECIMOS QUE USE LA PLANTILLA DE FACTURA
+        # 🔥 AQUÍ USA LA PLANTILLA DE FACTURA
         exito = construir_reporte_pdf(datos_factura, ruta_pdf_factura, "plantilla_factura.html")
 
         if not exito:

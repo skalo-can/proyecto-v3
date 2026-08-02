@@ -171,7 +171,8 @@ app.add_middleware(
 # ---------------------------------------------------------
 @app.websocket("/ws/notifications")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    await websocket.accept()
+    manager.active_connections.append(websocket)
     try:
         while True:
             await websocket.receive_text()
@@ -195,7 +196,6 @@ app.include_router(paciente_email_router, prefix="/api")
 app.include_router(reset_router, prefix="/api")
 app.include_router(dicom_import_router, prefix="/api")
 app.include_router(dicom_tools_router, prefix="/api")
-#app.include_router(dicom_import_new_router, prefix="/api")
 app.include_router(dicom_stream_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(dicom_advanced_tools_router, prefix="/api")
@@ -206,7 +206,7 @@ app.include_router(email_logs_router, prefix="/api")
 app.include_router(pdf_report_router, prefix="/api")
 app.include_router(whatsapp_router, prefix="/api")
 app.include_router(secure_links_router, prefix="/api")
-app.include_router(perfil_router) # 👈 ¡NUEVO! (El prefijo ya está dentro del archivo)
+app.include_router(perfil_router) 
 app.include_router(pacientes_filtros_router, prefix="/filtros")
 app.include_router(ris_router, prefix="/api/ris", tags=["RIS"])
 app.include_router(estudios_filtros_router, prefix="/filtros")
@@ -225,11 +225,19 @@ async def trigger_notification():
     return {"status": "Notificación enviada"}
 
 # ---------------------------------------------------------
-# ARCHIVOS ESTÁTICOS (👻 CORREGIDO CON ANCLA ABSOLUTA)
+# ARCHIVOS ESTÁTICOS Y FIRMAS (🔥 CORREGIDO)
 # ---------------------------------------------------------
 static_dir = str(STATIC_DIR)
-# os.makedirs(static_dir, exist_ok=True) <- Ya no es necesario, config.py lo hace
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# 🔥 NUEVO: Exponer la carpeta de firmas_seguras al Frontend
+# Construimos la ruta absoluta apuntando a backend/storage/firmas_seguras
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
+firmas_dir = os.path.join(base_dir, "storage", "firmas_seguras")
+os.makedirs(firmas_dir, exist_ok=True) # Garantiza que la carpeta exista si no está creada
+
+# Montamos la ruta pública "/firmas_locales"
+app.mount("/firmas_locales", StaticFiles(directory=firmas_dir), name="firmas_locales")
 
 @app.on_event("startup")
 def startup_event():
@@ -344,4 +352,4 @@ async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)
         print(f"❌ ERROR GENERAL: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close() 
+        db.close()
