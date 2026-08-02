@@ -49,7 +49,6 @@ export default function Pacientes() {
     if (user) {
       const rolActual = String(user?.rol || "").toLowerCase().trim();
       
-      // 🔥 CORRECCIÓN: Leemos directamente el booleano que manda el backend
       const esUrgenciologo = user.es_urgenciologo === true;
 
       if (esUrgenciologo) {
@@ -199,6 +198,27 @@ export default function Pacientes() {
     } catch (error) { alert("❌ Fallo en la red."); }
   };
 
+  // 🔥 NUEVA FUNCIÓN: Validar Estudio por Tecnólogo
+  const handleMarcarTomado = async (pacienteId) => {
+    try {
+      const token = user?.token || localStorage.getItem("token");
+      const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteId}/marcar-tomado`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        cargarDatos(); // Refresca la tabla automáticamente
+      } else {
+        alert("❌ Error al validar el estudio.");
+      }
+    } catch (error) {
+      alert("❌ Error de comunicación con la API.");
+    }
+  };
+
   const abrirModuloDictado = (pacienteId) => {
     const pac = pacientes.find(p => p.id === pacienteId);
     if (!pac) return;
@@ -260,7 +280,11 @@ export default function Pacientes() {
             ejecutarPlayAudioTabla={ejecutarPlayAudioTabla} estudiosAutorizados={estudiosAutorizados}
             abrirModuloDictado={abrirModuloDictado} abrirEditorPaciente={abrirEditorPaciente} 
             handleReabrirFlujoEstudio={handleReabrirFlujoEstudio} abrirModalTranscriptor={abrirModalTranscriptor}
-            abrirModalFirma={abrirModalFirma} 
+            abrirModalFirma={abrirModalFirma}
+            
+            // 🔥 PASAMOS LAS HERRAMIENTAS NUEVAS A LA TABLA
+            handleMarcarTomado={handleMarcarTomado}
+            rolUsuario={String(user?.rol || "").toLowerCase().trim()}
           />
         </div>
       </main>

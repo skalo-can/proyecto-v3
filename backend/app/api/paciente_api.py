@@ -154,6 +154,7 @@ def listar(
         elif estado_bd == "Urgencia": estado_actual = "Urgencia"
         elif estado_bd == "Transcrito" or tiene_informe: estado_actual = "Transcrito"
         elif estado_bd == "Dictado" or tiene_audio: estado_actual = "Dictado"
+        elif estado_bd == "Tomado": estado_actual = "Tomado" # 🔥 AQUÍ ESTÁ LA SOLUCIÓN
         else:
             es_externo = getattr(estudio_principal, "es_externo", True)
             estado_actual = "Importado" if es_externo else "Tomado"
@@ -347,17 +348,38 @@ def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...), db: 
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+# Asegúrate de importar datetime si no lo tienes arriba en tu archivo:
+# from datetime import datetime
+
 @router.post("/{paciente_id}/guardar-transcripcion")
-def guardar_transcripcion(paciente_id: int, datos: TranscripcionInput, db: Session = Depends(get_db)):
+def guardar_transcripcion(paciente_id: int, datos: TranscripcionInput, usuario=Depends(obtener_usuario_actual), db: Session = Depends(get_db)):
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
     if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
+    
     try:
         estudio.informe_texto = datos.informe
         estudio.estado_pacs = "Transcrito"
         setattr(estudio, "tiene_transcripcion", True)
         setattr(estudio, "tiene_dictado", False)  
+        
+        # ---------------------------------------------------------------------
+        # 🔥 AQUÍ ESTÁ LA PIEZA FALTANTE: ENLAZAR AL TRANSCRIPTOR PARA LA GERENCIA
+        # ---------------------------------------------------------------------
+        if hasattr(estudio, 'transcriptor_id'):
+            estudio.transcriptor_id = usuario.id
+        elif hasattr(estudio, 'usuario_id'): 
+            # Fallback de seguridad
+            estudio.usuario_id = usuario.id
+
+        # Guardamos la marca de tiempo exacta para calcular el rendimiento
+        if hasattr(estudio, 'fecha_actualizacion'):
+            from datetime import datetime
+            estudio.fecha_actualizacion = datetime.now()
+        # ---------------------------------------------------------------------
+
         db.commit()
         return {"status": "success", "message": "Transcripción acoplada."}
+        
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -395,7 +417,7 @@ class FirmaInput(BaseModel):
     aprobado: bool = True              
     nota_rechazo: Optional[str] = ""  
 
-# 🔥 SOLUCIÓN: INYECCIÓN DE LA ANCLA ABSOLUTA
+# 🔥 SOLUCIÓN: INYECCIÓN DE LA ANCLA ABSOLUTA + GUARDADO DEL AUTOR PARA PRODUCTIVIDAD
 @router.post("/{paciente_id}/firmar-informe")
 def firmar_informe(paciente_id: int, datos: FirmaInput, usuario=Depends(obtener_usuario_actual), db: Session = Depends(get_db)):
     estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
@@ -428,6 +450,23 @@ def firmar_informe(paciente_id: int, datos: FirmaInput, usuario=Depends(obtener_
         setattr(estudio, "esta_firmado", True)
         setattr(estudio, "tiene_transcripcion", True)
         setattr(estudio, "tiene_dictado", False)
+        
+        # ---------------------------------------------------------------------
+        # 🔥 AQUÍ ESTÁ LA PIEZA FALTANTE: ENLAZAR AL MÉDICO PARA LA GERENCIA
+        # ---------------------------------------------------------------------
+        if hasattr(estudio, 'medico_id'):
+            estudio.medico_id = usuario.id
+        elif hasattr(estudio, 'firmado_por'):
+            estudio.firmado_por = usuario.id
+        elif hasattr(estudio, 'usuario_id'): 
+            estudio.usuario_id = usuario.id
+
+        # Guardamos la marca de tiempo exacta para calcular el TAT en el Dashboard
+        if hasattr(estudio, 'firmado_en'):
+            estudio.firmado_en = datetime.now()
+        elif hasattr(estudio, 'fecha_actualizacion'):
+            estudio.fecha_actualizacion = datetime.now()
+        # ---------------------------------------------------------------------
         
         identificacion = paciente_db.identificacion or paciente_db.id
         
@@ -824,6 +863,45 @@ def cancelar_estudio_definitivo(paciente_id: int, datos: CancelacionInput, db: S
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al cancelar: {str(e)}")
+
+# =====================================================================
+# 🚀 ENDPOINT EXCLUSIVO PARA PRODUCTIVIDAD DE TECNÓLOGOS
+# =====================================================================
+@router.post("/{paciente_id}/marcar-tomado")
+def marcar_estudio_tomado(paciente_id: int, usuario=Depends(obtener_usuario_actual), db: Session = Depends(get_db)):
+    """
+    Permite al Tecnólogo validar un estudio Importado y asignárselo a sus métricas de productividad.
+    """
+    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
+    if not estudio: 
+        raise HTTPException(status_code=404, detail="Estudio no localizado")
+    
+    try:
+        # 1. Cambiamos el estado visible y apagamos la bandera de "Externo/Importado"
+        estudio.estado_pacs = "Tomado"
+        if hasattr(estudio, "es_externo"):
+            setattr(estudio, "es_externo", False)
+            
+        # 2. 🔥 ENLAZAMOS AL TECNÓLOGO PARA LA AUDITORÍA GERENCIAL
+        if hasattr(estudio, 'tecnologo_id'):
+            estudio.tecnologo_id = usuario.id
+        elif hasattr(estudio, 'tecnico_id'):
+            estudio.tecnico_id = usuario.id
+        elif hasattr(estudio, 'usuario_id'): 
+            # Fallback por si usan la columna genérica
+            estudio.usuario_id = usuario.id
+
+        # 3. Guardamos la hora exacta para los tiempos de respuesta (TAT)
+        if hasattr(estudio, 'fecha_actualizacion'):
+            from datetime import datetime
+            estudio.fecha_actualizacion = datetime.now()
+
+        db.commit()
+        return {"status": "success", "message": "Estudio validado y asignado exitosamente al Tecnólogo."}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al registrar la productividad técnica: {str(e)}")
 
 
 # =====================================================================

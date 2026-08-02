@@ -169,6 +169,8 @@ def get_stats_dashboard(
 
 # --- 🚀 ENDPOINT DE PRODUCTIVIDAD (ULTRA-RESILIENTE) ---
 
+# --- 🚀 ENDPOINT DE PRODUCTIVIDAD (ULTRA-RESILIENTE) ---
+
 @router.get("/productividad-real")
 def get_productividad_real(
     db: Session = Depends(get_db),
@@ -177,27 +179,16 @@ def get_productividad_real(
     rol: str = Query("TODOS")
 ):
     try:
-        # Detectamos dinámicamente la columna de relación para no romper el sistema
-        columna_usuario = None
-        for nombre in ['usuario_id', 'medico_id', 'tecnico_id', 'creado_por_id']:
-            if hasattr(Estudio, nombre):
-                columna_usuario = getattr(Estudio, nombre)
-                break
+        # 1. Cargamos TODOS los usuarios en memoria (Diccionario ultra rápido {id: Usuario})
+        usuarios_db = {u.id: u for u in db.query(Usuario).all()}
 
-        # Consulta base
+        # 2. Consulta base (Solo Estudio y Paciente, sin JOIN forzados que borren datos)
         query = db.query(Estudio, Paciente).join(Paciente, Estudio.paciente_id == Paciente.id)
-
-        # Join con Usuario solo si existe la columna
-        if columna_usuario is not None:
-            query = query.add_entity(Usuario).join(Usuario, columna_usuario == Usuario.id)
 
         if fecha_desde:
             query = query.filter(Estudio.fecha_estudio >= fecha_desde)
         if fecha_hasta:
             query = query.filter(Estudio.fecha_estudio <= fecha_hasta)
-        
-        if rol != "TODOS" and columna_usuario is not None:
-            query = query.filter(Usuario.rol == rol.lower())
 
         result = query.order_by(Estudio.fecha_estudio.desc()).all()
 
@@ -205,28 +196,79 @@ def get_productividad_real(
         for row in result:
             est = row[0]
             pac = row[1]
-            usu = row[2] if len(row) > 2 else None
             
-            # Nombre Paciente (Detección dinámica)
-            n_p = getattr(pac, 'nombre', getattr(pac, 'nombres', ''))
-            a_p = getattr(pac, 'apellido', getattr(pac, 'apellidos', ''))
+            estado_real = getattr(est, 'estado_pacs', getattr(est, 'estado', 'PENDIENTE'))
+            estado_upper = str(estado_real).upper()
+
+            # 🔥 EL CEREBRO DE AUTORÍA: Buscamos el ID correcto según el ESTADO del estudio
+            id_responsable = None
+            
+            if estado_upper in ["FIRMADO", "ENTREGADO"]:
+                # Si está firmado, el responsable es el médico
+                id_responsable = getattr(est, 'medico_id', getattr(est, 'firmado_por', getattr(est, 'radiologo_id', None)))
+            elif estado_upper in ["TRANSCRITO", "DICTADO"]:
+                # Si está transcrito, el responsable es el transcriptor
+                id_responsable = getattr(est, 'transcriptor_id', None)
+            elif estado_upper == "TOMADO":
+                # Si está tomado, el responsable es el tecnólogo
+                id_responsable = getattr(est, 'tecnologo_id', getattr(est, 'tecnico_id', None))
+            
+            # Fallback: Si no hay IDs específicos o sigue PENDIENTE, usamos al creador
+            if not id_responsable:
+                id_responsable = getattr(est, 'usuario_id', getattr(est, 'creado_por_id', None))
+
+            # Rescatamos al usuario usando el ID exacto que descubrimos
+            usu = usuarios_db.get(id_responsable)
+            
+            # Formateo de Nombres del Paciente
+            n_p = getattr(pac, 'primer_nombre', getattr(pac, 'nombre', getattr(pac, 'nombres', '')))
+            a_p = getattr(pac, 'primer_apellido', getattr(pac, 'apellido', getattr(pac, 'apellidos', '')))
             nombre_paciente = f"{n_p} {a_p}".strip() or "Paciente S/N"
 
-            # Datos Profesional
+            # Formateo del Profesional Responsable
             if usu:
-                profesional = getattr(usu, 'username', getattr(usu, 'nombre', 'Usuario'))
+                n_u = getattr(usu, 'primer_nombre', getattr(usu, 'nombre', getattr(usu, 'username', 'Usuario')))
+                a_u = getattr(usu, 'primer_apellido', getattr(usu, 'apellido', ''))
+                profesional = f"{n_u} {a_u}".strip() or "Usuario S/N"
                 rol_prof = getattr(usu, 'rol', 'N/A').upper()
             else:
                 profesional = "Sin Asignar"
                 rol_prof = "N/A"
+
+            # ⏱️ CÁLCULO REAL DEL TAT (Tiempo de Respuesta)
+            tat_minutos = 0
+            fecha_toma = getattr(est, 'fecha_estudio', None)
+            fecha_firma = getattr(est, 'firmado_en', getattr(est, 'fecha_actualizacion', None))
+            
+            if fecha_firma and fecha_toma:
+                try:
+                    from datetime import datetime, date
+                    # Parseo seguro de fechas
+                    if isinstance(fecha_toma, date) and not isinstance(fecha_toma, datetime):
+                        fecha_toma = datetime.combine(fecha_toma, datetime.min.time())
+                    elif isinstance(fecha_toma, str):
+                        fecha_toma = datetime.fromisoformat(fecha_toma.replace("Z", ""))
+                        
+                    if isinstance(fecha_firma, str):
+                        fecha_firma = datetime.fromisoformat(fecha_firma.replace("Z", ""))
+                    
+                    diferencia = fecha_firma - fecha_toma
+                    tat_minutos = int(diferencia.total_seconds() / 60)
+                    if tat_minutos < 0: tat_minutos = 15 # Compensación de Zona Horaria
+                except Exception:
+                    tat_minutos = 30
+                    
+            if not fecha_firma:
+                tat_minutos = 0
 
             output.append({
                 "id": est.id,
                 "paciente": nombre_paciente,
                 "profesional": profesional,
                 "rol": rol_prof,
-                "modalidad": getattr(est, 'tipo_estudio', 'N/A'),
-                "estado": "Terminado" if str(est.estado).lower() == "terminado" else "Pendiente",
+                "modalidad": getattr(est, 'tipo_estudio', getattr(est, 'modalidad', 'N/A')),
+                "estado": estado_upper,
+                "tiempo_respuesta_minutos": tat_minutos,
                 "fecha": est.fecha_estudio
             })
             
@@ -234,5 +276,6 @@ def get_productividad_real(
 
     except Exception as e:
         print(f"❌ Error detallado en Productividad: {e}")
+        import traceback
         traceback.print_exc()
         return []

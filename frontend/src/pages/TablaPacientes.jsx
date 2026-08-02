@@ -6,7 +6,8 @@ import { useAuth } from "../AuthContext";
 export default function TablaPacientes({
   pacientes, seleccionados, setSeleccionados, toggleSeleccionarPaciente, solicitarOrdenamiento,
   renderIconoOrden, audiosClinicos, audioActualJugando, ejecutarPlayAudioTabla, estudiosAutorizados,
-  abrirModuloDictado, abrirEditorPaciente, handleReabrirFlujoEstudio, abrirModalTranscriptor, abrirModalFirma 
+  abrirModuloDictado, abrirEditorPaciente, handleReabrirFlujoEstudio, abrirModalTranscriptor, abrirModalFirma,
+  handleMarcarTomado // 🔥 NUEVA FUNCIÓN RECIBIDA
 }) {
 
   const { user } = useAuth();
@@ -135,7 +136,7 @@ export default function TablaPacientes({
             const canEditPaciente = canUseHerramientasMedicas || ((userRol === "recepcion" || userRol === "tecnologo") && esEstadoInicial) || (tienePermisoDinamicoEditar && estudioAbierto);
 
             return (
-              <tr key={p.estudio_interno_id} onMouseDown={(e) => handleRowMouseDown(e, index, p.id)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
+              <tr key={p.estudio_interno_id} onMouseDown={(e) => handleRowMouseDown(e, index, p.id)} onMouseEnter={() => handleRowMouseEnter(index, p.id)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}><input type="checkbox" checked={estaSeleccionado} onChange={() => toggleSeleccionarPaciente(p.id)} /></td>
                 <td style={styles.tdStyle}><span style={{ ...styles.badge, backgroundColor: p.estado_pacs === "Cancelado" ? "#171717" : p.estado_pacs === "Urgencia" ? "#f97316" : p.estado_pacs === "Rechazado" ? "#ef4444" : p.estado_pacs === "Entregado" ? "#a855f7" : p.estado_pacs === "Firmado" ? "#10b981" : p.estado_pacs === "Transcrito" ? "#2563eb" : p.estado_pacs === "Dictado" ? "#d97706" : p.estado_pacs === "Tomado" ? "#3b82f6" : "#475569", border: p.estado_pacs === "Cancelado" ? "1px solid #475569" : "none" }}>{p.estado_pacs || "Importado"}</span></td>
                 <td style={styles.tdStyle}>{idReal}</td>
@@ -150,6 +151,30 @@ export default function TablaPacientes({
                   <div style={styles.containerFlujo}>
                     {p.estado_pacs === "Cancelado" && (<span style={{ color: "#94a3b8", fontWeight: "bold", fontSize: "12px", display: "flex", gap: "6px" }}>🚫 Archivado</span>)}
                     {p.estado_pacs === "Rechazado" && (<span style={{ color: "#ef4444", fontWeight: "bold", fontSize: "13px", display: "flex", gap: "6px" }}>🛑 Repetir Toma</span>)}
+                    
+                    {/* 🔥 BOTÓN EXCLUSIVO PARA TECNÓLOGOS */}
+                    {userRol === 'tecnologo' && (p.estado_pacs === 'Importado' || p.estado_pacs === 'Pendiente' || !p.estado_pacs) && (
+                        <button
+                            onClick={() => handleMarcarTomado(p.id)}
+                            style={{
+                                background: "#10b981", 
+                                color: "white", 
+                                border: "none", 
+                                padding: "6px 12px", 
+                                borderRadius: "4px", 
+                                cursor: "pointer", 
+                                fontWeight: "bold",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)"
+                            }}
+                            title="Validar paciente y asignar a mis métricas"
+                        >
+                            ✔ Validar Estudio
+                        </button>
+                    )}
+
                     {p.estado_pacs === "Urgencia" && canUseHerramientasMedicas && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}><span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }}>🚨 Urgencia</span><button onClick={() => abrirModuloDictado(p.id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>🎙️ Oficial</button></div>
                     )}

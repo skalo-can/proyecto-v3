@@ -9,8 +9,8 @@ Compatible con:
 """
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, Date, Enum, ForeignKey, Boolean
-from datetime import date
+from sqlalchemy import Integer, String, Date, Enum, ForeignKey, Boolean, DateTime
+from datetime import date, datetime
 
 from app.core.database import Base
 from app.schemas.estudio import EstadoEstudio
@@ -128,6 +128,25 @@ class Estudio(Base):
         String(50), 
         nullable=True, 
         doc="Registro médico (RM) del radiólogo"
+    )
+
+    # ---------------------------------------------------------
+    # 🔥 CAMPOS DE AUDITORÍA Y PRODUCTIVIDAD GERENCIAL (AÑADIDOS)
+    # ---------------------------------------------------------
+    medico_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("usuarios.id"), nullable=True, doc="ID del Médico que firmó"
+    )
+    transcriptor_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("usuarios.id"), nullable=True, doc="ID del Transcriptor que procesó"
+    )
+    tecnologo_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("usuarios.id"), nullable=True, doc="ID del Tecnólogo que validó/tomó"
+    )
+    firmado_en: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, doc="Marca de tiempo exacta de la firma"
+    )
+    fecha_actualizacion: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, doc="Marca de tiempo del último cambio de estado"
     )
 
     # 🛡️ BANDERAS BOOLEANAS DE SEGURIDAD OPERACIONAL

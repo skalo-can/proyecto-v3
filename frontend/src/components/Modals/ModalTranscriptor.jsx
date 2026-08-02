@@ -114,8 +114,13 @@ export default function ModalTranscriptor({ isWindow }) {
   const handleAutoTranscribir = async () => {
     setIsTranscribing(true);
     try {
+      const token = localStorage.getItem("token"); // 🔐 RESCATAMOS EL TOKEN
+
       const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/transcribir-audio`, {
         method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}` // 🔐 ENVIAMOS EL TOKEN
+        }
       });
       
       if (!response.ok) throw new Error("No se pudo transcribir el audio.");
@@ -138,9 +143,14 @@ export default function ModalTranscriptor({ isWindow }) {
       return;
     }
     try {
+      const token = localStorage.getItem("token"); // 🔐 RESCATAMOS EL TOKEN
+
       const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/guardar-transcripcion`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` // 🔥 AQUÍ ESTÁ LA LLAVE MÁGICA
+        },
         body: JSON.stringify({ informe: texto }),
       });
       if (!response.ok) throw new Error("Error en el servidor");
