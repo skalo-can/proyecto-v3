@@ -1,132 +1,185 @@
 /* ================================
-   SIDEBAR PREMIUM GLASS UI
+   SIDEBAR PREMIUM GLASS UI (AMPLIO Y LIBRE)
 ================================ */
-.sidebar {
-  position: fixed;        /* ← Sidebar fijo */
-  top: 70px;              /* ← Altura exacta del header */
-  left: 0;
-
-  width: 260px;
-  height: calc(100vh - 70px); /* ← Ajuste perfecto */
-
-  background: rgba(255, 255, 255, 0.10);
-  backdrop-filter: blur(18px) saturate(180%);
-  border-right: 1px solid rgba(255, 255, 255, 0.25);
-
-  padding: 25px 18px;
-  overflow-y: auto;
-
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-}
-
 .sidebar {
   position: fixed;
   top: 70px;
   left: 0;
-  width: 260px;
+  width: 280px;
   height: calc(100vh - 70px);
+  z-index: 3000;
 
-  z-index: 3000; /* ← CLAVE: sidebar siempre arriba */
+  background: rgba(13, 17, 23, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
 
-  /* tus estilos existentes */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  transition: transform 0.3s ease-in-out;
 }
 
-/* LINKS */
+/* Cabecera con excelente respiro */
+.sidebar-header {
+  padding: 22px 20px 18px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.sidebar-subtitle {
+  font-size: 0.75rem;
+  letter-spacing: 1.5px;
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Contenedor con scroll interno general para que todo respire sin romper diseño */
+.sidebar-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* 🔥 Mayor separación vertical entre botones para que no se sientan amontonados */
+}
+
+/* LINKS PRINCIPALES AMPLIOS Y CÓMODOS */
 .sidebar-link {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 
-  padding: 14px 16px;
+  padding: 13px 16px; /* 🔥 Padding generoso para que respire el texto */
   border-radius: 14px;
 
-  font-size: 16px;
-  font-weight: 600;
-  color: #e2e8f0;
+  font-size: 15px;
+  font-weight: 500;
+  color: #cbd5e1;
   text-decoration: none;
 
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 
-  transition: 0.25s ease;
+  transition: all 0.25s ease;
 }
 
 .sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.18);
-  transform: translateX(6px);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  transform: translateX(4px);
 }
 
 .sidebar-link.active {
   background: linear-gradient(135deg, #0ea5e9, #38bdf8);
   color: white;
   border: none;
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.45);
-}
-
-/* ACCIONES DEL ESTUDIO */
-.sidebar-actions {
-  background: rgba(255, 255, 255, 0.10);
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
-
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.sidebar-actions h3 {
-  text-align: center;
-  font-size: 18px;
-  font-weight: 700;
-  color: white;
-  margin-bottom: 10px;
-}
-
-/* BOTONES PREMIUM */
-.sidebar-actions .btn {
-  width: 100%;
-  height: 52px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 12px;
-  border: none;
-
-  font-size: 15px;
   font-weight: 600;
-
-  background: rgba(255, 255, 255, 0.12);
-  color: white;
-
-  transition: 0.25s ease;
+  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.35);
 }
 
-.sidebar-actions .btn:hover {
-  background: rgba(255, 255, 255, 0.22);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255,255,255,0.25);
+/* Botón desplegable de administración */
+.dropdown-toggle {
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+}
+
+.dropdown-toggle .arrow {
+  margin-left: auto;
+  font-size: 0.8rem;
+  opacity: 0.7;
 }
 
 .icon {
   width: 20px;
   height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0.85;
   transition: 0.25s ease;
 }
 
 .sidebar-link:hover .icon {
   opacity: 1;
-  transform: scale(1.12);
+  transform: scale(1.1);
 }
 
-/* 🔥 ANIMACIÓN PARA EL MÉDICO URGENCIÓLOGO */
+/* SUBMENÚ MÁS LIBRE Y ORGANIZADO */
+.sidebar-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* 🔥 Espacio cómodo entre opciones del submenú */
+  margin-top: 8px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(255, 255, 255, 0.12); 
+}
+
+.submenu-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px; /* 🔥 Más espacio vertical para que no luzca comprimido */
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: #94a3b8;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+  line-height: 1.4;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.submenu-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  transform: translateX(4px); 
+}
+
+.submenu-link.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff !important; 
+  font-weight: bold;
+}
+
+/* Divisor elegante */
+.sidebar-divider {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.08);
+  margin: 10px 0;
+}
+
+/* PIE DE PÁGINA FIJO (CERRAR SESIÓN) */
+.sidebar-footer {
+  padding: 16px 14px;
+  /* 🔥 Fondo transparente para que herede el diseño de cristal del sidebar */
+  background: transparent; 
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+/* BOTÓN ROJO LUMINOSO */
+.logout-btn {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  color: #f87171 !important;
+  transition: all 0.3s ease !important;
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #ffffff !important;
+  /* 🔥 Efecto de resplandor (Glow) al pasar el mouse */
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.5), inset 0 0 8px rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.8) !important;
+}
+
+/* ANIMACIÓN DE URGENCIAS */
 .urgencia-badge {
   text-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
   animation: pulsoUrgencia 1.5s infinite;
@@ -139,68 +192,7 @@
   100% { opacity: 1; transform: scale(1); }
 }
 
-/* ================================
-   SUBMENÚ Y SCROLL (CORRECCIÓN FINAL)
-================================ */
-.sidebar-submenu {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-  margin-left: 10px;
-  padding-left: 10px;
-  border-left: 2px solid rgba(255, 255, 255, 0.15); 
-}
-
-.submenu-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 13.5px; /* 🔥 Un poco más pequeño para que quepan palabras largas */
-  color: #cbd5e1;
-  text-decoration: none;
-  transition: all 0.2s ease-in-out;
-  line-height: 1.3;
-  /* 🔥 Eliminamos el 'nowrap' para que el texto baje a la siguiente línea si es muy largo */
-}
-
-.submenu-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  transform: translateX(4px); 
-}
-
-.submenu-link.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff !important; /* 🔥 Fuerza a que se ponga blanco brillante para que se lea perfecto */
-  font-weight: bold;
-}
-
-/* 🔥 BARRA DE SCROLL PREMIUM (GLASS) */
-.sidebar-nav::-webkit-scrollbar {
-  width: 6px;
-}
-.sidebar-nav::-webkit-scrollbar-track {
-  background: transparent; 
-}
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2); 
-  border-radius: 10px;
-}
-.sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4); 
-}
-
-/* 🔥 INDICADOR VISUAL INTUITIVO DE SCROLL (MÁSCARA DE DESVANECIMIENTO) */
-.fade-scroll {
-  /* Hace que los últimos 30px del contenedor se vayan desvaneciendo hacia transparente */
-  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
-  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
-}
-
-/* Scroll Premium ajustado */
+/* BARRA DE SCROLL PREMIUM FINA */
 .admin-scroll-zone::-webkit-scrollbar {
   width: 5px;
 }
@@ -212,5 +204,5 @@
   border-radius: 10px;
 }
 .admin-scroll-zone::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4); 
+  background: rgba(255, 255, 255, 0.3); 
 }

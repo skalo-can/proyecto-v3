@@ -37,14 +37,13 @@ export default function Productividad() {
     fetchProductividad();
   }, [filtros.fechaDesde, filtros.fechaHasta]);
 
-  // 🔥 ESCUDO APAGADO: Dejamos pasar TODOS los 141 estudios para ver qué hay realmente
+  // 🔥 ESCUDO APAGADO: Dejamos pasar TODOS los estudios para ver qué hay realmente
   const datosEstrictos = useMemo(() => {
       return datos; 
   }, [datos]);
 
   const esEstudioCompletado = (d) => {
       const est = String(d.estado || "").toUpperCase();
-      // Como apagamos el escudo, vamos a ser generosos con la suma
       return ["FIRMADO", "ENTREGADO", "TRANSCRITO", "TOMADO", "DICTADO"].includes(est);
   };
 
@@ -81,8 +80,12 @@ export default function Productividad() {
       .sort((a, b) => b.total - a.total);
   }, [filtrados]);
 
-  const totalActividades = filtrados.length;
-  const totalCompletados = filtrados.filter(d => esEstudioCompletado(d)).length;
+  // 🔥 SOLUCIÓN MATEMÁTICA: Usamos un Set para contar IDs únicos (Ej: ignora el "_tec" o "_med")
+  const totalActividades = new Set(filtrados.map(d => String(d.id).split('_')[0])).size;
+  const totalCompletados = new Set(
+      filtrados.filter(d => esEstudioCompletado(d)).map(d => String(d.id).split('_')[0])
+  ).size;
+
   const tasaEficiencia = totalActividades > 0 ? Math.round((totalCompletados / totalActividades) * 100) : 0;
   
   const tatPromedio = filtrados.length > 0 
@@ -107,11 +110,14 @@ export default function Productividad() {
 
   return (
     <div className="productividad-container">
+      {/* 🔥 ESTILOS FORZADOS PARA EL SCROLL DORADO */}
       <style>{`
-        .table-scroll-container { max-height: 400px; overflow-y: auto; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); }
-        .table-scroll-container::-webkit-scrollbar { width: 8px; }
-        .table-scroll-container::-webkit-scrollbar-track { background: #111418; }
-        .table-scroll-container::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .table-scroll-container { max-height: 400px; overflow-y: auto; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); padding-right: 5px; }
+        .table-scroll-container::-webkit-scrollbar { width: 10px; }
+        .table-scroll-container::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3); border-radius: 8px; }
+        .table-scroll-container::-webkit-scrollbar-thumb { background: #fbbf24; border-radius: 8px; border: 2px solid #111418; }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
+        
         .metric-cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .metric-card { background: #1a1d26; padding: 15px 20px; border-radius: 8px; border-left: 4px solid #fbbf24; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; justify-content: center; }
         .metric-title { color: #94a3b8; font-size: 0.8rem; margin: 0; font-weight: bold; text-transform: uppercase; }
@@ -170,26 +176,76 @@ export default function Productividad() {
         <div className="charts-column">
             <div className="chart-item glass-box" style={{ padding: '15px' }}>
                 <h3 className="chart-title" style={{ marginBottom: '15px', color: '#fbbf24' }}>🏆 RANKING DE PRODUCTIVIDAD</h3>
+
                 <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={rankingRendimiento} layout="vertical" margin={{ left: 20 }}>
+                    <BarChart data={rankingRendimiento} layout="vertical" margin={{ top: 5, right: 30, left: 25, bottom: 25 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#222" horizontal={false} />
-                        <XAxis type="number" stroke="#64748b" />
-                        <YAxis dataKey="name" type="category" stroke="#fff" fontSize={11} width={130} />
-                        <Tooltip contentStyle={{ background: '#111', border: '1px solid #333' }} />
+                        
+                        {/* EJE HORIZONTAL (X): Bloqueamos decimales y ponemos el rótulo */}
+                        <XAxis 
+                            type="number" 
+                            stroke="#64748b" 
+                            allowDecimals={false} 
+                            label={{ value: 'Volumen de Estudios Procesados', position: 'bottom', fill: '#fbbf24', fontSize: 12, fontWeight: 'bold', offset: 5 }} 
+                        />
+                        
+                        {/* EJE VERTICAL (Y): Ponemos el rótulo del personal */}
+                        <YAxis 
+                            dataKey="name" 
+                            type="category" 
+                            stroke="#fff" 
+                            fontSize={11} 
+                            width={130} 
+                            label={{ value: 'Profesionales', angle: -90, position: 'insideLeft', fill: '#fbbf24', fontSize: 12, fontWeight: 'bold', offset: -10 }}
+                        />
+                        
+                        <Tooltip contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: '8px' }} />
                         <Bar dataKey="total" fill="#fbbf24" radius={[0, 4, 4, 0]} />
                     </BarChart>
                 </ResponsiveContainer>
+
             </div>
         </div>
-        <div className="table-audit-wrapper glass-box" style={{ padding: '15px' }}>
-            <h3 className="chart-title" style={{ marginBottom: '15px', color: '#38bdf8' }}>📋 REGISTRO INDIVIDUAL DETALLADO</h3>
-            <div className="table-scroll-container">
+        <div className="table-audit-wrapper glass-box" style={{ padding: '15px', display: 'flex', flexDirection: 'column', height: '400px' }}>
+            
+            {/* 🔥 ESTILOS BLINDADOS Y FORZADOS PARA EL SCROLL DORADO */}
+            <style>{`
+                .golden-scroll {
+                    flex: 1;
+                    overflow-y: auto !important;
+                    min-height: 0 !important; /* TRUCO MAESTRO DE FLEXBOX */
+                    padding-right: 8px;
+                }
+                .golden-scroll::-webkit-scrollbar {
+                    width: 14px !important;
+                    display: block !important;
+                }
+                .golden-scroll::-webkit-scrollbar-track {
+                    background: rgba(0, 0, 0, 0.4) !important;
+                    border-radius: 8px !important;
+                }
+                .golden-scroll::-webkit-scrollbar-thumb {
+                    background-color: #fbbf24 !important;
+                    border-radius: 8px !important;
+                    border: 3px solid #111418 !important; /* Crea el efecto de relleno */
+                }
+                .golden-scroll::-webkit-scrollbar-thumb:hover {
+                    background-color: #f59e0b !important;
+                }
+            `}</style>
+            
+            <h3 className="chart-title" style={{ marginBottom: '15px', color: '#38bdf8', flexShrink: 0 }}>
+                📋 REGISTRO INDIVIDUAL DETALLADO
+            </h3>
+            
+            {/* Contenedor con la clase blindada */}
+            <div className="golden-scroll">
                 <table className="tabla-audit" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead style={{ position: 'sticky', top: 0, background: '#1a1d26', zIndex: 1 }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#1a1d26', zIndex: 10, boxShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
                         <tr>
-                            <th style={{ padding: '10px', color: '#94a3b8' }}>PROFESIONAL</th>
-                            <th style={{ padding: '10px', color: '#94a3b8' }}>PACIENTE</th>
-                            <th style={{ padding: '10px', color: '#94a3b8' }}>ESTADO</th>
+                            <th style={{ padding: '12px', color: '#94a3b8' }}>PROFESIONAL</th>
+                            <th style={{ padding: '12px', color: '#94a3b8' }}>PACIENTE</th>
+                            <th style={{ padding: '12px', color: '#94a3b8' }}>ESTADO</th>
                         </tr>
                     </thead>
                     <tbody>

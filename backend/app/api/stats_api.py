@@ -167,9 +167,7 @@ def get_stats_dashboard(
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
-# --- 🚀 ENDPOINT DE PRODUCTIVIDAD (ULTRA-RESILIENTE) ---
-
-# --- 🚀 ENDPOINT DE PRODUCTIVIDAD (ULTRA-RESILIENTE) ---
+# --- 🚀 ENDPOINT DE PRODUCTIVIDAD (EVOLUCIONADO MULTI-ROL) ---
 
 @router.get("/productividad-real")
 def get_productividad_real(
@@ -179,10 +177,7 @@ def get_productividad_real(
     rol: str = Query("TODOS")
 ):
     try:
-        # 1. Cargamos TODOS los usuarios en memoria (Diccionario ultra rápido {id: Usuario})
-        usuarios_db = {u.id: u for u in db.query(Usuario).all()}
-
-        # 2. Consulta base (Solo Estudio y Paciente, sin JOIN forzados que borren datos)
+        usuarios_db = {str(u.id): u for u in db.query(Usuario).all()}
         query = db.query(Estudio, Paciente).join(Paciente, Estudio.paciente_id == Paciente.id)
 
         if fecha_desde:
@@ -191,87 +186,105 @@ def get_productividad_real(
             query = query.filter(Estudio.fecha_estudio <= fecha_hasta)
 
         result = query.order_by(Estudio.fecha_estudio.desc()).all()
-
         output = []
+
         for row in result:
             est = row[0]
             pac = row[1]
-            
+
             estado_real = getattr(est, 'estado_pacs', getattr(est, 'estado', 'PENDIENTE'))
             estado_upper = str(estado_real).upper()
 
-            # 🔥 EL CEREBRO DE AUTORÍA: Buscamos el ID correcto según el ESTADO del estudio
-            id_responsable = None
-            
-            if estado_upper in ["FIRMADO", "ENTREGADO"]:
-                # Si está firmado, el responsable es el médico
-                id_responsable = getattr(est, 'medico_id', getattr(est, 'firmado_por', getattr(est, 'radiologo_id', None)))
-            elif estado_upper in ["TRANSCRITO", "DICTADO"]:
-                # Si está transcrito, el responsable es el transcriptor
-                id_responsable = getattr(est, 'transcriptor_id', None)
-            elif estado_upper == "TOMADO":
-                # Si está tomado, el responsable es el tecnólogo
-                id_responsable = getattr(est, 'tecnologo_id', getattr(est, 'tecnico_id', None))
-            
-            # Fallback: Si no hay IDs específicos o sigue PENDIENTE, usamos al creador
-            if not id_responsable:
-                id_responsable = getattr(est, 'usuario_id', getattr(est, 'creado_por_id', None))
-
-            # Rescatamos al usuario usando el ID exacto que descubrimos
-            usu = usuarios_db.get(id_responsable)
-            
-            # Formateo de Nombres del Paciente
             n_p = getattr(pac, 'primer_nombre', getattr(pac, 'nombre', getattr(pac, 'nombres', '')))
             a_p = getattr(pac, 'primer_apellido', getattr(pac, 'apellido', getattr(pac, 'apellidos', '')))
             nombre_paciente = f"{n_p} {a_p}".strip() or "Paciente S/N"
+            modalidad = getattr(est, 'tipo_estudio', getattr(est, 'modalidad', 'N/A'))
+            fecha_base = est.fecha_estudio
 
-            # Formateo del Profesional Responsable
-            if usu:
-                n_u = getattr(usu, 'primer_nombre', getattr(usu, 'nombre', getattr(usu, 'username', 'Usuario')))
-                a_u = getattr(usu, 'primer_apellido', getattr(usu, 'apellido', ''))
-                profesional = f"{n_u} {a_u}".strip() or "Usuario S/N"
-                rol_prof = getattr(usu, 'rol', 'N/A').upper()
-            else:
-                profesional = "Sin Asignar"
-                rol_prof = "N/A"
-
-            # ⏱️ CÁLCULO REAL DEL TAT (Tiempo de Respuesta)
+            # ⏱️ CÁLCULO DEL TAT BÁSICO
             tat_minutos = 0
-            fecha_toma = getattr(est, 'fecha_estudio', None)
             fecha_firma = getattr(est, 'firmado_en', getattr(est, 'fecha_actualizacion', None))
-            
-            if fecha_firma and fecha_toma:
+            if fecha_firma and est.fecha_estudio:
                 try:
                     from datetime import datetime, date
-                    # Parseo seguro de fechas
-                    if isinstance(fecha_toma, date) and not isinstance(fecha_toma, datetime):
-                        fecha_toma = datetime.combine(fecha_toma, datetime.min.time())
-                    elif isinstance(fecha_toma, str):
-                        fecha_toma = datetime.fromisoformat(fecha_toma.replace("Z", ""))
-                        
-                    if isinstance(fecha_firma, str):
-                        fecha_firma = datetime.fromisoformat(fecha_firma.replace("Z", ""))
-                    
-                    diferencia = fecha_firma - fecha_toma
-                    tat_minutos = int(diferencia.total_seconds() / 60)
-                    if tat_minutos < 0: tat_minutos = 15 # Compensación de Zona Horaria
-                except Exception:
+                    f_toma = datetime.combine(est.fecha_estudio, datetime.min.time()) if isinstance(est.fecha_estudio, date) and not isinstance(est.fecha_estudio, datetime) else (datetime.fromisoformat(est.fecha_estudio.replace("Z", "")) if isinstance(est.fecha_estudio, str) else est.fecha_estudio)
+                    f_firma = datetime.fromisoformat(fecha_firma.replace("Z", "")) if isinstance(fecha_firma, str) else fecha_firma
+                    tat_minutos = int((f_firma - f_toma).total_seconds() / 60)
+                    if tat_minutos < 0: tat_minutos = 15
+                except:
                     tat_minutos = 30
-                    
-            if not fecha_firma:
-                tat_minutos = 0
 
-            output.append({
-                "id": est.id,
-                "paciente": nombre_paciente,
-                "profesional": profesional,
-                "rol": rol_prof,
-                "modalidad": getattr(est, 'tipo_estudio', getattr(est, 'modalidad', 'N/A')),
-                "estado": estado_upper,
-                "tiempo_respuesta_minutos": tat_minutos,
-                "fecha": est.fecha_estudio
-            })
-            
+            # -------------------------------------------------------------
+            # 🔥 MAGIA: REPARTICIÓN DE PRODUCTIVIDAD POR FASES
+            # -------------------------------------------------------------
+            nadie_asignado = True
+
+            # 1. 🟢 CRÉDITO PARA EL TECNÓLOGO
+            id_tec = getattr(est, 'tecnologo_id', getattr(est, 'tecnico_id', None))
+            if id_tec:
+                nadie_asignado = False
+                u_tec = usuarios_db.get(str(id_tec))
+                if u_tec:
+                    output.append({
+                        "id": f"{est.id}_tec", # ID compuesto para evitar choques en React
+                        "paciente": nombre_paciente,
+                        "profesional": f"{getattr(u_tec, 'primer_nombre', u_tec.username)} {getattr(u_tec, 'primer_apellido', '')}".strip(),
+                        "rol": getattr(u_tec, 'rol', 'TECNOLOGO').upper(),
+                        "modalidad": modalidad,
+                        "estado": "TOMADO", # Evaluamos su acción específica
+                        "tiempo_respuesta_minutos": 0, # El TAT general no recae sobre él
+                        "fecha": fecha_base
+                    })
+
+            # 2. 🔵 CRÉDITO PARA EL TRANSCRIPTOR
+            id_trans = getattr(est, 'transcriptor_id', None)
+            if id_trans:
+                nadie_asignado = False
+                u_trans = usuarios_db.get(str(id_trans))
+                if u_trans:
+                    output.append({
+                        "id": f"{est.id}_trans",
+                        "paciente": nombre_paciente,
+                        "profesional": f"{getattr(u_trans, 'primer_nombre', u_trans.username)} {getattr(u_trans, 'primer_apellido', '')}".strip(),
+                        "rol": getattr(u_trans, 'rol', 'TRANSCRIPTOR').upper(),
+                        "modalidad": modalidad,
+                        "estado": "TRANSCRITO",
+                        "tiempo_respuesta_minutos": tat_minutos // 2, # Estimación parcial
+                        "fecha": fecha_base
+                    })
+
+            # 3. 🟡 CRÉDITO PARA EL RADIÓLOGO (MÉDICO)
+            id_med = getattr(est, 'medico_id', getattr(est, 'firmado_por', getattr(est, 'radiologo_id', None)))
+            if id_med:
+                nadie_asignado = False
+                u_med = usuarios_db.get(str(id_med))
+                if u_med:
+                    output.append({
+                        "id": f"{est.id}_med",
+                        "paciente": nombre_paciente,
+                        "profesional": f"{getattr(u_med, 'primer_nombre', u_med.username)} {getattr(u_med, 'primer_apellido', '')}".strip(),
+                        "rol": getattr(u_med, 'rol', 'RADIOLOGO').upper(),
+                        "modalidad": modalidad,
+                        "estado": "FIRMADO" if getattr(est, 'esta_firmado', False) or estado_upper == "FIRMADO" else "DICTADO",
+                        "tiempo_respuesta_minutos": tat_minutos,
+                        "fecha": fecha_base
+                    })
+
+            # 4. ⚪ SI EL ESTUDIO ESTÁ ABANDONADO O RECIÉN IMPORTADO
+            if nadie_asignado:
+                id_resp = getattr(est, 'usuario_id', getattr(est, 'creado_por_id', None))
+                usu = usuarios_db.get(str(id_resp)) if id_resp else None
+                output.append({
+                    "id": est.id,
+                    "paciente": nombre_paciente,
+                    "profesional": f"{getattr(usu, 'primer_nombre', usu.username)} {getattr(usu, 'primer_apellido', '')}".strip() if usu else "Sin Asignar",
+                    "rol": getattr(usu, 'rol', 'N/A').upper() if usu else "N/A",
+                    "modalidad": modalidad,
+                    "estado": estado_upper,
+                    "tiempo_respuesta_minutos": 0,
+                    "fecha": fecha_base
+                })
+
         return output
 
     except Exception as e:
