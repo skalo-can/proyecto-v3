@@ -1,92 +1,106 @@
 /* Contenedor principal sin scroll global */
 .email-container {
   padding: 30px;
-  height: 100vh; /* Ocupa el alto de la pantalla */
+  height: 100vh; 
+  width: 100%;
+  background: radial-gradient(circle at top, #0f172a, #020617);
   display: flex;
-  flex-direction: column; /* Alinea título y card verticalmente */
-  overflow: hidden; /* Evita que aparezca el scroll dorado lateral en toda la página */
+  flex-direction: column; 
+  overflow: hidden; 
   box-sizing: border-box;
 }
 
-/* El título se queda arriba, fijo por la estructura flex */
 .email-title {
   font-size: 28px;
   margin-bottom: 20px;
-  color: #FFD700 !important;
-  flex-shrink: 0; /* Impide que el título se encoja */
+  color: #fbbf24 !important; 
+  flex-shrink: 0; 
+  font-weight: bold;
+  letter-spacing: 1px;
 }
 
-/* El bloque de la tabla ahora maneja su propio scroll interno */
 .email-card {
-  background-color: #1e222d; 
+  background: rgba(15, 23, 42, 0.75) !important;
   padding: 20px;
-  border-radius: 12px;
-  border: 1px solid #333;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px);
   
-  /* Configuración del Scroll Interno */
-  flex-grow: 1; /* Ocupa el resto del espacio disponible */
-  overflow-y: auto; /* Solo muestra el scroll si el contenido sobrepasa el alto */
-  overflow-x: auto; /* Scroll horizontal si la tabla es muy ancha */
+  flex-grow: 1; 
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto; 
+  overflow-x: hidden; 
+  padding-right: 8px; 
 }
 
-/* Estilo para la barra de scroll (para que no sea el dorado chillón por defecto) */
+/* ==========================================
+   🔥 SCROLL DORADO BLINDADO
+========================================== */
 .email-card::-webkit-scrollbar {
-  width: 8px;
+  width: 14px !important;
+  display: block !important;
 }
 
 .email-card::-webkit-scrollbar-track {
-  background: #1e222d;
+  background: rgba(0, 0, 0, 0.4) !important;
+  border-radius: 8px !important;
 }
 
 .email-card::-webkit-scrollbar-thumb {
-  background: #333; /* Un gris sutil para que no distraiga */
-  border-radius: 10px;
+  background-color: #fbbf24 !important;
+  border-radius: 8px !important;
+  border: 3px solid rgba(15, 23, 42, 0.9) !important; 
 }
 
 .email-card::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background-color: #f59e0b !important;
 }
 
-.email-card {
-  background-color: #1e222d !important;
-  padding: 20px;
-  border-radius: 12px;
-  border: 1px solid #333;
-  flex-grow: 1;
-  overflow-y: auto;
-}
-
-/* Scroll interno discreto */
-.email-card::-webkit-scrollbar { width: 8px; }
-.email-card::-webkit-scrollbar-thumb { background: #3d4253; border-radius: 10px; }
-
+/* ==========================================
+   TABLA
+========================================== */
 .email-table {
   width: 100%;
   border-collapse: collapse;
   background: transparent !important;
 }
 
-/* Mantener el encabezado de la tabla visible al bajar (Sticky) */
 .email-table th {
   position: sticky;
   top: 0;
-  background-color: #1e222d !important; /* Fondo sólido para que no se traslapen las letras */
+  background-color: rgba(15, 23, 42, 0.95) !important;
   z-index: 10;
-  color: #FFD700;
-  padding: 12px;
+  color: #9ca3af; 
+  padding: 14px 12px;
   text-align: left;
-  border-bottom: 2px solid #444;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3); 
 }
 
 .email-table td {
   padding: 12px;
-  color: #d1d1d1;
-  border-bottom: 1px solid #2a2e3d;
+  color: #e5e7eb;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(31, 41, 55, 0.9);
 }
 
 .volver-btn {
   margin-top: 20px;
-  flex-shrink: 0; /* El botón siempre visible al final */
+  padding: 9px 14px;
+  background: transparent;
+  color: #e5e7eb;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  cursor: pointer;
+  font-size: 13px;
+  transition: 0.2s ease;
+  flex-shrink: 0; 
   width: fit-content;
+}
+
+.volver-btn:hover {
+  background: rgba(30, 41, 59, 0.9);
 }
