@@ -3,14 +3,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect, or_
 import os
 from pathlib import Path
+from collections import defaultdict
 
 from app.core.database import get_db
 from app.models.estudio import Estudio 
-from app.models.estudio_imagen import EstudioImagen # 🔥 IMPORTACIÓN AÑADIDA
+from app.models.estudio_imagen import EstudioImagen 
 from app.core.auth import obtener_usuario_actual
 from app.services.generador_pdf import construir_reporte_pdf 
 
-# 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
 from app.core.config import PDF_REPORTS_DIR
 
 router = APIRouter(prefix="/estudios", tags=["Estudios"])
@@ -20,12 +20,10 @@ def marcar_estudio_atendido_endpoint(identificador: str, data: dict, db: Session
     tecnologo_id = data.get("usuario_id") or 1
     
     try:
-        # 1. INSPECCIÓN: ¿Qué tablas tenemos realmente?
         inspector = inspect(db.get_bind())
         tablas_reales = inspector.get_table_names()
         print(f"🔍 Tablas en base de datos: {tablas_reales}")
 
-        # 2. INTENTAR ACTUALIZAR EL ESTADO EN CUALQUIER TABLA DE ÓRDENES
         for tabla in tablas_reales:
             if tabla.lower() in ['worklist_orders', 'ris_ordenes', 'ris_orden', 'risorden']:
                 try:
@@ -35,7 +33,6 @@ def marcar_estudio_atendido_endpoint(identificador: str, data: dict, db: Session
                 except Exception as e_sql:
                     print(f"⚠️ No se pudo actualizar la tabla {tabla}: {e_sql}")
 
-        # 3. ACTUALIZAR O CREAR EN TABLA ESTUDIO (PACS)
         columnas_estudio = [c.name for c in Estudio.__table__.columns]
         col_acc = next((c for c in columnas_estudio if 'acc' in c.lower()), 'accession_number')
 
@@ -53,7 +50,6 @@ def marcar_estudio_atendido_endpoint(identificador: str, data: dict, db: Session
             estudio.estado = "atendido"
             estudio.tecnologo_id = tecnologo_id
 
-        # 4. GUARDADO FINAL
         db.commit()
         print(f"✅ SINCRONIZACIÓN COMPLETA: {identificador} ya no debería volver.")
         return {"status": "success", "message": "Atendido correctamente"}
@@ -72,32 +68,24 @@ async def firmar_estudio_endpoint(
     estudio_id: int, 
     data: dict, 
     db: Session = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)  # 🔐 Atrapamos al médico real en sesión
+    usuario = Depends(obtener_usuario_actual) 
 ):
-    """
-    Endpoint clínico para procesar la firma del radiólogo.
-    Fuerza el uso de los datos visuales del frontend y del usuario logueado.
-    """
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
     if not estudio:
         raise HTTPException(status_code=404, detail="Estudio clínico no encontrado.")
 
-    # 1. PRIORIDAD ABSOLUTA: Datos enviados por el Frontend (Lo que el usuario ve en pantalla)
     id_real = data.get("identificacion") or data.get("id_paciente") or data.get("documento")
     nombre_real = data.get("nombre_paciente") or data.get("paciente_nombre") or data.get("paciente")
     
-    # 2. RESPALDO: Extraer de la base de datos si el frontend no los envió
     paciente = getattr(estudio, "paciente", None)
     if not id_real and paciente:
         id_real = paciente.identificacion
     if not nombre_real and paciente:
         nombre_real = f"{paciente.primer_nombre} {paciente.primer_apellido}".strip()
         
-    # 3. ÚLTIMO RECURSO DE CONTINGENCIA
     id_real = str(id_real) if id_real else str(estudio_id)
     nombre_real = nombre_real if nombre_real else "PACIENTE ANÓNIMO"
 
-    # 4. DATOS DEL RADIÓLOGO (Automático desde la sesión, ignora campos vacíos de React)
     nombre_medico = f"Dr(a). {usuario.nombre}" if hasattr(usuario, "nombre") else "Radiólogo de Turno"
     registro_medico = getattr(usuario, "registro_medico", "RM-NO-REGISTRADO")
     
@@ -113,19 +101,15 @@ async def firmar_estudio_endpoint(
         "registro_medico": registro_medico.upper()
     }
 
-    # 5. RUTA ABSOLUTA BLINDADA USANDO EL ANCLA
     ruta_estaticos_real = PDF_REPORTS_DIR
-    
     nombre_pdf = f"Reporte_{id_real}.pdf"
     ruta_final_pdf = ruta_estaticos_real / nombre_pdf
 
-    # 6. COMPILAR PDF FÍSICO
     exito = construir_reporte_pdf(datos_informe, str(ruta_final_pdf))
 
     if not exito:
         raise HTTPException(status_code=500, detail="Error interno al compilar el archivo PDF del reporte.")
 
-    # 7. ACTUALIZAR ESTADO DE LA ORDEN CLÍNICA
     try:
         estudio.estado = "firmado"
         db.commit()
@@ -140,28 +124,45 @@ async def firmar_estudio_endpoint(
 
 
 # =====================================================================
-# ✅ ENDPOINT: OBTENER LISTA DE IMÁGENES DICOM DEL ESTUDIO
+# ✅ ENDPOINT: OBTENER LISTA DE IMÁGENES AGRUPADAS POR SERIE
 # =====================================================================
 @router.get("/{estudio_id}/imagenes")
 def obtener_imagenes_de_estudio(
     estudio_id: int, 
     db: Session = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)  # 🔐 Blindaje clínico
+    usuario = Depends(obtener_usuario_actual) 
 ):
     """
-    Devuelve la lista de imágenes DICOM asociadas a un estudio clínico 
-    para que el visor Cornerstone3D sepa qué rutas cargar.
+    Devuelve la lista de imágenes DICOM agrupadas en series (bandejas).
     """
     imagenes = db.query(EstudioImagen).filter(EstudioImagen.estudio_id == estudio_id).all()
     
     if not imagenes:
-        return [] # Retorna una lista vacía para evitar errores de parseo en React
+        return [] 
         
-    resultado = []
+    series_dict = defaultdict(list)
+    
     for img in imagenes:
-        resultado.append({
+        nombre_serie = getattr(img, "series_description", None)
+        
+        # Fallback inteligente: Si no hay descripción en la BD, usamos la carpeta contenedora
+        if not nombre_serie:
+            partes_ruta = Path(img.ruta_archivo).parts
+            if len(partes_ruta) >= 2:
+                nombre_serie = partes_ruta[-2]
+            else:
+                nombre_serie = "Serie Principal"
+                
+        series_dict[nombre_serie].append({
             "id": img.id,
             "ruta_archivo": img.ruta_archivo
+        })
+        
+    resultado = []
+    for serie_nombre, imgs in series_dict.items():
+        resultado.append({
+            "serie": str(serie_nombre).upper(),
+            "imagenes": imgs
         })
         
     return resultado
