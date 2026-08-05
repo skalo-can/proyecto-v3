@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect, or_
 import os
 from pathlib import Path
+
 from app.core.database import get_db
 from app.models.estudio import Estudio 
+from app.models.estudio_imagen import EstudioImagen # 🔥 IMPORTACIÓN AÑADIDA
 from app.core.auth import obtener_usuario_actual
 from app.services.generador_pdf import construir_reporte_pdf 
 
@@ -135,3 +137,31 @@ async def firmar_estudio_endpoint(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al actualizar estado en PACS: {str(e)}")
+
+
+# =====================================================================
+# ✅ ENDPOINT: OBTENER LISTA DE IMÁGENES DICOM DEL ESTUDIO
+# =====================================================================
+@router.get("/{estudio_id}/imagenes")
+def obtener_imagenes_de_estudio(
+    estudio_id: int, 
+    db: Session = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)  # 🔐 Blindaje clínico
+):
+    """
+    Devuelve la lista de imágenes DICOM asociadas a un estudio clínico 
+    para que el visor Cornerstone3D sepa qué rutas cargar.
+    """
+    imagenes = db.query(EstudioImagen).filter(EstudioImagen.estudio_id == estudio_id).all()
+    
+    if not imagenes:
+        return [] # Retorna una lista vacía para evitar errores de parseo en React
+        
+    resultado = []
+    for img in imagenes:
+        resultado.append({
+            "id": img.id,
+            "ruta_archivo": img.ruta_archivo
+        })
+        
+    return resultado

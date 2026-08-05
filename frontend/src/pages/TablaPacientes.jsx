@@ -7,7 +7,7 @@ export default function TablaPacientes({
   pacientes, seleccionados, setSeleccionados, toggleSeleccionarPaciente, solicitarOrdenamiento,
   renderIconoOrden, audiosClinicos, audioActualJugando, ejecutarPlayAudioTabla, estudiosAutorizados,
   abrirModuloDictado, abrirEditorPaciente, handleReabrirFlujoEstudio, abrirModalTranscriptor, abrirModalFirma,
-  handleMarcarTomado // 🔥 NUEVA FUNCIÓN RECIBIDA
+  handleMarcarTomado 
 }) {
 
   const { user } = useAuth();
@@ -45,6 +45,16 @@ export default function TablaPacientes({
   }, []);
 
   const abrirPDF = (id) => window.open(`http://localhost:8000/api/pacientes/${id}/descargar-pdf`, "_blank");
+
+  // 🔥 NUEVA FUNCIÓN: Lanza el visor en una ventana flotante limpia para multimonitor
+  // 🔥 Lanza el visor pasando el ID de BD y el ID Real por URL
+  const abrirVisorMedico = (estudioId, idReal) => {
+    window.open(
+      `/imagenes-estudio/${estudioId}?id_real=${idReal}`, 
+      `Visor_${estudioId}`, 
+      `width=1200,height=900,top=50,left=100,resizable=yes`
+    );
+  };
 
   const handleCancelarEstudio = async (pacienteId) => {
     const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio.\nMotivo clínico/técnico:");
@@ -152,23 +162,10 @@ export default function TablaPacientes({
                     {p.estado_pacs === "Cancelado" && (<span style={{ color: "#94a3b8", fontWeight: "bold", fontSize: "12px", display: "flex", gap: "6px" }}>🚫 Archivado</span>)}
                     {p.estado_pacs === "Rechazado" && (<span style={{ color: "#ef4444", fontWeight: "bold", fontSize: "13px", display: "flex", gap: "6px" }}>🛑 Repetir Toma</span>)}
                     
-                    {/* 🔥 BOTÓN EXCLUSIVO PARA TECNÓLOGOS */}
                     {userRol === 'tecnologo' && (p.estado_pacs === 'Importado' || p.estado_pacs === 'Pendiente' || !p.estado_pacs) && (
                         <button
                             onClick={() => handleMarcarTomado(p.id)}
-                            style={{
-                                background: "#10b981", 
-                                color: "white", 
-                                border: "none", 
-                                padding: "6px 12px", 
-                                borderRadius: "4px", 
-                                cursor: "pointer", 
-                                fontWeight: "bold",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)"
-                            }}
+                            style={{ background: "#10b981", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}
                             title="Validar paciente y asignar a mis métricas"
                         >
                             ✔ Validar Estudio
@@ -221,7 +218,11 @@ export default function TablaPacientes({
                     )}
                   </div>
                 </td>
-                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}><button style={styles.btnVisor}>ABRIR</button></td>
+                
+                {/* 🔥 BOTÓN ACTUALIZADO Y CORREGIDO PARA ENVIAR EL ID DEL ESTUDIO, NO DEL PACIENTE */}
+                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                  <button style={styles.btnVisor} onClick={() => abrirVisorMedico(p.estudio_interno_id || p.id_estudio || p.id, idReal)}>ABRIR</button>
+                </td>
               </tr>
             );
           })

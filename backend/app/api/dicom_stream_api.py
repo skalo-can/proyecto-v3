@@ -61,8 +61,12 @@ def stream_dicom(
     if usuario.rol == "paciente" and usuario.id != estudio.paciente_id:
         raise HTTPException(status_code=403, detail="Acceso denegado.")
 
-    # Médicos, técnicos y admin tienen acceso total
-    requiere_rol(usuario, ["admin", "medico", "tecnico", "paciente"])
+    # 🔥 CORREGIDO: Lista ampliada con todos los roles reales de tu sistema
+    requiere_rol(usuario, [
+        "admin", "superadmin", "medico", "radiologo", 
+        "tecnico", "tecnologo", "paciente", "it_biomedica", 
+        "auxiliar", "transcriptor", "invitado"
+    ])
 
     # -----------------------------------------------------
     # 3. Validar existencia física del archivo en storage
@@ -74,10 +78,6 @@ def stream_dicom(
             status_code=404,
             detail=f"Archivo físico DICOM no encontrado en el servidor:\n{file_path}"
         )
-
-    # 🚀 CORREGIDO: Se elimina la restricción estricta de la extensión ".dcm".
-    # Los visores eFilm Lite y PACS antiguos graban imágenes binarias válidas sin sufijo.
-    # Cornerstone3D parseará el binario directamente gracias al Media Type correcto.
 
     # -----------------------------------------------------
     # 4. Leer archivo y enviarlo como flujo de bytes
@@ -99,7 +99,6 @@ def stream_dicom(
         headers={
             "Content-Length": str(len(dicom_bytes)),
             "Accept-Ranges": "bytes",
-            # Habilitar CORS explícito para transferencia de imágenes pesadas en red local
             "Access-Control-Allow-Origin": "*",
         },
     )
