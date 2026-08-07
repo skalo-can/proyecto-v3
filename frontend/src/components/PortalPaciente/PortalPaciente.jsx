@@ -12,8 +12,10 @@ export const PortalPaciente = () => {
   const [validado, setValidado] = useState(false);
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
-  const [validandoPin, setValidandoPin] = useState(false); // Para el efecto de carga del botón
-  const [estudioData, setEstudioData] = useState(null); // Aquí guardaremos los datos reales
+  const [errorMsg, setErrorMsg] = useState(""); // Captura el mensaje exacto del backend
+  const [validandoPin, setValidandoPin] = useState(false); 
+  const [estudioData, setEstudioData] = useState(null); 
+  const [vistasRestantes, setVistasRestantes] = useState(null); // 🛡️ Nuevo estado para el contador
   
   // Estados para controlar la transición al visor
   const [loadingEstudio, setLoadingEstudio] = useState(false);
@@ -25,6 +27,7 @@ export const PortalPaciente = () => {
     
     setValidandoPin(true);
     setError(false);
+    setErrorMsg("");
 
     try {
       const apiBase = window.location.origin;
@@ -35,22 +38,27 @@ export const PortalPaciente = () => {
         body: JSON.stringify({ token: token, pin: pin })
       });
 
-      if (!response.ok) {
-        throw new Error("Identidad no verificada");
-      }
-
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Identidad no verificada");
+      }
       
       if (data.acceso_permitido) {
-        setEstudioData(data.estudio); // Guardamos "Edison Correa", ID, Modalidad, etc.
+        setEstudioData(data.estudio); 
+        setVistasRestantes(data.vistas_restantes); // 🚀 Guardamos cuántas vistas le quedan
         setValidado(true);
         setPin("");
       }
     } catch (err) {
       console.error(err);
       setError(true);
+      setErrorMsg(err.message);
       setPin("");
-      setTimeout(() => setError(false), 2000); // El botón tiembla por 2 segundos
+      setTimeout(() => {
+        setError(false);
+        setErrorMsg("");
+      }, 3500); // Damos un poco más de tiempo para que lea el motivo del error
     } finally {
       setValidandoPin(false);
     }
@@ -62,10 +70,10 @@ export const PortalPaciente = () => {
     setTimeout(() => {
       setLoadingEstudio(false);
       setMostrarVisor(true);
-    }, 4000); // 4 segundos de carga de lujo
+    }, 4000); 
   };
 
-  // Función para abrir el PDF en una pestaña nueva usando el token seguro
+  // Función para abrir el PDF en una pestaña nueva
   const abrirInforme = () => {
     const apiBase = window.location.origin;
     window.open(`${apiBase}/api/secure-links/informe/${token}`, "_blank");
@@ -77,9 +85,15 @@ export const PortalPaciente = () => {
         <div className={`portal-card-paciente ${error ? 'shake-error' : ''}`}>
           <div className="portal-icon-header">🔐</div>
           <h2 className="portal-title">ACCESO SEGURO</h2>
+          
+          {/* 🛡️ AVISO DE SEGURIDAD PARA EL PACIENTE */}
+          <div style={{ backgroundColor: 'rgba(251, 191, 36, 0.1)', borderLeft: '4px solid #fbbf24', padding: '12px', borderRadius: '4px', color: '#fbbf24', marginBottom: '20px', fontSize: '13px', textAlign: 'left', lineHeight: '1.4' }}>
+            <strong>🔒 Enlace de Alta Seguridad:</strong> Por protección de sus datos médicos, este enlace tiene un <strong>límite de 4 visualizaciones</strong> y expirará al alcanzarlas. Le recomendamos descargar su informe PDF en su primera visita.
+          </div>
+
           <input 
             type="password" 
-            placeholder="PIN DE ACCESO" 
+            placeholder="PIN DE ACCESO (DDMMAAAA)" 
             value={pin}
             autoComplete="off"
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
@@ -87,11 +101,29 @@ export const PortalPaciente = () => {
             className="portal-input-pin"
             disabled={validandoPin}
           />
-          {error && <p className="error-text">⚠️ IDENTIDAD NO VERIFICADA</p>}
+          
+          {error && (
+            <div style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              color: '#f87171', /* Un rojo claro y brillante perfecto para fondos oscuros */
+              padding: '12px',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              marginTop: '15px',
+              textAlign: 'center',
+              textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+            }}>
+              ⚠️ {errorMsg.toUpperCase() || "IDENTIDAD NO VERIFICADA"}
+            </div>
+          )}
+          
           <button 
             onClick={handleAcceso} 
             className="btn-portal-confirmar"
             disabled={validandoPin || pin.length === 0}
+            style={{ marginTop: '15px' }}
           >
             {validandoPin ? "VERIFICANDO..." : "VERIFICAR IDENTIDAD"}
           </button>
@@ -102,13 +134,23 @@ export const PortalPaciente = () => {
 
   return (
     <div className="portal-interno-layout">
-      {/* HEADER DE LUJO */}
+      {/* HEADER DE LUJO CON CONTADOR DE VISTAS */}
       <header className="portal-interno-header">
-        <div className="portal-header-content">
+        <div className="portal-header-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <h1 className="portal-logo-text">MI_PACS <span className="gold-text">GLOBAL PORTAL</span></h1>
-          <button onClick={() => mostrarVisor ? setMostrarVisor(false) : window.location.reload()} className="btn-exit-luxury">
-            {mostrarVisor ? "VOLVER / BACK" : "SALIR / EXIT"}
-          </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {/* 👁️ INDICADOR DE VISTAS RESTANTES */}
+            {vistasRestantes !== null && (
+              <span style={{ color: '#fbbf24', fontSize: '12px', fontWeight: 'bold', backgroundColor: 'rgba(251, 191, 36, 0.1)', padding: '6px 10px', borderRadius: '20px', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
+                👁️ VISUALIZACIONES RESTANTES: {vistasRestantes}
+              </span>
+            )}
+
+            <button onClick={() => mostrarVisor ? setMostrarVisor(false) : window.location.reload()} className="btn-exit-luxury">
+              {mostrarVisor ? "VOLVER / BACK" : "SALIR / EXIT"}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -145,7 +187,6 @@ export const PortalPaciente = () => {
           /* 🖼️ VISOR CINEMATOGRÁFICO DE PACIENTE */
           <div className="visor-paciente-main">
             <div className="visor-sidebar-gold">
-              {/* Botones decorativos eliminados para evitar confusiones */}
               <button 
                 className="tool-gold-btn highlight" 
                 onClick={abrirInforme}
@@ -156,7 +197,6 @@ export const PortalPaciente = () => {
             </div>
             
             <div className="visor-viewport-luxury">
-              {/* Mostramos datos reales traídos del backend */}
               <div className="viewport-header-info">
                 PACIENTE: {estudioData?.paciente_nombre || "DESCONOCIDO"} | MODALIDAD: {estudioData?.modalidad || "N/A"}
               </div>
