@@ -20,8 +20,8 @@ function Login() {
     setError("");
 
     try {
-      // ✅ Se mantiene localhost fijo para evitar desvíos de red
-      const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
+      // ✅ Ahora usamos una ruta relativa. Funciona en PC y Celular gracias al proxy de Vite.
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: identifier, password }), 

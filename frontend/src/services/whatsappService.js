@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API = "http://localhost:8000/api/whatsapp";
+// ✅ Ruta relativa
+const API = "/api/whatsapp";
 
 // ======================================================
 //   LISTAR LOGS (con filtros y paginación)

@@ -1,19 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import text, inspect, or_
+from sqlalchemy import text, inspect
 import os
 from pathlib import Path
 from collections import defaultdict
+import jwt
+from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.models.estudio import Estudio 
 from app.models.estudio_imagen import EstudioImagen 
 from app.core.auth import obtener_usuario_actual
 from app.services.generador_pdf import construir_reporte_pdf 
-
 from app.core.config import PDF_REPORTS_DIR
 
 router = APIRouter(prefix="/estudios", tags=["Estudios"])
+SECRET_COMPARTIR = "Asotrauma_Clinica_Segura_2026_Compartir"
 
 @router.patch("/atender/{identificador}")
 def marcar_estudio_atendido_endpoint(identificador: str, data: dict, db: Session = Depends(get_db)):
@@ -22,14 +24,12 @@ def marcar_estudio_atendido_endpoint(identificador: str, data: dict, db: Session
     try:
         inspector = inspect(db.get_bind())
         tablas_reales = inspector.get_table_names()
-        print(f"🔍 Tablas en base de datos: {tablas_reales}")
 
         for tabla in tablas_reales:
             if tabla.lower() in ['worklist_orders', 'ris_ordenes', 'ris_orden', 'risorden']:
                 try:
                     db.execute(text(f"UPDATE {tabla} SET estado_ris = 'Atendido' WHERE accession_number = :acc"), {"acc": identificador})
                     db.execute(text(f"UPDATE {tabla} SET estado = 'terminado' WHERE accession_number = :acc"), {"acc": identificador})
-                    print(f"🔨 Tabla {tabla} actualizada con éxito.")
                 except Exception as e_sql:
                     print(f"⚠️ No se pudo actualizar la tabla {tabla}: {e_sql}")
 
@@ -51,18 +51,13 @@ def marcar_estudio_atendido_endpoint(identificador: str, data: dict, db: Session
             estudio.tecnologo_id = tecnologo_id
 
         db.commit()
-        print(f"✅ SINCRONIZACIÓN COMPLETA: {identificador} ya no debería volver.")
         return {"status": "success", "message": "Atendido correctamente"}
 
     except Exception as e:
         db.rollback()
-        print(f"❌ ERROR CRÍTICO: {str(e)}")
         return {"status": "success", "message": "Procesado por contingencia"}
 
 
-# =====================================================================
-# ✅ ENDPOINT: COLECTOR INTELIGENTE Y GENERADOR DE PDF BLINDADO
-# =====================================================================
 @router.post("/{estudio_id}/firmar")
 async def firmar_estudio_endpoint(
     estudio_id: int, 
@@ -106,9 +101,8 @@ async def firmar_estudio_endpoint(
     ruta_final_pdf = ruta_estaticos_real / nombre_pdf
 
     exito = construir_reporte_pdf(datos_informe, str(ruta_final_pdf))
-
     if not exito:
-        raise HTTPException(status_code=500, detail="Error interno al compilar el archivo PDF del reporte.")
+        raise HTTPException(status_code=500, detail="Error al compilar el PDF.")
 
     try:
         estudio.estado = "firmado"
@@ -120,49 +114,78 @@ async def firmar_estudio_endpoint(
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al actualizar estado en PACS: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error PACS: {str(e)}")
 
 
 # =====================================================================
-# ✅ ENDPOINT: OBTENER LISTA DE IMÁGENES AGRUPADAS POR SERIE
+# ✅ ENDPOINT: GENERAR ENLACE SEGURO (TOKEN TEMPORAL)
+# =====================================================================
+@router.post("/{estudio_id}/compartir")
+def generar_enlace_compartido(
+    estudio_id: int, 
+    db: Session = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
+):
+    estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
+    if not estudio:
+        raise HTTPException(status_code=404, detail="Estudio no encontrado.")
+    
+    expiracion = datetime.utcnow() + timedelta(days=7)
+    payload = {
+        "estudio_id": estudio_id,
+        "rol": "invitado_paciente",
+        "exp": expiracion
+    }
+    
+    token_seguro = jwt.encode(payload, SECRET_COMPARTIR, algorithm="HS256")
+    return {"status": "success", "token": token_seguro}
+
+
+# =====================================================================
+# ✅ ENDPOINT: OBTENER LISTA DE IMÁGENES (SEGURIDAD DUAL)
 # =====================================================================
 @router.get("/{estudio_id}/imagenes")
 def obtener_imagenes_de_estudio(
     estudio_id: int, 
-    db: Session = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual) 
+    request: Request, 
+    db: Session = Depends(get_db)
 ):
-    """
-    Devuelve la lista de imágenes DICOM agrupadas en series (bandejas).
-    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(status_code=401, detail="Falta token de seguridad.")
+        
+    token_str = auth_header.replace("Bearer ", "")
+    acceso_concedido = False
+
+    # 1. Validar si es el paciente invitado
+    try:
+        payload = jwt.decode(token_str, SECRET_COMPARTIR, algorithms=["HS256"])
+        if payload.get("rol") == "invitado_paciente" and payload.get("estudio_id") == estudio_id:
+            acceso_concedido = True
+    except Exception:
+        pass 
+
+    # 2. Si no es paciente, intentar validar como personal clínico (médico/admin)
+    if not acceso_concedido:
+        # Importamos temporalmente tu decodificador normal para ver si es un médico
+        from app.core.auth import SECRET_KEY, ALGORITHM 
+        try:
+            jwt.decode(token_str, SECRET_KEY, algorithms=[ALGORITHM])
+        except Exception:
+            raise HTTPException(status_code=403, detail="Credenciales inválidas o expiradas.")
+
+    # 3. Respuesta agrupada por series
     imagenes = db.query(EstudioImagen).filter(EstudioImagen.estudio_id == estudio_id).all()
-    
     if not imagenes:
         return [] 
         
     series_dict = defaultdict(list)
-    
     for img in imagenes:
         nombre_serie = getattr(img, "series_description", None)
-        
-        # Fallback inteligente: Si no hay descripción en la BD, usamos la carpeta contenedora
         if not nombre_serie:
             partes_ruta = Path(img.ruta_archivo).parts
-            if len(partes_ruta) >= 2:
-                nombre_serie = partes_ruta[-2]
-            else:
-                nombre_serie = "Serie Principal"
+            nombre_serie = partes_ruta[-2] if len(partes_ruta) >= 2 else "Serie Principal"
                 
-        series_dict[nombre_serie].append({
-            "id": img.id,
-            "ruta_archivo": img.ruta_archivo
-        })
+        series_dict[nombre_serie].append({"id": img.id, "ruta_archivo": img.ruta_archivo})
         
-    resultado = []
-    for serie_nombre, imgs in series_dict.items():
-        resultado.append({
-            "serie": str(serie_nombre).upper(),
-            "imagenes": imgs
-        })
-        
-    return resultado
+    return [{"serie": str(k).upper(), "imagenes": v} for k, v in series_dict.items()]

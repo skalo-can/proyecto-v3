@@ -9,9 +9,6 @@ import cornerstoneWADOImageLoader from "cornerstone-wado-image-loader";
 import dicomParser from "dicom-parser";
 import Hammer from "hammerjs";
 
-// =====================================================================
-// INICIALIZACIÓN GLOBAL CORNERSTONE
-// =====================================================================
 cornerstoneTools.external.cornerstone = cornerstone;
 cornerstoneTools.external.Hammer = Hammer;
 cornerstoneTools.external.cornerstoneMath = cornerstoneMath;
@@ -24,18 +21,10 @@ cornerstoneWADOImageLoader.webWorkerManager.initialize({
   taskConfiguration: { decodeTask: { initializeCodecsOnStartup: false, strict: false } }
 });
 
-cornerstoneWADOImageLoader.configure({
-  beforeSend: function(xhr) {
-    const token = localStorage.getItem("token");
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-  }
-});
-
 cornerstoneTools.init({ globalToolSyncEnabled: true, showSVGCursors: true });
 
-// =====================================================================
-// COMPONENTE MINIATURA (Renderiza el primer corte de cada serie)
-// =====================================================================
+const API_BASE = window.location.origin;
+
 const SerieThumbnail = ({ url }) => {
   const elementRef = useRef(null);
 
@@ -59,25 +48,20 @@ const SerieThumbnail = ({ url }) => {
     <div
       ref={elementRef}
       style={{
-        width: "100%",
-        height: "60px",
-        backgroundColor: "#000",
-        borderRadius: "4px",
-        marginBottom: "4px",
-        pointerEvents: "none" 
+        width: "100%", height: "60px", backgroundColor: "#000",
+        borderRadius: "4px", marginBottom: "4px", pointerEvents: "none" 
       }}
     />
   );
 };
 
-// =====================================================================
-// COMPONENTE PRINCIPAL DEL VISOR
-// =====================================================================
-export default function VisorDICOMWrapper() {
-  const { id } = useParams(); 
+export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPaciente }) {
+  const { id: paramId } = useParams(); 
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const idReal = searchParams.get("id_real") || id; 
+  
+  const currentId = estudioId || paramId;
+  const idReal = searchParams.get("id_real") || currentId; 
   
   const { user } = useAuth();
   
@@ -94,48 +78,101 @@ export default function VisorDICOMWrapper() {
   const [dicomTags, setDicomTags] = useState(null);
 
   const dicomElementRef = useRef(null);
-  const token = localStorage.getItem("token");
-
-  // 🔥 REFERENCIAS PARA EL MOTOR DE GIRO 3D (DRAG INTERACTIVO)
   const isDragging3D = useRef(false);
   const lastMouseX = useRef(0);
 
+  // 🔥 LÓGICA DE SEGURIDAD BLINDADA
+  const tokenUrl = searchParams.get("token") || tokenPaciente;
+  const isGuest = esPortalPaciente || !!tokenUrl;
+  
+  const rawLocalToken = localStorage.getItem("token") || "";
+  const cleanLocalToken = rawLocalToken.replace(/['"]+/g, '');
+  const activeToken = tokenUrl || cleanLocalToken;
+
   const userRol = String(user?.rol || "").toLowerCase().trim();
-  const isRadiologo = userRol === "radiologo" || userRol.startsWith("medico") || userRol === "superadmin";
+  const isRadiologo = !isGuest && (userRol === "radiologo" || userRol.startsWith("medico") || userRol === "superadmin");
 
   const imagenesActuales = series[serieActiva]?.urls || [];
 
   useEffect(() => {
+    if (!isGuest && cleanLocalToken) {
+      cornerstoneWADOImageLoader.configure({
+        beforeSend: function(xhr) {
+          xhr.setRequestHeader('Authorization', `Bearer ${cleanLocalToken}`);
+        }
+      });
+    }
+
     const fetchImagenes = async () => {
+      if (!currentId) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch(`http://localhost:8000/api/estudios/${id}/imagenes`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        let urlFetch = `${API_BASE}/api/estudios/${currentId}/imagenes`;
+        let headersFetch = { Authorization: `Bearer ${activeToken}` };
+
+        if (isGuest) {
+          urlFetch = `${API_BASE}/api/secure-links/imagenes/${activeToken}`;
+          headersFetch = {}; 
+        }
+
+        const response = await fetch(urlFetch, { headers: headersFetch });
+        
+        if (!response.ok) throw new Error("Error en la autenticación o servidor.");
+        
         const data = await response.json();
         
         if (data && data.length > 0) {
           let seriesProcesadas = [];
-          if (data[0].serie) { 
+          
+          const armarUrlDicom = (imgId) => {
+            if (isGuest) {
+              return `wadouri:${API_BASE}/api/secure-links/stream/${imgId}?token=${activeToken}`;
+            } else {
+              return `wadouri:${API_BASE}/api/dicom/stream/${imgId}`;
+            }
+          };
+
+          if (data[0] && data[0].serie) { 
             seriesProcesadas = data.map(s => ({
               nombre: s.serie,
-              urls: s.imagenes.map(img => `wadouri:http://localhost:8000/api/dicom/stream/${img.id}`)
+              urls: s.imagenes.map(img => armarUrlDicom(img.id))
             }));
           } else { 
             seriesProcesadas = [{
               nombre: "SERIE ÚNICA",
-              urls: data.map(img => `wadouri:http://localhost:8000/api/dicom/stream/${img.id}`)
+              urls: data.map(img => armarUrlDicom(img?.id || img))
             }];
           }
           setSeries(seriesProcesadas);
         }
       } catch (error) {
-        console.error("Error cargando metadatos del estudio:", error);
+        console.error("Error cargando imágenes del estudio:", error);
       } finally {
         setLoading(false);
       }
     };
+    
     fetchImagenes();
-  }, [id, token]);
+  }, [currentId, activeToken, isGuest, cleanLocalToken]);
+
+  // 🚀 AUTO-AJUSTE AL GIRAR LA PANTALLA O CAMBIAR DE TAMAÑO
+  useEffect(() => {
+    const handleResize = () => {
+      const element = dicomElementRef.current;
+      if (element) {
+        try {
+          cornerstone.resize(element, true);
+        } catch (e) {
+          console.warn("Resize warning:", e);
+        }
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     if (!dicomElementRef.current || imagenesActuales.length === 0) return;
@@ -222,8 +259,6 @@ export default function VisorDICOMWrapper() {
 
   const activarHerramienta = (nombreHerramienta) => {
     setHerramientaActiva(nombreHerramienta);
-    
-    // 🔥 Lógica: Si activamos el "Giro 3D", deshabilitamos las herramientas médicas nativas para el clic izquierdo
     if (nombreHerramienta === "Spin3D") {
       cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 0 });
       cornerstoneTools.setToolActive("Pan", { mouseButtonMask: 0 });
@@ -234,9 +269,6 @@ export default function VisorDICOMWrapper() {
     }
   };
 
-  // =====================================================================
-  // 🔥 EVENTOS DEL RATÓN PARA EL EFECTO DE ROTACIÓN 360
-  // =====================================================================
   const handleMouseDown = (e) => {
     if (herramientaActiva === "Spin3D" && e.button === 0) {
       isDragging3D.current = true;
@@ -247,14 +279,12 @@ export default function VisorDICOMWrapper() {
   const handleMouseMove = (e) => {
     if (isDragging3D.current && herramientaActiva === "Spin3D") {
       const deltaX = e.clientX - lastMouseX.current;
-      const sensibilidad = 8; // Pixeles necesarios para avanzar 1 frame (menor = más rápido)
+      const sensibilidad = 8; 
       
       if (Math.abs(deltaX) > sensibilidad) {
-        setIsCinePlaying(false); // Detenemos el cine automático si el usuario arrastra
-        
+        setIsCinePlaying(false);
         setIndiceActual((prev) => {
           let next = deltaX > 0 ? prev + 1 : prev - 1;
-          // Bucle Infinito: Da la sensación de rotación 360 grados sin fin
           if (next >= imagenesActuales.length) next = 0; 
           if (next < 0) next = imagenesActuales.length - 1;
           return next;
@@ -271,21 +301,37 @@ export default function VisorDICOMWrapper() {
   return (
     <div style={styles.visorContainer}>
       
-      {/* BARRA SUPERIOR */}
       <div style={styles.toolbar}>
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar Visor</button>
-          <span style={{ color: "#fbbf24", fontWeight: "bold", marginLeft: "15px" }}>
-            ESTUDIO ID: {idReal}
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
+          {!esPortalPaciente && (
+            <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar</button>
+          )}
+          <span style={{ color: "#fbbf24", fontWeight: "bold", marginLeft: "10px", fontSize: "0.85rem" }}>
+            ID: {idReal}
           </span>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        {/* 🚀 BARRA SUPERIOR CON SCROLL HORIZONTAL TÁCTIL PARA MÓVILES */}
+        <div style={{ display: "flex", gap: "6px", alignItems: "center", overflowX: "auto", flex: 1, paddingLeft: "10px", whiteSpace: "nowrap", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
           <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>🌓 Contraste</button>
           <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 Zoom</button>
           <button style={herramientaActiva === "Pan" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Pan")}>🖐️ Mover</button>
           <button style={herramientaActiva === "Rotate" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Rotate")}>🔄 Rotar</button>
           
+          <button 
+            style={styles.btnTool} 
+            onClick={() => {
+              const element = dicomElementRef.current;
+              if (element) {
+                cornerstone.resize(element, true);
+                cornerstone.reset(element);
+              }
+            }}
+            title="Ajustar imagen a la pantalla"
+          >
+            🏠 Ajustar
+          </button>
+
           {isRadiologo && (
             <>
               <div style={styles.divisor} />
@@ -297,11 +343,10 @@ export default function VisorDICOMWrapper() {
           {imagenesActuales.length > 1 && (
             <>
               <div style={styles.divisor} />
-              {/* 🔥 NUEVO BOTÓN: GIRO INTERACTIVO 3D */}
               <button 
                 style={herramientaActiva === "Spin3D" ? styles.btn3DActivo : styles.btn3D} 
                 onClick={() => activarHerramienta("Spin3D")}
-                title="Arrastra el mouse hacia los lados sobre la imagen para rotar en 3D"
+                title="Girar en 3D"
               >
                 🧊 Giro 3D
               </button>
@@ -310,15 +355,15 @@ export default function VisorDICOMWrapper() {
                 style={isCinePlaying ? styles.btnCineActivo : styles.btnCine}
                 onClick={() => setIsCinePlaying(!isCinePlaying)}
               >
-                {isCinePlaying ? "⏸️ Detener" : "▶️ Cine"}
+                {isCinePlaying ? "⏸️ Pausa" : "▶️ Cine"}
               </button>
               
-              <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#94a3b8", fontSize: "12px", marginLeft: "5px" }}>
-                <span style={{ minWidth: "45px" }}>{cineSpeed} FPS</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#94a3b8", fontSize: "12px", marginLeft: "5px", flexShrink: 0 }}>
+                <span style={{ minWidth: "40px" }}>{cineSpeed} FPS</span>
                 <input 
                   type="range" min="1" max="60" value={cineSpeed} 
                   onChange={(e) => setCineSpeed(Number(e.target.value))} 
-                  style={{ width: "70px", cursor: "pointer", accentColor: "#8b5cf6" }}
+                  style={{ width: "60px", cursor: "pointer", accentColor: "#8b5cf6" }}
                 />
               </div>
             </>
@@ -329,7 +374,7 @@ export default function VisorDICOMWrapper() {
             style={mostrarMetadatos ? styles.btnToolActivoSeguridad : styles.btnToolSeguridad} 
             onClick={() => setMostrarMetadatos(!mostrarMetadatos)}
           >
-            🛡️ INFO DICOM
+            🛡️ Info
           </button>
         </div>
       </div>
@@ -384,7 +429,6 @@ export default function VisorDICOMWrapper() {
               style={styles.dicomElement}
               onContextMenu={(e) => e.preventDefault()} 
               onWheel={handleWheel} 
-              // 🔥 EVENTOS ACTIVADOS PARA EL MOTOR 3D
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUpOrLeave}
@@ -416,21 +460,18 @@ export default function VisorDICOMWrapper() {
 }
 
 const styles = {
-  visorContainer: { display: "flex", flexDirection: "column", height: "100vh", width: "100vw", backgroundColor: "#000", overflow: "hidden", fontFamily: "system-ui, sans-serif" },
+  visorContainer: { display: "flex", flexDirection: "column", height: "100%", width: "100%", backgroundColor: "#000", overflow: "hidden", fontFamily: "system-ui, sans-serif" },
   toolbar: { height: "60px", backgroundColor: "#111418", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0 },
   btnCerrar: { backgroundColor: "#ef4444", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
-  btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", transition: "all 0.2s" },
-  btnToolActivo: { backgroundColor: "#3b82f6", color: "#fff", border: "1px solid #2563eb", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600" },
-  
-  // 🔥 ESTILOS PARA EL BOTÓN 3D
-  btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
-  btn3DActivo: { backgroundColor: "#38bdf8", color: "#000", border: "1px solid #0284c7", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(56, 189, 248, 0.5)" },
-  
-  btnCine: { backgroundColor: "#4c1d95", color: "#ede9fe", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
-  btnCineActivo: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #6d28d9", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(124, 58, 237, 0.5)" },
-  btnToolSeguridad: { backgroundColor: "#0f766e", color: "#ccfbf1", border: "1px solid #115e59", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
-  btnToolActivoSeguridad: { backgroundColor: "#14b8a6", color: "#000", border: "1px solid #0d9488", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(20, 184, 166, 0.5)" },
-  divisor: { width: "1px", backgroundColor: "#475569", margin: "0 5px", height: "24px" },
+  btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", transition: "all 0.2s", flexShrink: 0 },
+  btnToolActivo: { backgroundColor: "#3b82f6", color: "#fff", border: "1px solid #2563eb", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
+  btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btn3DActivo: { backgroundColor: "#38bdf8", color: "#000", border: "1px solid #0284c7", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(56, 189, 248, 0.5)", flexShrink: 0 },
+  btnCine: { backgroundColor: "#4c1d95", color: "#ede9fe", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btnCineActivo: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #6d28d9", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(124, 58, 237, 0.5)", flexShrink: 0 },
+  btnToolSeguridad: { backgroundColor: "#0f766e", color: "#ccfbf1", border: "1px solid #115e59", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btnToolActivoSeguridad: { backgroundColor: "#14b8a6", color: "#000", border: "1px solid #0d9488", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(20, 184, 166, 0.5)", flexShrink: 0 },
+  divisor: { width: "1px", backgroundColor: "#475569", margin: "0 5px", height: "24px", flexShrink: 0 },
   mainArea: { display: "flex", flex: 1, overflow: "hidden" },
   sidebar: { width: "120px", backgroundColor: "#0f172a", borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", padding: "10px 0" },
   serieBtn: { display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#1e293b", border: "1px solid #334155", padding: "6px", borderRadius: "4px", cursor: "pointer", transition: "0.2s" },

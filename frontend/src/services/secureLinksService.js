@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API = "http://localhost:8000/api/secure-links";
+// ✅ Usamos ruta relativa para que el proxy de Vite y Ngrok hagan su magia
+const API = "/api/secure-links";
 
 export const generarLinkSeguro = async (estudioId) => {
   const res = await axios.post(`${API}/generar/${estudioId}`);

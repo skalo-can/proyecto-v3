@@ -68,11 +68,53 @@ export default function TablaPacientes({
     } catch (error) { alert("❌ Error de comunicación con la API."); }
   };
 
-  const handleEnvioManual = async (tipoMetodo, pacienteId, destino) => {
-    if (!destino || destino === "-" || destino.trim() === "") return alert(`❌ Faltan datos para envío.`);
+// 🔥 CORRECCIÓN: Generación de Enlace Seguro y Limpio (Cero Vulnerabilidades)
+  const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
+    if (!destino || destino === "-" || destino.trim() === "") {
+      return alert(`❌ Faltan datos para envío. Por favor, edite el paciente y agregue su ${tipoMetodo}.`);
+    }
+    
     if (!window.confirm(`📤 ¿Confirmar envío por ${tipoMetodo} al destino: ${destino}?`)) return;
-    try { alert(`✅ Solicitud de envío por ${tipoMetodo} procesada.`); } 
-    catch (error) { alert(`❌ Error de conexión.`); }
+    
+    try {
+      const apiBase = window.location.origin;
+      
+      // 🚀 Llamamos a nuestra nueva API segura
+      const response = await fetch(`${apiBase}/api/secure-links/generar/${estudioId}`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        }
+      });
+      
+      if (!response.ok) throw new Error("No se pudo generar el token de seguridad");
+      
+      const data = await response.json();
+      
+      // 🛡️ Ensamblamos la URL segura usando el dominio actual de Ngrok + el Token del backend
+      const urlSegura = `${apiBase}/portal/${data.link}`;      
+
+      // 📝 Actualizamos el mensaje para indicarle al paciente que use su fecha de nacimiento
+      const mensaje = `Hola. Clínica Asotrauma le informa que sus imágenes radiológicas ya están disponibles.\n\nPara visualizarlas, ingrese al siguiente enlace y escriba su Fecha de Nacimiento (DíaMesAño) por seguridad. Válido por 48 horas:\n\n${urlSegura}\n\nGracias por confiar en nosotros.`;
+
+      if (tipoMetodo === 'WhatsApp') {
+        const urlWa = `https://api.whatsapp.com/send?phone=${destino.replace(/\D/g, '')}&text=${encodeURIComponent(mensaje)}`;
+        window.open(urlWa, '_blank');
+      } 
+      else if (tipoMetodo === 'Email') {
+        const urlEmail = `mailto:${destino}?subject=Resultados Radiológicos - Clínica Asotrauma&body=${encodeURIComponent(mensaje)}`;
+        window.location.href = urlEmail;
+      } 
+      else if (tipoMetodo === 'SMS') {
+        const urlSms = `sms:${destino.replace(/\D/g, '')}?body=${encodeURIComponent(mensaje)}`;
+        window.location.href = urlSms;
+      }
+      
+    } catch (error) { 
+      console.error(error);
+      alert(`❌ Error de conexión al generar el enlace seguro.`); 
+    }
   };
 
   const handleRowMouseDown = (e, index, id) => {
@@ -191,9 +233,10 @@ export default function TablaPacientes({
                         <button onClick={() => abrirPDF(p.id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "12px", display: "flex", gap: "4px" }}>📄 PDF</button>
                         {(userRol === "recepcion" || isAdmin) && (
                           <>
-                            <button onClick={() => handleEnvioManual('WhatsApp', p.id, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
-                            <button onClick={() => handleEnvioManual('Email', p.id, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
-                            <button onClick={() => handleEnvioManual('SMS', p.id, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
+                            {/* 🔥 CORRECCIÓN: Pasamos el p.estudio_interno_id y el idReal */}
+                            <button onClick={() => handleEnvioManual('WhatsApp', p.estudio_interno_id || p.id_estudio || p.id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
+                            <button onClick={() => handleEnvioManual('Email', p.estudio_interno_id || p.id_estudio || p.id, idReal, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
+                            <button onClick={() => handleEnvioManual('SMS', p.estudio_interno_id || p.id_estudio || p.id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
                           </>
                         )}
                       </div>

@@ -183,7 +183,8 @@ export default function App() {
         <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'recepcion']}><RecepcionPage /></ProtectedRoute></Layout>} />
         <Route path="/gestion-backups" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><BackupConfigPage /></ProtectedRoute></Layout>} />
         <Route path="/recuperar-backups" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><RecuperarBackupsPage /></ProtectedRoute></Layout>} />
-        <Route path="/portal-paciente" element={<Layout><ProtectedRoute allowedRoles={['paciente']}><PortalPaciente /></ProtectedRoute></Layout>} />
+        {/* 🔥 PORTAL EXTERNO PARA PACIENTES (Aislamiento Total) */}
+        <Route path="/portal/:token" element={<PortalPaciente />} />
         <Route path="/email-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><EmailLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/whatsapp-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><WhatsAppLogsPage /></ProtectedRoute></Layout>} />
         
@@ -207,4 +208,4 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   );
-}
+} 

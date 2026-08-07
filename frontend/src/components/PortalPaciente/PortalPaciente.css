@@ -162,15 +162,34 @@
     letter-spacing: 2px;
 }
 
-/* 🚀 ADICIONES PARA EL VISOR DE PACIENTE (MANTIENEN EL ESTILO DE LUJO) */
+/* --- VISTA INTERNA DE LUJO --- */
+.portal-interno-layout {
+    background: #000 !important;
+    min-height: 100vh;
+    min-height: 100dvh;
+    color: white;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+.portal-interno-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 20px;
+}
+
+/* 🚀 VISOR DE PACIENTE ADAPTABLE */
 .visor-paciente-main {
     display: flex;
-    height: 70vh;
-    width: 92vw;
-    margin: 20px auto;
+    height: 75vh;
+    width: 95vw;
+    max-width: 1400px;
+    margin: 10px auto;
     background: rgba(10, 10, 10, 0.95);
     border: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 24px;
+    border-radius: 20px;
     overflow: hidden;
     backdrop-filter: blur(20px);
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
@@ -183,8 +202,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 30px 0;
-    gap: 30px;
+    padding: 20px 0;
+    gap: 20px;
+    flex-shrink: 0;
 }
 
 .tool-gold-btn {
@@ -192,30 +212,176 @@
     border: none;
     color: #555;
     cursor: pointer;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
     transition: 0.3s;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-.tool-gold-btn span { font-size: 0.6rem; color: #444; text-transform: uppercase; margin-top: 6px; letter-spacing: 1px; }
+.tool-gold-btn span { font-size: 0.55rem; color: #444; text-transform: uppercase; margin-top: 4px; letter-spacing: 1px; }
 .tool-gold-btn:hover, .tool-gold-btn:hover span { color: #fbbf24; }
-.tool-gold-btn.highlight { color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 12px; padding: 12px 8px; background: rgba(251, 191, 36, 0.05); }
+.tool-gold-btn.highlight { color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 10px; padding: 8px 6px; background: rgba(251, 191, 36, 0.05); }
 
-.visor-viewport-luxury { flex: 1; display: flex; flex-direction: column; }
-.viewport-header-info { padding: 12px 25px; font-size: 0.65rem; color: #666; letter-spacing: 2px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-.canvas-luxury-area { flex: 1; background: #000; margin: 15px; border-radius: 15px; position: relative; border: 1px solid #111; overflow: hidden; }
+.visor-viewport-luxury { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.viewport-header-info { padding: 10px 15px; font-size: 0.6rem; color: #666; letter-spacing: 1px; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.canvas-luxury-area { flex: 1; background: #000; margin: 10px; border-radius: 12px; position: relative; border: 1px solid #111; overflow: hidden; min-height: 250px; }
 
-.cornerstone-mock {
-    width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px;
-    background: radial-gradient(circle, #0a0a0a 0%, #000 100%);
+
+/* 📱 ADAPTACIÓN RESPONSIVE TOTAL PARA MÓVILES */
+@media screen and (max-width: 768px) {
+  .portal-interno-header {
+    padding: 15px 20px;
+  }
+
+  .portal-logo-text {
+    font-size: 1rem;
+  }
+
+  /* El visor se vuelve completamente vertical en el celular para ocupar el ancho exacto */
+  .visor-paciente-main {
+    flex-direction: column !important;
+    height: auto !important;
+    width: 96vw !important;
+    margin: 5px auto;
+  }
+
+  /* La barra lateral (con el botón de informe) pasa arriba de manera horizontal o compacta */
+  .visor-sidebar-gold {
+    width: 100% !important;
+    height: auto !important;
+    flex-direction: row !important;
+    justify-content: center;
+    padding: 10px !important;
+    border-right: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.1);
+  }
+
+  .tool-gold-btn.highlight {
+    flex-direction: row;
+    gap: 8px;
+    padding: 8px 15px;
+  }
+  
+  .tool-gold-btn span {
+    font-size: 0.7rem;
+  }
+
+  /* El área de las imágenes del visor se expande para verse grande y cómoda en vertical */
+  .visor-interno-main .mainArea {
+    flex-direction: column !important;
+  }
+
+  .visor-interno-main .sidebar {
+    width: 100% !important;
+    height: 75px !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 5px !important;
+  }
+
+  .canvas-luxury-area {
+    height: 45vh !important;
+    min-height: 300px;
+  }
 }
 
-.scan-line { width: 100%; height: 2px; background: rgba(251, 191, 36, 0.2); position: absolute; top: 0; animation: scan 3s linear infinite; }
-@keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+/* 📱 BARRA DE HERRAMIENTAS DESLIZABLE PARA MÓVILES */
+/* 📱 ADAPTACIÓN RESPONSIVE TOTAL Y LIMPIA PARA MÓVILES */
+@media screen and (max-width: 900px) {
+  body, html {
+    overflow-x: hidden !important;
+    width: 100vw !important;
+  }
 
-.loading-text-gold { font-size: 0.75rem; letter-spacing: 3px; font-weight: 300; opacity: 0.6; animation: pulse-gold 2s infinite; }
-@keyframes pulse-gold { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.8; } }
+  .portal-interno-layout {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 30px;
+  }
 
-.tap-to-open { font-size: 0.7rem; margin-top: 15px; letter-spacing: 2px; font-weight: 900; animation: pulse-gold 2s infinite; }
+  .portal-interno-header {
+    padding: 10px 15px;
+  }
+
+  .portal-logo-text {
+    font-size: 0.85rem;
+  }
+
+  /* Contenedor principal del visor adaptado a la pantalla */
+  .visor-paciente-main {
+    flex-direction: column !important;
+    height: auto !important;
+    width: 98vw !important;
+    max-width: 100% !important;
+    margin: 5px auto !important;
+    border-radius: 12px;
+  }
+
+  /* Botón de informe y barra superior integrados fluidamente */
+  .visor-paciente-main .toolbar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    padding: 8px 10px !important;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    background: #0f172a;
+  }
+
+  .visor-paciente-main .toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .visor-paciente-main .toolbar button {
+    flex-shrink: 0 !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* 🚀 ARREGLO DE LA BARRA LATERAL (MINIATURAS COMPLETAS EN MÓVIL) */
+  .visor-paciente-main .mainArea {
+    flex-direction: column !important;
+  }
+
+  .visor-paciente-main .sidebar {
+    width: 100% !important;
+    height: 85px !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 6px !important;
+    gap: 8px !important;
+    background: #050b14 !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+  }
+
+  /* Hacemos que cada botón de miniatura se adapte horizontalmente para que no se vea mocho */
+  .visor-paciente-main .sidebar .serieBtn,
+  .visor-paciente-main .sidebar .serieActiva {
+    width: 65px !important;
+    height: 70px !important;
+    flex-shrink: 0 !important;
+    flex-direction: column !important;
+    padding: 3px !important;
+  }
+
+  /* Aseguramos que la miniatura interna no se deforme */
+  .visor-paciente-main .sidebar div[ref] {
+    height: 40px !important;
+  }
+
+  /* Lienzo de la radiografía cómodo y expandido */
+  .canvas-luxury-area {
+    height: 52vh !important;
+    min-height: 300px;
+    margin: 5px !important;
+    border-radius: 8px;
+  }
+}
