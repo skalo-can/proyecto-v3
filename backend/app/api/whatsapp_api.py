@@ -71,7 +71,8 @@ def enviar_resultado_wa_endpoint(
     db: Session = Depends(get_db),
     usuario=Depends(obtener_usuario_actual)
 ):
-    requiere_rol(usuario, ["admin", "medico", "recepcion"])
+    # 🔥 Agregamos 'superadmin' a la lista de permitidos VIP
+    requiere_rol(usuario, ["superadmin", "admin", "medico", "recepcion"])
 
     if not req.destino or len(req.destino) < 7:
         raise HTTPException(status_code=400, detail="Número de teléfono inválido.")
@@ -86,7 +87,8 @@ def enviar_estudio_whatsapp(
     db: Session = Depends(get_db),
     usuario=Depends(obtener_usuario_actual) # 🔥 Escudo de seguridad activado
 ):
-    requiere_rol(usuario, ["admin", "medico", "recepcion"])
+    # 🔥 Agregamos 'superadmin' a la lista de permitidos VIP
+    requiere_rol(usuario, ["superadmin", "admin", "medico", "recepcion"])
 
     if data.formato != "link":
         raise HTTPException(status_code=400, detail="Por ahora solo se soporta formato 'link'")
@@ -121,10 +123,22 @@ def listar_logs(
     page_size: int = Query(20, ge=1, le=100),
     usuario=Depends(obtener_usuario_actual) # 🔥 Escudo de seguridad activado
 ):
-    requiere_rol(usuario, ["admin", "medico", "recepcion"])
+    # 🔥 Agregamos 'superadmin' a la lista de permitidos VIP
+    requiere_rol(usuario, ["superadmin", "admin", "medico", "recepcion"])
 
-    fd = datetime.fromisoformat(fecha_desde) if fecha_desde else None
-    fh = datetime.fromisoformat(fecha_hasta) if fecha_hasta else None
+    # 🛡️ PURIFICADOR DE FECHAS: Evita que el servidor colapse si React envía "", "null" o "Z"
+    def limpiar_fecha(f_str):
+        if not f_str or f_str in ["null", "undefined", ""]: 
+            return None
+        try:
+            # Reemplaza la 'Z' de JavaScript para compatibilidad absoluta con Python
+            f_str_limpia = f_str.replace("Z", "+00:00")
+            return datetime.fromisoformat(f_str_limpia)
+        except ValueError:
+            return None # Si el formato es irreconocible, ignora el filtro en lugar de colapsar
+
+    fd = limpiar_fecha(fecha_desde)
+    fh = limpiar_fecha(fecha_hasta)
 
     logs = whatsapp_log_crud.listar_logs(
         db,
@@ -155,7 +169,9 @@ def enviar_whatsapp_simple(
     data: dict,
     usuario=Depends(obtener_usuario_actual) # 🔥 Escudo de seguridad activado
 ):
-    requiere_rol(usuario, ["admin", "medico", "recepcion"])
+    # 🔥 Agregamos 'superadmin' a la lista de permitidos VIP
+    requiere_rol(usuario, ["superadmin", "admin", "medico", "recepcion"])
+    
     numero = data.get("numero")
     mensaje = data.get("mensaje")
     resultado = enviar_mensaje_whatsapp(numero, mensaje)

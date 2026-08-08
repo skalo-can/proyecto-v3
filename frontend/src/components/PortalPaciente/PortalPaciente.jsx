@@ -1,27 +1,28 @@
 import React, { useState } from "react";
-import { useParams } from "react-router-dom"; // 🚀 Fundamental para leer el token
+import { useParams } from "react-router-dom"; 
 import { useAuth } from "../../AuthContext";
 import "./PortalPaciente.css";
 
 import VisorDICOMWrapper from "../../VisorDICOMWrapper";
 
 export const PortalPaciente = () => {
-  const { token } = useParams(); // 🚀 Extraemos el token de la URL automáticamente
+  const { token } = useParams(); 
   const { user } = useAuth();
   
   const [validado, setValidado] = useState(false);
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(""); // Captura el mensaje exacto del backend
+  const [errorMsg, setErrorMsg] = useState(""); 
   const [validandoPin, setValidandoPin] = useState(false); 
   const [estudioData, setEstudioData] = useState(null); 
-  const [vistasRestantes, setVistasRestantes] = useState(null); // 🛡️ Nuevo estado para el contador
+  const [vistasRestantes, setVistasRestantes] = useState(null); 
   
-  // Estados para controlar la transición al visor
+  // 🔥 NUEVO ESTADO: Controla si el PIN se muestra como texto o asteriscos
+  const [mostrarPin, setMostrarPin] = useState(false);
+  
   const [loadingEstudio, setLoadingEstudio] = useState(false);
   const [mostrarVisor, setMostrarVisor] = useState(false);
 
-  // 🔥 Conexión real con el backend
   const handleAcceso = async () => {
     if (!pin || pin.length < 4) return;
     
@@ -46,7 +47,7 @@ export const PortalPaciente = () => {
       
       if (data.acceso_permitido) {
         setEstudioData(data.estudio); 
-        setVistasRestantes(data.vistas_restantes); // 🚀 Guardamos cuántas vistas le quedan
+        setVistasRestantes(data.vistas_restantes); 
         setValidado(true);
         setPin("");
       }
@@ -58,13 +59,12 @@ export const PortalPaciente = () => {
       setTimeout(() => {
         setError(false);
         setErrorMsg("");
-      }, 3500); // Damos un poco más de tiempo para que lea el motivo del error
+      }, 3500); 
     } finally {
       setValidandoPin(false);
     }
   };
 
-  // Función para simular la carga y abrir el visor
   const activarVisor = () => {
     setLoadingEstudio(true);
     setTimeout(() => {
@@ -73,7 +73,6 @@ export const PortalPaciente = () => {
     }, 4000); 
   };
 
-  // Función para abrir el PDF en una pestaña nueva
   const abrirInforme = () => {
     const apiBase = window.location.origin;
     window.open(`${apiBase}/api/secure-links/informe/${token}`, "_blank");
@@ -86,27 +85,58 @@ export const PortalPaciente = () => {
           <div className="portal-icon-header">🔐</div>
           <h2 className="portal-title">ACCESO SEGURO</h2>
           
-          {/* 🛡️ AVISO DE SEGURIDAD PARA EL PACIENTE */}
           <div style={{ backgroundColor: 'rgba(251, 191, 36, 0.1)', borderLeft: '4px solid #fbbf24', padding: '12px', borderRadius: '4px', color: '#fbbf24', marginBottom: '20px', fontSize: '13px', textAlign: 'left', lineHeight: '1.4' }}>
             <strong>🔒 Enlace de Alta Seguridad:</strong> Por protección de sus datos médicos, este enlace tiene un <strong>límite de 4 visualizaciones</strong> y expirará al alcanzarlas. Le recomendamos descargar su informe PDF en su primera visita.
           </div>
 
-          <input 
-            type="password" 
-            placeholder="PIN DE ACCESO (DDMMAAAA)" 
-            value={pin}
-            autoComplete="off"
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
-            maxLength={8}
-            className="portal-input-pin"
-            disabled={validandoPin}
-          />
+          {/* 🔥 CONTENEDOR DEL PIN CON ICONO DE OJO Y EVENTO ENTER */}
+          <div style={{ position: "relative", width: "100%" }}>
+            <input 
+              type={mostrarPin ? "text" : "password"} 
+              placeholder="PIN DE ACCESO (DDMMAAAA)" 
+              value={pin}
+              autoComplete="off"
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && pin.length >= 4 && !validandoPin) {
+                  handleAcceso();
+                }
+              }}
+              maxLength={8}
+              className="portal-input-pin"
+              disabled={validandoPin}
+              style={{ 
+                paddingRight: "45px",
+                // 🔥 Anulamos cualquier regla de CSS (.portal-input-pin) que esté forzando los puntos
+                WebkitTextSecurity: mostrarPin ? "none" : "unset",
+                fontFamily: mostrarPin ? "monospace" : "inherit",
+                letterSpacing: mostrarPin ? "3px" : "normal"
+              }} 
+            />
+            <span 
+              onClick={() => !validandoPin && setMostrarPin(!mostrarPin)}
+              style={{
+                position: "absolute",
+                right: "15px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                cursor: validandoPin ? "not-allowed" : "pointer",
+                fontSize: "18px",
+                opacity: validandoPin ? 0.5 : 1,
+                userSelect: "none",
+                zIndex: 10 // 🔥 Aseguramos que siempre esté por encima de la barra
+              }}
+              title={mostrarPin ? "Ocultar PIN" : "Mostrar PIN"}
+            >
+              {mostrarPin ? "👁️" : "🙈"}
+            </span>
+          </div>
           
           {error && (
             <div style={{
               backgroundColor: 'rgba(239, 68, 68, 0.15)',
               border: '1px solid rgba(239, 68, 68, 0.4)',
-              color: '#f87171', /* Un rojo claro y brillante perfecto para fondos oscuros */
+              color: '#f87171',
               padding: '12px',
               borderRadius: '6px',
               fontSize: '13px',
@@ -134,13 +164,11 @@ export const PortalPaciente = () => {
 
   return (
     <div className="portal-interno-layout">
-      {/* HEADER DE LUJO CON CONTADOR DE VISTAS */}
       <header className="portal-interno-header">
         <div className="portal-header-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <h1 className="portal-logo-text">MI_PACS <span className="gold-text">GLOBAL PORTAL</span></h1>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {/* 👁️ INDICADOR DE VISTAS RESTANTES */}
             {vistasRestantes !== null && (
               <span style={{ color: '#fbbf24', fontSize: '12px', fontWeight: 'bold', backgroundColor: 'rgba(251, 191, 36, 0.1)', padding: '6px 10px', borderRadius: '20px', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
                 👁️ VISUALIZACIONES RESTANTES: {vistasRestantes}
@@ -184,7 +212,6 @@ export const PortalPaciente = () => {
             </div>
           </>
         ) : (
-          /* 🖼️ VISOR CINEMATOGRÁFICO DE PACIENTE */
           <div className="visor-paciente-main">
             <div className="visor-sidebar-gold">
               <button 

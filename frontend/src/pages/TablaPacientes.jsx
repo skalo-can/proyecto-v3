@@ -68,52 +68,69 @@ export default function TablaPacientes({
     } catch (error) { alert("❌ Error de comunicación con la API."); }
   };
 
-// 🔥 CORRECCIÓN: Generación de Enlace Seguro y Limpio (Cero Vulnerabilidades)
+// 🔥 CORRECCIÓN PROFESIONAL: Envío 100% Silencioso y Auditado por el Backend
   const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
     if (!destino || destino === "-" || destino.trim() === "") {
       return alert(`❌ Faltan datos para envío. Por favor, edite el paciente y agregue su ${tipoMetodo}.`);
     }
     
-    if (!window.confirm(`📤 ¿Confirmar envío por ${tipoMetodo} al destino: ${destino}?`)) return;
+    if (!window.confirm(`📤 ¿Confirmar envío automatizado por ${tipoMetodo} al destino: ${destino}?`)) return;
     
     try {
       const apiBase = window.location.origin;
-      
-      // 🚀 Llamamos a nuestra nueva API segura
-      const response = await fetch(`${apiBase}/api/secure-links/generar/${estudioId}`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        }
-      });
-      
-      if (!response.ok) throw new Error("No se pudo generar el token de seguridad");
-      
-      const data = await response.json();
-      
-      // 🛡️ Ensamblamos la URL segura usando el dominio actual de Ngrok + el Token del backend
-      const urlSegura = `${apiBase}/portal/${data.link}`;      
+      const token = localStorage.getItem("token")?.replace(/['"]+/g, '');
 
-      // 📝 Actualizamos el mensaje para indicarle al paciente que use su fecha de nacimiento
-      const mensaje = `Hola. Clínica Asotrauma le informa que sus imágenes radiológicas ya están disponibles.\n\nPara visualizarlas, ingrese al siguiente enlace y escriba su Fecha de Nacimiento (DíaMesAño) por seguridad. Válido por 48 horas:\n\n${urlSegura}\n\nGracias por confiar en nosotros.`;
-
+      // 1️⃣ Flujo Especial para WhatsApp (Silencioso y Auditado)
       if (tipoMetodo === 'WhatsApp') {
-        const urlWa = `https://api.whatsapp.com/send?phone=${destino.replace(/\D/g, '')}&text=${encodeURIComponent(mensaje)}`;
-        window.open(urlWa, '_blank');
+        // Usamos la ruta oficial que guarda en la base de datos
+        const response = await fetch(`${apiBase}/api/whatsapp/enviar-estudio/${estudioId}`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            telefono: destino,
+            formato: "link"
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Error en pasarela de WhatsApp");
+        }
+
+        alert(`✅ WhatsApp enviado con éxito al ${destino} y registrado en la bitácora.`);
       } 
-      else if (tipoMetodo === 'Email') {
-        const urlEmail = `mailto:${destino}?subject=Resultados Radiológicos - Clínica Asotrauma&body=${encodeURIComponent(mensaje)}`;
-        window.location.href = urlEmail;
-      } 
-      else if (tipoMetodo === 'SMS') {
-        const urlSms = `sms:${destino.replace(/\D/g, '')}?body=${encodeURIComponent(mensaje)}`;
-        window.location.href = urlSms;
+      // 2️⃣ Flujo para Email y SMS (Mantiene el comportamiento nativo por ahora)
+      else {
+        // Generamos el link de seguridad
+        const linkRes = await fetch(`${apiBase}/api/secure-links/generar/${estudioId}`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          }
+        });
+        
+        if (!linkRes.ok) throw new Error("No se pudo generar el token de seguridad");
+        
+        const data = await linkRes.json();
+        const urlSegura = `${apiBase}/portal/${data.link}`;      
+        const mensaje = `Hola. Clínica Asotrauma le informa que sus imágenes radiológicas ya están disponibles.\n\nPara visualizarlas, ingrese al siguiente enlace y escriba su Fecha de Nacimiento (DíaMesAño) por seguridad. Válido por 48 horas:\n\n${urlSegura}\n\nGracias por confiar en nosotros.`;
+
+        if (tipoMetodo === 'Email') {
+          const urlEmail = `mailto:${destino}?subject=Resultados Radiológicos - Clínica Asotrauma&body=${encodeURIComponent(mensaje)}`;
+          window.location.href = urlEmail;
+        } 
+        else if (tipoMetodo === 'SMS') {
+          const urlSms = `sms:${destino.replace(/\D/g, '')}?body=${encodeURIComponent(mensaje)}`;
+          window.location.href = urlSms;
+        }
       }
-      
     } catch (error) { 
       console.error(error);
-      alert(`❌ Error de conexión al generar el enlace seguro.`); 
+      alert(`❌ Fallo en el envío: ${error.message}`); 
     }
   };
 

@@ -2,23 +2,22 @@
 MI_PACS — Backend principal con Soporte de Notificaciones Real-Time
 ---------------------------------------------------------
 Optimizado con el Escudo Maestro de Migraciones Dinámicas Automáticas en Caliente.
+Configurado para Producción: FastAPI + React Unificados.
 """
 import os
 import sqlite3
 
-
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
-import os
 from typing import List
+from datetime import datetime
 
-# 👇 1. PEGA ESTO AQUÍ: IMPORTACIONES PARA EL RATE LIMITING (Protección DoS) 👇
+# 👇 1. IMPORTACIONES PARA EL RATE LIMITING (Protección DoS) 👇
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-# 👆 ---------------------------------------------------------------------- 👆
 
 # 🛠️ IMPORTS PARA EL ESCUDO DE AUTOMIGRACIÓN DE PRODUCCIÓN
 from sqlalchemy import inspect, text
@@ -27,7 +26,7 @@ from app.core.config import settings, STATIC_DIR, AUDIOS_DIR
 from app.core.database import Base, engine, SessionLocal
 
 # ---------------------------------------------------------
-# 1. IMPORTACIÓN CRÍTICA DE MODELOS (Orden corregido)
+# 1. IMPORTACIÓN CRÍTICA DE MODELOS
 # ---------------------------------------------------------
 from app.models.medico import Medico 
 from app.models.usuario import Usuario
@@ -54,7 +53,6 @@ from app.api.paciente_email_api import router as paciente_email_router
 from app.api.reset_api import router as reset_router
 from app.api.dicom_import import router as dicom_import_router 
 from app.api.dicom_tools_api import router as dicom_tools_router
-#from app.api.dicom_import_new_api import router as dicom_import_new_router
 from app.api.dicom_stream_api import router as dicom_stream_router
 from app.api.stats_api import router as stats_router
 from app.api.dicom_advanced_tools_api import router as dicom_advanced_tools_router
@@ -65,7 +63,7 @@ from app.api.email_logs_api import router as email_logs_router
 from app.api.pdf_report_api import router as pdf_report_router
 from app.api.whatsapp_api import router as whatsapp_router
 from app.api.secure_links_api import router as secure_links_router
-from app.api.perfil_api import router as perfil_router # 👈 ¡NUEVO!
+from app.api.perfil_api import router as perfil_router
 from app.api.filtros.pacientes_filtros_api import router as pacientes_filtros_router
 from app.api.filtros.estudios_filtros_api import router as estudios_filtros_router
 from app.api.filtros.busqueda_global_api import router as busqueda_global_router
@@ -89,31 +87,23 @@ from app.services.scheduler_service import inicializar_scheduler
 # RUTINA MAESTRO: MIGRACIÓN AUTOMÁTICA EN CALIENTE (SQLITE NATIVO)
 # ---------------------------------------------------------
 def auto_migrar_columnas_pacs():
-    """
-    Se conecta directamente al archivo de la base de datos saltándose SQLAlchemy
-    para garantizar que las columnas se creen sí o sí.
-    """
     print("🛠️ Iniciando parcheo profundo de base de datos...")
     
-    # Busca el archivo database.db exactamente en la carpeta donde está este script (app)
     db_path = os.path.join(os.path.dirname(__file__), "database.db")
     
     if not os.path.exists(db_path):
         print("⚠️ Advertencia: No se encontró database.db en la ruta esperada.")
         return
 
-    # Conexión directa y bruta al archivo
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # 1. Parche Usuarios
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN es_urgenciologo BOOLEAN DEFAULT 0")
         print("✅ [SQLITE] Columna 'es_urgenciologo' forzada en usuarios.")
     except sqlite3.OperationalError:
-        pass # Ignora en silencio si la columna ya se había creado
+        pass 
         
-    # 2. Parches Estudios
     try:
         cursor.execute("ALTER TABLE estudios ADD COLUMN nota_urgencia TEXT")
         print("✅ [SQLITE] Columna 'nota_urgencia' forzada en estudios.")
@@ -126,7 +116,6 @@ def auto_migrar_columnas_pacs():
     except sqlite3.OperationalError:
         pass
 
-    # Guardar cambios y cerrar la puerta
     conn.commit()
     conn.close()
     print("🚀 Parcheo nativo finalizado. El sistema puede arrancar.")
@@ -164,28 +153,25 @@ app = FastAPI(
     version=settings.API_VERSION,
 )
 
-# 👇 2. PEGA ESTO AQUÍ: CONFIGURACIÓN DEL LIMITADOR 👇
+# 👇 2. CONFIGURACIÓN DEL LIMITADOR 👇
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-# 👆 ------------------------------------------------ 👆
 
 # 🛡️ LISTA BLANCA DE ORÍGENES PERMITIDOS (CORS)
-# El servidor rechazará cualquier petición que no provenga de estas URLs exactas.
-# IMPORTANTE: Si usas ngrok, asegúrate de añadir la URL de ngrok temporalmente a esta lista.
 ORIGINES_SEGUROS = [
-    "http://localhost:5173",       # Desarrollo: React/Vite
-    "http://127.0.0.1:5173",       # Desarrollo: React/Vite (IP local)
-    "http://localhost:3000",       # Desarrollo: Alternativo
-    "https://erratic-irritable-occupier.ngrok-free.dev", # 👈 ¡Agrega tu URL temporal de Ngrok aquí!
-    # "https://tu-dominio-medico.com", # 🚀 PRODUCCIÓN: Descomentar al desplegar en la nube
+    "http://localhost:5173", 
+    "http://127.0.0.1:5173", 
+    "http://localhost:3000", 
+    "https://erratic-irritable-occupier.ngrok-free.dev",
+    "https://portal.mipacs.net", # Agregamos tu dominio de Cloudflare
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ORIGINES_SEGUROS, # 🛡️ Defensa contra falsificación de peticiones (CSRF)
+    allow_origins=ORIGINES_SEGUROS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], # 🛡️ Restricción de verbos HTTP
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
     allow_headers=["*"],
 )
 
@@ -248,30 +234,26 @@ async def trigger_notification():
     return {"status": "Notificación enviada"}
 
 # ---------------------------------------------------------
-# ARCHIVOS ESTÁTICOS Y FIRMAS (🔥 CORREGIDO)
+# ARCHIVOS ESTÁTICOS Y FIRMAS 
 # ---------------------------------------------------------
 static_dir = str(STATIC_DIR)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# 🔥 NUEVO: Exponer la carpeta de firmas_seguras al Frontend
-# Construimos la ruta absoluta apuntando a backend/storage/firmas_seguras
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
 firmas_dir = os.path.join(base_dir, "storage", "firmas_seguras")
-os.makedirs(firmas_dir, exist_ok=True) # Garantiza que la carpeta exista si no está creada
+os.makedirs(firmas_dir, exist_ok=True) 
 
-# Montamos la ruta pública "/firmas_locales"
 app.mount("/firmas_locales", StaticFiles(directory=firmas_dir), name="firmas_locales")
 
 @app.on_event("startup")
 def startup_event():
-    # 👇 AÑADE ESTAS TRES LÍNEAS TEMPORALES 👇
     api_key = os.getenv("GEMINI_API_KEY", "")
     estado_ia = f"✅ IA Activa (Inicia con: {api_key[:8]}...)" if api_key else "❌ ERROR: Clave IA no detectada"
     print(f"\n====================\n{estado_ia}\n====================\n")
 
     # --- 🚀 SOLUCIÓN: Crear tablas antes de consultar ---
     from app.core.database import engine, Base
-    from app.models import dicom_config  # Forzamos la lectura de los modelos
+    from app.models import dicom_config  
     Base.metadata.create_all(bind=engine)
     # ----------------------------------------------------
 
@@ -289,26 +271,20 @@ def startup_event():
         inicializar_scheduler()
 
 # ---------------------------------------------------------
-# RECEPCIÓN DE AUDIO DE DICTADO MEDICO (FRONTEND) - OPTIMIZADO CON ILM (AÑO/MES/DIA)
+# RECEPCIÓN DE AUDIO DE DICTADO MEDICO (FRONTEND)
 # ---------------------------------------------------------
-from fastapi.responses import FileResponse
-from datetime import datetime
-
 @app.get("/api/pacientes/{paciente_id}/audio")
 async def obtener_audio_paciente(paciente_id: int):
-    # Ya no leemos desde la carpeta estática "sorda", ahora le preguntamos a la base de datos dónde lo guardó
     db = SessionLocal()
     try:
         estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente_id).first()
         if not estudio or not getattr(estudio, "audio_path", None):
-            # Fallback a la ruta legacy por si es un paciente viejo antes de la actualización
             directorio_audios = os.path.join(static_dir, "audios_dictado")
             ruta_legacy = os.path.join(directorio_audios, f"dictado_{paciente_id}.wav")
             if os.path.exists(ruta_legacy):
                 return FileResponse(ruta_legacy, media_type="audio/wav")
             raise HTTPException(status_code=404, detail="Archivo de audio no encontrado")
         
-        # Le quitamos el '/static/' del inicio porque la ruta física real comienza desde la variable static_dir
         ruta_relativa = estudio.audio_path.replace("/static/", "", 1) 
         ruta_fisica = os.path.join(static_dir, ruta_relativa)
         
@@ -323,41 +299,34 @@ async def obtener_audio_paciente(paciente_id: int):
 @app.post("/api/pacientes/{paciente_id}/guardar-audio")
 async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)):
     pid = paciente_id 
-    db = SessionLocal() # 🚀 Abrimos la BD primero para saber la fecha real y los datos del paciente
+    db = SessionLocal() 
     
     try:
-        # 1. Buscar el paciente y su estudio
         registro = db.query(Paciente).filter(Paciente.id == pid).first()
         if not registro:
             raise HTTPException(status_code=404, detail="Paciente no localizado")
             
         estudio = db.query(Estudio).filter(Estudio.paciente_id == pid).first()
         
-        # 🔥 EL FIX DE LA CÉDULA: Sacamos la identificación real para nombrar el archivo
         cedula_real = registro.identificacion if registro.identificacion else str(registro.id)
         
-        # Usar la fecha del estudio original, si no existe, usar la de hoy
         fecha_referencia = estudio.fecha_estudio if (estudio and estudio.fecha_estudio) else datetime.now()
         
         año = str(fecha_referencia.year)
         mes = f"{fecha_referencia.month:02d}"
         dia = f"{fecha_referencia.day:02d}"
 
-        # 2. Crear las subcarpetas físicas usando el ANCLA
         directorio_audios = AUDIOS_DIR / año / mes / dia
         directorio_audios.mkdir(parents=True, exist_ok=True)
         
-        # 3. Guardar archivo: Respetamos el nombre que viene del frontend o lo forzamos a la cédula
         nombre_final = audio.filename if (audio.filename and str(cedula_real) in audio.filename) else f"dictado_{cedula_real}.wav"
         ruta_archivo = directorio_audios / nombre_final
         
         with open(ruta_archivo, "wb") as f:
             f.write(await audio.read())
             
-        # 4. Construir la ruta relativa
         ruta_relativa = f"/static/audios_dictado/{año}/{mes}/{dia}/{nombre_final}"
             
-        # 5. Persistencia en BD
         registro.estado_pacs = "Dictado"
         
         if estudio:
@@ -381,3 +350,33 @@ async def guardar_audio_paciente(paciente_id: int, audio: UploadFile = File(...)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
+
+# ==========================================
+# CONFIGURACIÓN OPTIMIZADA PARA SERVIR REACT EN PRODUCCIÓN
+# IMPORTANTE: DEBE ESTAR SIEMPRE AL FINAL DEL ARCHIVO
+# ==========================================
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__)) # Ruta de app/
+BACKEND_DIR = os.path.dirname(CURRENT_DIR)               # Ruta de backend/
+PROJECT_ROOT = os.path.dirname(BACKEND_DIR)              # Ruta raíz (proyecto v3)
+DIST_DIR = os.path.join(PROJECT_ROOT, "frontend", "dist")
+
+if os.path.exists(DIST_DIR):
+    # 1. Servir archivos estáticos (JS, CSS, WASM)
+    app.mount("/assets", StaticFiles(directory=os.path.join(DIST_DIR, "assets")), name="assets")
+
+    # 2. Servir la página raíz (index.html)
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(os.path.join(DIST_DIR, "index.html"))
+
+    # 3. Catch-all para React Router (Navegación interna)
+    @app.get("/{path:path}")
+    async def serve_react_app(path: str):
+        file_path = os.path.join(DIST_DIR, path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(DIST_DIR, "index.html"))
+else:
+    print(f"⚠️ ADVERTENCIA: No se encontró la carpeta compilada de React en: {DIST_DIR}")
+    print("⚠️ Ejecuta 'npm run build' en la carpeta frontend para usar la versión de producción.")

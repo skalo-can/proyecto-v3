@@ -21,7 +21,17 @@ export const listarWhatsAppLogs = async ({
   params.append("page", page);
   params.append("page_size", pageSize);
 
-  const res = await axios.get(`${API}/logs?${params.toString()}`);
+  // 🛡️ OBTENEMOS EL TOKEN DE SEGURIDAD DEL NAVEGADOR
+  const rawToken = localStorage.getItem("token") || "";
+  const token = rawToken.replace(/['"]+/g, ''); // Limpiamos comillas extra
+
+  // 🚀 INYECTAMOS EL TOKEN EN LOS HEADERS
+  const res = await axios.get(`${API}/logs?${params.toString()}`, {
+    headers: {
+      "Authorization": `Bearer ${token}`
+    }
+  });
+  
   return res.data;
 };
 
@@ -29,9 +39,20 @@ export const listarWhatsAppLogs = async ({
 //   ENVIAR ESTUDIO POR WHATSAPP  ⭐
 // ======================================================
 export const enviarEstudioWhatsApp = async (estudioId, payload) => {
+  // 🛡️ OBTENEMOS EL TOKEN DE SEGURIDAD
+  const rawToken = localStorage.getItem("token") || "";
+  const token = rawToken.replace(/['"]+/g, '');
+
+  // 🚀 INYECTAMOS EL TOKEN EN LOS HEADERS
   const res = await axios.post(
     `${API}/enviar-estudio/${estudioId}`,
-    payload
+    payload,
+    {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    }
   );
+  
   return res.data;
 };

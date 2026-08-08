@@ -37,4 +37,4 @@ def buscar(
         texto=texto,
         limit=limit,
         offset=offset,
-    )
+    ) 
