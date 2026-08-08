@@ -10,19 +10,21 @@ export default function ModalTranscriptor({ isWindow }) {
   const [plantillas, setPlantillas] = useState([]);
   const [plantillaSeleccionada, setPlantillaSeleccionada] = useState("");
   
-  // 🔥 NUEVOS ESTADOS PARA EL FILTRO DE MÉDICOS
   const [medicos, setMedicos] = useState([]);
   const [medicoSeleccionado, setMedicoSeleccionado] = useState("");
   
-  // 🚀 ESTADO PARA LA IA
   const [isTranscribing, setIsTranscribing] = useState(false);
   
   const audioRef = useRef(null);
 
+  // 🔄 CARGA INICIAL (Apuntando a las rutas relativas correctas)
   useEffect(() => {
     if (estudioId) {
-      setAudioUrl(`http://localhost:8000/api/pacientes/${estudioId}/audio?t=${new Date().getTime()}`);
-      fetch(`http://localhost:8000/api/pacientes?busqueda=${estudioId}`)
+      // Cargamos el audio directamente desde el endpoint del estudio
+      setAudioUrl(`/api/estudios/${estudioId}/audio?t=${new Date().getTime()}`);
+      
+      // Mantenemos la búsqueda para los datos de la cabecera
+      fetch(`/api/pacientes?busqueda=${estudioId}`)
         .then(res => res.json())
         .then(data => {
            const p = Array.isArray(data) ? data.find(x => x.id == estudioId) : data.items?.find(x => x.id == estudioId);
@@ -32,19 +34,17 @@ export default function ModalTranscriptor({ isWindow }) {
     }
   }, [estudioId]);
 
-  // 🔥 NUEVO EFECTO DE CARGA MULTIPLE (Plantillas + Médicos)
+  // 🔥 EFECTO DE CARGA MULTIPLE (Plantillas + Médicos)
   useEffect(() => {
     const fetchDatosInit = async () => {
       try {
-        // 1. Cargar Plantillas
-        const resPlantillas = await fetch(`http://localhost:8000/api/plantillas`);
+        const resPlantillas = await fetch(`/api/plantillas`);
         if (resPlantillas.ok) {
           const dataPlantillas = await resPlantillas.json();
           setPlantillas(dataPlantillas);
         }
         
-        // 2. Cargar Médicos (Solo radiólogos)
-        const resMedicos = await fetch("http://localhost:8000/api/usuarios");
+        const resMedicos = await fetch(`/api/usuarios`);
         if (resMedicos.ok) {
           const dataMedicos = await resMedicos.json();
           const radiologos = dataMedicos.filter(u => u.rol && u.rol.toLowerCase().includes('radiologo'));
@@ -59,30 +59,23 @@ export default function ModalTranscriptor({ isWindow }) {
 
   // 🔥 LÓGICA DE FILTRADO EN TIEMPO REAL
   const plantillasFiltradas = plantillas.filter(p => {
-    // Siempre mostramos las plantillas globales (las que no tienen médico asignado)
     if (!p.medico_id) return true;
-    // Si el transcriptor seleccionó un médico, mostramos también las de ese médico específico
     if (medicoSeleccionado && p.medico_id === parseInt(medicoSeleccionado)) return true;
-    // Todo lo demás se oculta
     return false;
   });
 
+  // ⌨️ MOTOR DE ATAJOS
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // 1. Bloqueo de seguridad: Evita que el 'Espacio' normal pause el audio si el reproductor tiene el foco
       if (e.code === 'Space' && !e.ctrlKey && document.activeElement.tagName === 'AUDIO') {
         e.preventDefault();
       }
-
-      // 2. Ctrl + Espacio: Reproducir / Pausar
       if (e.ctrlKey && e.code === 'Space') {
         e.preventDefault(); 
         if (audioRef.current) {
           audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause();
         }
       }
-      
-      // 3. Alt + Flechas: Atrasar / Adelantar
       if (e.altKey && e.code === 'ArrowLeft') {
         e.preventDefault();
         if (audioRef.current) audioRef.current.currentTime -= 5;
@@ -93,7 +86,6 @@ export default function ModalTranscriptor({ isWindow }) {
       }
     };
     
-    // Captura prioritaria activada
     document.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, []);
@@ -114,12 +106,13 @@ export default function ModalTranscriptor({ isWindow }) {
   const handleAutoTranscribir = async () => {
     setIsTranscribing(true);
     try {
-      const token = localStorage.getItem("token"); // 🔐 RESCATAMOS EL TOKEN
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || ""; 
 
-      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/transcribir-audio`, {
+      // 🔥 APUNTAMOS AL ARCHIVO transcripcion_api.py
+      const response = await fetch(`/api/estudios/${estudioId}/transcribir_ia`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}` // 🔐 ENVIAMOS EL TOKEN
+          "Authorization": token ? `Bearer ${token}` : ""
         }
       });
       
@@ -143,16 +136,18 @@ export default function ModalTranscriptor({ isWindow }) {
       return;
     }
     try {
-      const token = localStorage.getItem("token"); // 🔐 RESCATAMOS EL TOKEN
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || ""; 
 
-      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/guardar-transcripcion`, {
-        method: "POST",
+      // 🔥 APUNTAMOS CORRECTAMENTE AL ESTUDIO
+      const response = await fetch(`/api/estudios/${estudioId}/reporte`, {
+        method: "PUT",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` // 🔥 AQUÍ ESTÁ LA LLAVE MÁGICA
+          "Authorization": token ? `Bearer ${token}` : ""
         },
-        body: JSON.stringify({ informe: texto }),
+        body: JSON.stringify({ texto: texto }),
       });
+      
       if (!response.ok) throw new Error("Error en el servidor");
 
       const canal = new BroadcastChannel("mipacs_refresco_flujo");
@@ -161,6 +156,7 @@ export default function ModalTranscriptor({ isWindow }) {
 
       window.close(); 
     } catch (error) {
+      console.error(error);
       alert("❌ Hubo un fallo al conectar con la API.");
     }
   };
@@ -216,10 +212,8 @@ export default function ModalTranscriptor({ isWindow }) {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         
-        {/* 🔥 ZONA IZQUIERDA: LOS DOS SELECTORES */}
         <div style={{ display: "flex", gap: "15px" }}>
           
-          {/* SELECTOR DEL RADIÓLOGO */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#1e293b", padding: "10px 15px", borderRadius: "6px", border: "1px solid #475569" }}>
             <span style={{ color: "#38bdf8", fontWeight: "bold", whiteSpace: "nowrap" }}>👨‍⚕️ Dictado por:</span>
             <select 
@@ -236,7 +230,6 @@ export default function ModalTranscriptor({ isWindow }) {
             </select>
           </div>
 
-          {/* SELECTOR DE PLANTILLAS */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#1e293b", padding: "10px 15px", borderRadius: "6px", border: "1px solid #475569" }}>
             <span style={{ color: "#fbbf24", fontWeight: "bold", whiteSpace: "nowrap" }}>📋 Insertar:</span>
             <select 
