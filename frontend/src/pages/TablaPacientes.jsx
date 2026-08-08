@@ -44,10 +44,8 @@ export default function TablaPacientes({
     return () => window.removeEventListener("mouseup", stopDrag);
   }, []);
 
-  const abrirPDF = (id) => window.open(`http://localhost:8000/api/pacientes/${id}/descargar-pdf`, "_blank");
+  const abrirPDF = (id) => window.open(`/api/pacientes/${id}/descargar-pdf`, "_blank");
 
-  // 🔥 NUEVA FUNCIÓN: Lanza el visor en una ventana flotante limpia para multimonitor
-  // 🔥 Lanza el visor pasando el ID de BD y el ID Real por URL
   const abrirVisorMedico = (estudioId, idReal) => {
     window.open(
       `/imagenes-estudio/${estudioId}?id_real=${idReal}`, 
@@ -60,7 +58,7 @@ export default function TablaPacientes({
     const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio.\nMotivo clínico/técnico:");
     if (!motivo || motivo.trim() === "") return; 
     try {
-      const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteId}/cancelar-estudio`, {
+      const response = await fetch(`/api/pacientes/${pacienteId}/cancelar-estudio`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motivo_cancelacion: motivo })
       });
       if (response.ok) { alert("✅ Estudio cancelado."); window.location.reload(); } 
@@ -68,7 +66,6 @@ export default function TablaPacientes({
     } catch (error) { alert("❌ Error de comunicación con la API."); }
   };
 
-// 🔥 CORRECCIÓN PROFESIONAL: Envío 100% Silencioso y Auditado por el Backend
   const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
     if (!destino || destino === "-" || destino.trim() === "") {
       return alert(`❌ Faltan datos para envío. Por favor, edite el paciente y agregue su ${tipoMetodo}.`);
@@ -80,9 +77,7 @@ export default function TablaPacientes({
       const apiBase = window.location.origin;
       const token = localStorage.getItem("token")?.replace(/['"]+/g, '');
 
-      // 1️⃣ Flujo Especial para WhatsApp (Silencioso y Auditado)
       if (tipoMetodo === 'WhatsApp') {
-        // Usamos la ruta oficial que guarda en la base de datos
         const response = await fetch(`${apiBase}/api/whatsapp/enviar-estudio/${estudioId}`, {
           method: "POST",
           headers: { 
@@ -102,9 +97,7 @@ export default function TablaPacientes({
 
         alert(`✅ WhatsApp enviado con éxito al ${destino} y registrado en la bitácora.`);
       } 
-      // 2️⃣ Flujo para Email y SMS (Mantiene el comportamiento nativo por ahora)
       else {
-        // Generamos el link de seguridad
         const linkRes = await fetch(`${apiBase}/api/secure-links/generar/${estudioId}`, {
           method: "POST",
           headers: { 
@@ -139,7 +132,8 @@ export default function TablaPacientes({
     if (e.shiftKey && lastIndex !== null) {
       window.getSelection().removeAllRanges(); 
       const start = Math.min(lastIndex, index), end = Math.max(lastIndex, index);
-      const rangeIds = pacientes.slice(start, end + 1).map(p => p.id);
+      // 🔥 CORRECCIÓN: Mapear seleccionando el ID del estudio, no el del paciente
+      const rangeIds = pacientes.slice(start, end + 1).map(p => p.estudio_interno_id || p.id_estudio || p.id);
       if (!seleccionados.includes(id)) { setSeleccionados(Array.from(new Set([...seleccionados, ...rangeIds]))); } 
       else { setSeleccionados(seleccionados.filter(sId => !rangeIds.includes(sId))); }
       return; 
@@ -159,7 +153,8 @@ export default function TablaPacientes({
     <table style={styles.tableStyle}>
       <thead style={styles.theadStyle}>
         <tr>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}><input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} /></th>
+          {/* 🔥 CORRECCIÓN: El checkbox "Seleccionar todos" ahora extrae el uniqueRowId */}
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}><input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.estudio_interno_id || p.id_estudio || p.id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} /></th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("estado_pacs")}>ESTADO {renderIconoOrden("estado_pacs")}</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>ID PACIENTE {renderIconoOrden("id")}</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("paciente")}>1ER APELLIDO {renderIconoOrden("paciente")}</th>
@@ -188,6 +183,9 @@ export default function TablaPacientes({
           </tr>
         ) : (
           pacientes.map((p, index) => {
+            // 🔥 CORRECCIÓN: Creamos un ID 100% único por estudio para evitar selecciones dobles
+            const uniqueRowId = p.estudio_interno_id || p.id_estudio || p.id;
+            
             const idReal = p.identificacion || p.id_paciente || p.id || "S/I";
             const primerNombre = p.primer_nombre || ""; const segundoNombre = p.segundo_nombre || "-";
             const primerApellido = p.primer_apellido || "Desconocido"; const segundoApellido = p.segundo_apellido || "-";
@@ -196,7 +194,8 @@ export default function TablaPacientes({
             const fechaReal = p.fecha_estudio || p.fecha || "S/F"; const horaReal = p.hora_estudio || "00:00";
             const descripcionReal = p.descripcion || p.study_description || p.procedimiento || "Sin descripción";
 
-            const estaSeleccionado = seleccionados.includes(p.id);
+            // Evaluamos la selección usando el identificador único del estudio
+            const estaSeleccionado = seleccionados.includes(uniqueRowId);
             const estiloMod = obtenerEstiloModalidad(mReal);
             const estaDesbloqueado = !!estudiosAutorizados[p.id] || p.estado_pacs === "Tomado";
 
@@ -205,8 +204,10 @@ export default function TablaPacientes({
             const canEditPaciente = canUseHerramientasMedicas || ((userRol === "recepcion" || userRol === "tecnologo") && esEstadoInicial) || (tienePermisoDinamicoEditar && estudioAbierto);
 
             return (
-              <tr key={p.estudio_interno_id} onMouseDown={(e) => handleRowMouseDown(e, index, p.id)} onMouseEnter={() => handleRowMouseEnter(index, p.id)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
-                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}><input type="checkbox" checked={estaSeleccionado} onChange={() => toggleSeleccionarPaciente(p.id)} /></td>
+              <tr key={uniqueRowId} onMouseDown={(e) => handleRowMouseDown(e, index, uniqueRowId)} onMouseEnter={() => handleRowMouseEnter(index, uniqueRowId)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
+                <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={estaSeleccionado} onChange={() => toggleSeleccionarPaciente(uniqueRowId)} />
+                </td>
                 <td style={styles.tdStyle}><span style={{ ...styles.badge, backgroundColor: p.estado_pacs === "Cancelado" ? "#171717" : p.estado_pacs === "Urgencia" ? "#f97316" : p.estado_pacs === "Rechazado" ? "#ef4444" : p.estado_pacs === "Entregado" ? "#a855f7" : p.estado_pacs === "Firmado" ? "#10b981" : p.estado_pacs === "Transcrito" ? "#2563eb" : p.estado_pacs === "Dictado" ? "#d97706" : p.estado_pacs === "Tomado" ? "#3b82f6" : "#475569", border: p.estado_pacs === "Cancelado" ? "1px solid #475569" : "none" }}>{p.estado_pacs || "Importado"}</span></td>
                 <td style={styles.tdStyle}>{idReal}</td>
                 <td style={styles.tdStyle}><strong>{primerApellido}</strong></td>
@@ -250,7 +251,6 @@ export default function TablaPacientes({
                         <button onClick={() => abrirPDF(p.id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "12px", display: "flex", gap: "4px" }}>📄 PDF</button>
                         {(userRol === "recepcion" || isAdmin) && (
                           <>
-                            {/* 🔥 CORRECCIÓN: Pasamos el p.estudio_interno_id y el idReal */}
                             <button onClick={() => handleEnvioManual('WhatsApp', p.estudio_interno_id || p.id_estudio || p.id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
                             <button onClick={() => handleEnvioManual('Email', p.estudio_interno_id || p.id_estudio || p.id, idReal, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
                             <button onClick={() => handleEnvioManual('SMS', p.estudio_interno_id || p.id_estudio || p.id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
@@ -279,9 +279,8 @@ export default function TablaPacientes({
                   </div>
                 </td>
                 
-                {/* 🔥 BOTÓN ACTUALIZADO Y CORREGIDO PARA ENVIAR EL ID DEL ESTUDIO, NO DEL PACIENTE */}
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-                  <button style={styles.btnVisor} onClick={() => abrirVisorMedico(p.estudio_interno_id || p.id_estudio || p.id, idReal)}>ABRIR</button>
+                  <button style={styles.btnVisor} onClick={() => abrirVisorMedico(uniqueRowId, idReal)}>ABRIR</button>
                 </td>
               </tr>
             );
