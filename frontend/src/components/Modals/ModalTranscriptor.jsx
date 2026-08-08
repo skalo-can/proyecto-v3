@@ -17,14 +17,29 @@ export default function ModalTranscriptor({ isWindow }) {
   
   const audioRef = useRef(null);
 
-  // 🔄 CARGA INICIAL (Apuntando a las rutas relativas correctas)
+  // 🔄 CARGA INICIAL PROTEGIDA Y SEGURA
   useEffect(() => {
     if (estudioId) {
-      // Cargamos el audio directamente desde el endpoint del estudio
-      setAudioUrl(`/api/estudios/${estudioId}/audio?t=${new Date().getTime()}`);
-      
-      // Mantenemos la búsqueda para los datos de la cabecera
-      fetch(`/api/pacientes?busqueda=${estudioId}`)
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+
+      // 1. 🔥 SOLUCIÓN AL 401: Descargar el audio enviando el Token de Seguridad
+      fetch(`/api/estudios/${estudioId}/audio?t=${new Date().getTime()}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error("Audio no disponible o sin autorización");
+        return res.blob(); // Convertimos el audio en un archivo temporal seguro (Blob)
+      })
+      .then(blob => {
+        const audioBlobUrl = URL.createObjectURL(blob);
+        setAudioUrl(audioBlobUrl);
+      })
+      .catch(err => console.warn("Aviso de Audio:", err.message));
+
+      // 2. Cargar datos de cabecera (paciente) también con el token por seguridad
+      fetch(`/api/pacientes?busqueda=${estudioId}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
         .then(res => res.json())
         .then(data => {
            const p = Array.isArray(data) ? data.find(x => x.id == estudioId) : data.items?.find(x => x.id == estudioId);
@@ -38,13 +53,17 @@ export default function ModalTranscriptor({ isWindow }) {
   useEffect(() => {
     const fetchDatosInit = async () => {
       try {
-        const resPlantillas = await fetch(`/api/plantillas`);
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+        const headers = { "Authorization": `Bearer ${token}` };
+
+        // Añadimos la cabecera de autorización por si la ruta general también está blindada
+        const resPlantillas = await fetch(`/api/plantillas`, { headers });
         if (resPlantillas.ok) {
           const dataPlantillas = await resPlantillas.json();
           setPlantillas(dataPlantillas);
         }
         
-        const resMedicos = await fetch(`/api/usuarios`);
+        const resMedicos = await fetch(`/api/usuarios`, { headers });
         if (resMedicos.ok) {
           const dataMedicos = await resMedicos.json();
           const radiologos = dataMedicos.filter(u => u.rol && u.rol.toLowerCase().includes('radiologo'));
@@ -108,7 +127,6 @@ export default function ModalTranscriptor({ isWindow }) {
     try {
       const token = localStorage.getItem("token") || localStorage.getItem("access_token") || ""; 
 
-      // 🔥 APUNTAMOS AL ARCHIVO transcripcion_api.py
       const response = await fetch(`/api/estudios/${estudioId}/transcribir_ia`, {
         method: "POST",
         headers: {
@@ -138,7 +156,6 @@ export default function ModalTranscriptor({ isWindow }) {
     try {
       const token = localStorage.getItem("token") || localStorage.getItem("access_token") || ""; 
 
-      // 🔥 APUNTAMOS CORRECTAMENTE AL ESTUDIO
       const response = await fetch(`/api/estudios/${estudioId}/reporte`, {
         method: "PUT",
         headers: { 
