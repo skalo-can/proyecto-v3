@@ -7,8 +7,8 @@ export default function GestorFirmas() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Cargamos la lista de usuarios para que elijas a quién le pertenece la firma
-    fetch("http://localhost:8000/api/usuarios")
+    // 🌐 Ruta relativa para evitar problemas de CORS/Mixed Content en producción
+    fetch("/api/usuarios")
       .then(res => res.json())
       .then(data => setUsuarios(data))
       .catch(err => console.error("Error al cargar usuarios:", err));
@@ -26,9 +26,16 @@ export default function GestorFirmas() {
 
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/firmas/${usuarioSeleccionado}`, {
+      // 🔥 1. OBTENEMOS EL TOKEN DE SESIÓN GUARDADO
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+
+      const response = await fetch(`/api/firmas/${usuarioSeleccionado}`, {
         method: "POST",
-        body: formData, // Se envía la imagen directamente al servidor local de forma segura
+        body: formData, // Se envía la imagen directamente
+        headers: {
+          // 🔥 2. INYECTAMOS LA LLAVE DE AUTORIZACIÓN PARA FASTAPI
+          "Authorization": token ? `Bearer ${token}` : "" 
+        }
       });
 
       if (!response.ok) throw new Error("No se pudo almacenar la firma");

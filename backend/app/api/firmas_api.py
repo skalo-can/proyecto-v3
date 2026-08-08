@@ -4,46 +4,46 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.firma import FirmaRadiologo
-from app.core.auth import obtener_usuario_actual # 🔥 Importación clave para seguridad
+from app.core.auth import obtener_usuario_actual
 
 router = APIRouter(prefix="/firmas", tags=["Firmas Digitales"])
 
-# Carpeta local segura
-CARPETA_FIRMAS = "backend/storage/firmas_seguras"
+# 1. RUTA ABSOLUTA DE PRODUCCIÓN (Para que el servidor nunca se pierda)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CARPETA_FIRMAS = os.path.join(BASE_DIR, "storage", "firmas_seguras")
 os.makedirs(CARPETA_FIRMAS, exist_ok=True)
 
-# 🛡️ LÍMITE DE SEGURIDAD: 2 Megabytes
+# Límite y Tipos Permitidos
 MAX_FILE_SIZE = 2 * 1024 * 1024 
-
-# 🛡️ DICCIONARIO DE TIPOS MIME (El ADN del archivo)
 ALLOWED_MIME_TYPES = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp"
 }
 
+# 2. TOLERANCIA DE RUTAS: Aceptamos la petición con o sin slash al final
 @router.post("/{usuario_id}")
+@router.post("/{usuario_id}/", include_in_schema=False)
 async def subir_firma(
     usuario_id: int, 
     file: UploadFile = File(...), 
     db: Session = Depends(get_db),
-    usuario_actual = Depends(obtener_usuario_actual) # 🛡️ Bloqueo de suplantación
+    usuario_actual = Depends(obtener_usuario_actual)
 ):
-    # 1. PREVENCIÓN IDOR: Nadie puede subir firmas en nombre de otro médico
-    if usuario_actual.id != usuario_id:
+    # 3. EL PARCHE MAESTRO: Permitir que el Administrador (SKALO) asigne firmas a otros médicos
+    es_admin = (getattr(usuario_actual, "rol", "") == "Administrador" or usuario_actual.username == "SKALO")
+    
+    if usuario_actual.id != usuario_id and not es_admin:
         raise HTTPException(status_code=403, detail="Alerta de Seguridad: No está autorizado para modificar la firma de otro usuario.")
 
     try:
-        # 2. VERIFICACIÓN DE TIPO MIME (Ignoramos la extensión que diga el usuario)
         if file.content_type not in ALLOWED_MIME_TYPES:
             raise HTTPException(status_code=400, detail="El archivo no es una imagen real o está corrupto.")
 
-        # 3. VERIFICACIÓN DE TAMAÑO EN MEMORIA (Prevención de caída del servidor)
         contents = await file.read()
         if len(contents) > MAX_FILE_SIZE:
             raise HTTPException(status_code=413, detail="La firma es demasiado pesada. Máximo permitido: 2MB.")
 
-        # 4. RENOMBRADO SEGURO (Descartamos por completo el nombre original del archivo)
         extension_real = ALLOWED_MIME_TYPES[file.content_type]
         nombre_seguro = f"firma_user_{usuario_id}{extension_real}"
         ruta_destino = os.path.join(CARPETA_FIRMAS, nombre_seguro)
@@ -63,21 +63,22 @@ async def subir_firma(
         return {"status": "success", "mensaje": "Firma almacenada y protegida con éxito."}
         
     except HTTPException:
-        # Relanzamos las excepciones controladas (errores de seguridad)
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Error interno al procesar la firma.")
+        raise HTTPException(status_code=500, detail=f"Error interno al procesar la firma: {str(e)}")
 
 
 @router.get("/{usuario_id}")
+@router.get("/{usuario_id}/", include_in_schema=False)
 def obtener_firma(
     usuario_id: int, 
     db: Session = Depends(get_db),
-    usuario_actual = Depends(obtener_usuario_actual) # 🛡️ Privacidad médica
+    usuario_actual = Depends(obtener_usuario_actual)
 ):
-    # Opcional: Proteger también la lectura para que solo el propio médico (o administradores) puedan verla
-    if usuario_actual.id != usuario_id:
+    es_admin = (getattr(usuario_actual, "rol", "") == "Administrador" or usuario_actual.username == "SKALO")
+    
+    if usuario_actual.id != usuario_id and not es_admin:
         raise HTTPException(status_code=403, detail="Acceso denegado a firmas de terceros.")
 
     firma_db = db.query(FirmaRadiologo).filter(FirmaRadiologo.usuario_id == usuario_id).first()

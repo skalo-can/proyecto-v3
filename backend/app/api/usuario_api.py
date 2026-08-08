@@ -38,7 +38,9 @@ async def crear_perfil(data: dict, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/", response_model=List[UsuarioListItem])
+# 🔥 PARCHE: Acepta la ruta con y sin el slash final para evitar errores 404 en React
+@router.get("", response_model=List[UsuarioListItem])
+@router.get("/", response_model=List[UsuarioListItem], include_in_schema=False)
 def listar_usuarios_endpoint(db: Session = Depends(get_db)):
     return db.query(Usuario).all()
 

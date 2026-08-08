@@ -370,9 +370,13 @@ if os.path.exists(DIST_DIR):
     async def serve_index():
         return FileResponse(os.path.join(DIST_DIR, "index.html"))
 
-    # 3. Catch-all para React Router (Navegación interna)
+   # 3. Catch-all para React Router (Navegación interna)
     @app.get("/{path:path}")
     async def serve_react_app(path: str):
+        # 🔥 EL PARCHE: Si la ruta empieza con api/ o filtros/, devolvemos error real, NO el HTML
+        if path.startswith("api/") or path.startswith("filtros/"):
+            raise HTTPException(status_code=404, detail=f"Ruta API no encontrada: /{path}")
+            
         file_path = os.path.join(DIST_DIR, path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
