@@ -73,7 +73,7 @@ def listar(
     order: str = Query("desc"),      
     db: Session = Depends(get_db)
 ):
-    # 🟢 1. CONSULTA CENTRADA EN ESTUDIOS (Permite ver múltiples estudios del mismo paciente por día)
+    # 🟢 1. CONSULTA CENTRADA EN ESTUDIOS
     query = db.query(Estudio).join(Paciente, Estudio.paciente_id == Paciente.id)
     
     # 🟢 2. PURIFICADOR DE FECHAS
@@ -99,12 +99,21 @@ def listar(
     if estado and estado not in ["- Todos -", "Todos", "Todas", ""]:
         query = query.filter(Estudio.estado_pacs.ilike(f"%{estado.strip()}%"))
 
+    # 🛡️ 3. PREVENCIÓN DE INYECCIÓN DE COMODINES (Wildcard Injection)
+    # Escapamos los caracteres reservados de SQL para evitar escaneos masivos
+    def sanitizar_busqueda_sql(texto: str) -> str:
+        return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     if busqueda and busqueda.strip() != "":
-        termino = f"%{busqueda.strip()}%"
+        # Sanitizamos el texto antes de envolverlo en los comodines reales
+        busqueda_segura = sanitizar_busqueda_sql(busqueda.strip())
+        termino = f"%{busqueda_segura}%"
+        
+        # Añadimos escape="\\" para que la DB trate % y _ del usuario como texto normal
         query = query.filter(
-            (Paciente.primer_apellido.ilike(termino)) | 
-            (Paciente.primer_nombre.ilike(termino)) | 
-            (Paciente.identificacion.ilike(termino))
+            (Paciente.primer_apellido.ilike(termino, escape="\\")) | 
+            (Paciente.primer_nombre.ilike(termino, escape="\\")) | 
+            (Paciente.identificacion.ilike(termino, escape="\\"))
         )
 
     resultados_estudios = query.all()
@@ -964,4 +973,4 @@ def auto_transcribir_con_ia(paciente_id: int, db: Session = Depends(get_db)):
         print("🚨 ERROR FATAL DE WHISPER 🚨")
         traceback.print_exc()
         print("="*50 + "\n")
-        raise HTTPException(status_code=500, detail=f"Fallo crítico: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Fallo crítico: {str(e)}") 

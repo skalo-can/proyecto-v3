@@ -1,9 +1,9 @@
 """
-security.py — Seguridad clínica MI_PACS
+security.py — Seguridad clínica MI_PACS (BLINDADO)
 ---------------------------------------
 - Hash de contraseñas (bcrypt)
 - Verificación de contraseñas
-- Creación de tokens JWT
+- Creación de tokens JWT de corta duración
 - Obtención del usuario actual autenticado
 """
 
@@ -40,10 +40,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def crear_token_acceso(data: dict, expires_delta: Optional[timedelta] = None):
-    """Crea un token JWT firmado clínicamente."""
+    """Crea un token JWT firmado clínicamente con expiración estricta."""
     to_encode = data.copy()
 
-    expire = datetime.utcnow() + (expires_delta or timedelta(hours=24))
+    # 🛡️ BLINDAJE: Reducimos la exposición. Si no se especifica tiempo, expira en 60 minutos máximo.
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=60))
     to_encode.update({"exp": expire})
 
     encoded_jwt = jwt.encode(

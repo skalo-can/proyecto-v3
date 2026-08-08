@@ -305,9 +305,9 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
           {!esPortalPaciente && (
             <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar</button>
-          )}
+          )} 
           <span style={{ color: "#fbbf24", fontWeight: "bold", marginLeft: "10px", fontSize: "0.85rem" }}>
-            ID: {idReal}
+            Serie Activa
           </span>
         </div>
 

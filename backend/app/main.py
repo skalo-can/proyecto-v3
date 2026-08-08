@@ -14,6 +14,12 @@ from fastapi.staticfiles import StaticFiles
 import os
 from typing import List
 
+# 👇 1. PEGA ESTO AQUÍ: IMPORTACIONES PARA EL RATE LIMITING (Protección DoS) 👇
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+# 👆 ---------------------------------------------------------------------- 👆
+
 # 🛠️ IMPORTS PARA EL ESCUDO DE AUTOMIGRACIÓN DE PRODUCCIÓN
 from sqlalchemy import inspect, text
 
@@ -151,18 +157,35 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # ---------------------------------------------------------
-# FASTAPI — CONFIGURACIÓN PRINCIPAL
+# FASTAPI — CONFIGURACIÓN PRINCIPAL Y SEGURIDAD CORS
 # ---------------------------------------------------------
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.API_VERSION,
 )
 
+# 👇 2. PEGA ESTO AQUÍ: CONFIGURACIÓN DEL LIMITADOR 👇
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# 👆 ------------------------------------------------ 👆
+
+# 🛡️ LISTA BLANCA DE ORÍGENES PERMITIDOS (CORS)
+# El servidor rechazará cualquier petición que no provenga de estas URLs exactas.
+# IMPORTANTE: Si usas ngrok, asegúrate de añadir la URL de ngrok temporalmente a esta lista.
+ORIGINES_SEGUROS = [
+    "http://localhost:5173",       # Desarrollo: React/Vite
+    "http://127.0.0.1:5173",       # Desarrollo: React/Vite (IP local)
+    "http://localhost:3000",       # Desarrollo: Alternativo
+    "https://erratic-irritable-occupier.ngrok-free.dev", # 👈 ¡Agrega tu URL temporal de Ngrok aquí!
+    # "https://tu-dominio-medico.com", # 🚀 PRODUCCIÓN: Descomentar al desplegar en la nube
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=ORIGINES_SEGUROS, # 🛡️ Defensa contra falsificación de peticiones (CSRF)
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], # 🛡️ Restricción de verbos HTTP
     allow_headers=["*"],
 )
 
@@ -241,6 +264,11 @@ app.mount("/firmas_locales", StaticFiles(directory=firmas_dir), name="firmas_loc
 
 @app.on_event("startup")
 def startup_event():
+    # 👇 AÑADE ESTAS TRES LÍNEAS TEMPORALES 👇
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    estado_ia = f"✅ IA Activa (Inicia con: {api_key[:8]}...)" if api_key else "❌ ERROR: Clave IA no detectada"
+    print(f"\n====================\n{estado_ia}\n====================\n")
+
     # --- 🚀 SOLUCIÓN: Crear tablas antes de consultar ---
     from app.core.database import engine, Base
     from app.models import dicom_config  # Forzamos la lectura de los modelos

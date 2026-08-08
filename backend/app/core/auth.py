@@ -1,9 +1,10 @@
 """
 auth.py
 -------
-Módulo clínico de autenticación del sistema MI_PACS corregido para SKALO.
+Módulo clínico de autenticación del sistema MI_PACS corregido para SKALO (BLINDADO).
 """
 
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import jwt, JWTError
@@ -15,10 +16,19 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.database import get_db
 from app.models.usuario import Usuario
 
-# CONFIGURACIÓN JWT
-SECRET_KEY = "MI_PACS_SUPER_SECRETO_2024"
+# =========================================================
+# 🛡️ CONFIGURACIÓN JWT DE ALTA SEGURIDAD
+# =========================================================
+# Se extrae de variables de entorno (archivo .env). 
+# NUNCA compartas ni subas tu .env a un repositorio.
+SECRET_KEY = os.getenv(
+    "SECRET_KEY", 
+    "6f3b7d8e2a1c94508b4d3e2f1a9c8b7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b" # Fallback temporal ultraseguro
+)
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+# 60 minutos de inactividad es el estándar máximo recomendado en entornos de salud.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = HTTPBearer()
@@ -29,20 +39,19 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-# --- FUNCIÓN CORREGIDA ---
+# --- FUNCIÓN CORREGIDA Y SINCRONIZADA ---
 def autenticar_usuario(db: Session, identifier: str, password: str) -> Optional[Usuario]:
     """
-    Autentica a un usuario buscando por EMAIL o por NOMBRE (para SKALO).
+    Autentica a un usuario buscando por EMAIL o por USERNAME.
     """
-    # Buscamos en ambas columnas para permitir identificadores sin @
     usuario = db.query(Usuario).filter(
-        (Usuario.email == identifier) | (Usuario.nombre == identifier)
+        (Usuario.email == identifier) | (Usuario.username == identifier)
     ).first()
 
     if not usuario:
         return None
 
-    if not verify_password(password, usuario.password_hash):
+    if not verify_password(password, usuario.password):
         return None
 
     return usuario
@@ -73,6 +82,8 @@ def obtener_usuario_actual(
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if usuario is None:
         raise credenciales_invalidas
-    if usuario.activo is False:
-        raise HTTPException(status_code=403, detail="Usuario deshabilitado.")
+        
+    if getattr(usuario, 'is_active', True) is False:
+        raise HTTPException(status_code=403, detail="Usuario deshabilitado por el administrador.")
+        
     return usuario

@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime, date
 import shutil
 import os
+import re # 🛡️ Importación nueva para seguridad
 import numpy as np
 from PIL import Image
 from pydicom import dcmread
@@ -63,6 +64,20 @@ for carpeta in [THUMBS_DIR, INBOX, ARCHIVO_ROOT]:
     carpeta.mkdir(parents=True, exist_ok=True)
 
 
+# =========================================================
+# 🛡️ FUNCIÓN DE SEGURIDAD PARA SANEAMIENTO DE RUTAS
+# =========================================================
+def sanitizar_nombre_ruta(nombre: str) -> str:
+    """Elimina caracteres peligrosos (como / o \) para evitar Path Traversal"""
+    if not nombre:
+        return "DESCONOCIDO"
+    # Solo permite letras, números, guiones y guiones bajos
+    return re.sub(r'[^a-zA-Z0-9\-_]', '_', str(nombre))
+
+# 🛡️ LÍMITE DE TAMAÑO PARA ESTUDIOS (ej. 250 MB por imagen)
+MAX_DICOM_SIZE_BYTES = 250 * 1024 * 1024
+
+
 def parse_fecha_nacimiento(dicom_birth_date: str | None) -> date:
     if not dicom_birth_date:
         return date(1900, 1, 1)
@@ -105,20 +120,25 @@ def generar_thumbnail(dicom_path: Path, nombre_base: str, subcarpeta: str) -> st
 
 
 def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | None:
-    """Procesa un único archivo binario, evita duplicados de estudios y asocia las imágenes."""
+    """Procesa un único archivo binario con blindaje contra archivos maliciosos."""
     nombre_archivo = archivo_path.name.upper()
     if nombre_archivo in ["DICOMDIR", "VIEWER.EXE", "AUTORUN.INF", "THUMBNAILS.DB"] or archivo_path.suffix.upper() in [".EXE", ".TXT", ".INF"]:
         return None
 
     try:
+        # 🛡️ DEFENSA DoS: Verificar tamaño físico antes de leerlo en RAM
+        if archivo_path.stat().st_size > MAX_DICOM_SIZE_BYTES:
+            print(f"⚠️ Bloqueo de seguridad: Archivo {nombre_archivo} excede límite de 250MB.")
+            return {"archivo": archivo_path.name, "error": "Archivo excede límite de tamaño seguro."}
+
         ds = dcmread(archivo_path, force=True)
         study_uid = getattr(ds, "StudyInstanceUID", None)
         sop_uid = getattr(ds, "SOPInstanceUID", None)
         if not study_uid or not sop_uid:
             return None
 
-        # 1. Datos del Paciente
-        patient_id = getattr(ds, "PatientID", "SIN_ID")
+        # 1. Datos del Paciente (Sanitizados)
+        patient_id = sanitizar_nombre_ruta(getattr(ds, "PatientID", "SIN_ID"))
         raw_name = str(getattr(ds, "PatientName", "PACIENTE^DESCONOCIDO"))
         partes = raw_name.split("^")
 
@@ -134,13 +154,14 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
                 primer_apellido=primer_apellido,
                 fecha_nacimiento=fecha_nacimiento
             )
-            db.query(Paciente)
             db.add(paciente)
             db.commit()
             db.refresh(paciente)
 
         # 2. Datos del Estudio
-        estudio = db.query(Estudio).filter_by(uid=study_uid).first()
+        # 🛡️ Sanitizamos el UID antes de buscar en DB
+        study_uid_seguro = sanitizar_nombre_ruta(study_uid)
+        estudio = db.query(Estudio).filter_by(uid=study_uid_seguro).first()
         
         if not estudio:
             study_desc = getattr(ds, "StudyDescription", "Estudio sin descripción")
@@ -159,19 +180,21 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
                 tipo_estudio=modality,
                 fecha_estudio=fecha_estudio,
                 descripcion=study_desc,
-                uid=study_uid
+                uid=study_uid_seguro
             )
             estudio = crear_estudio(db, data)
         else:
             fecha_estudio = estudio.fecha_estudio
 
-        # 3. Guardar Estructura en Almacenamiento Unificado
-        accession_number = getattr(ds, "AccessionNumber", study_uid)
-        series_uid = getattr(ds, "SeriesInstanceUID", "SERIE_DESCONOCIDA")
-        carpeta_destino = ARCHIVO_ROOT / str(accession_number) / str(series_uid)
+        # 3. Guardar Estructura en Almacenamiento Unificado (BLINDADO CONTRA PATH TRAVERSAL)
+        accession_number = sanitizar_nombre_ruta(getattr(ds, "AccessionNumber", study_uid_seguro))
+        series_uid = sanitizar_nombre_ruta(getattr(ds, "SeriesInstanceUID", "SERIE_DESCONOCIDA"))
+        sop_uid_seguro = sanitizar_nombre_ruta(sop_uid)
+
+        carpeta_destino = ARCHIVO_ROOT / accession_number / series_uid
         carpeta_destino.mkdir(parents=True, exist_ok=True)
 
-        nombre_final_archivo = f"{sop_uid}.dcm"
+        nombre_final_archivo = f"{sop_uid_seguro}.dcm"
         destino_final = carpeta_destino / nombre_final_archivo
 
         shutil.copy2(str(archivo_path), str(destino_final))
@@ -180,16 +203,16 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
         subcarpeta_fecha = f"{fecha_estudio.year}/{fecha_estudio.month:02d}/{fecha_estudio.day:02d}"
         
         # Generar thumbnail indexado por la ruta jerárquica
-        thumbnail_url = generar_thumbnail(destino_final, str(sop_uid), subcarpeta_fecha)
+        thumbnail_url = generar_thumbnail(destino_final, sop_uid_seguro, subcarpeta_fecha)
         if not thumbnail_url:
-            thumbnail_url = f"/static/thumbnails/{subcarpeta_fecha}/{sop_uid}.png"
+            thumbnail_url = f"/static/thumbnails/{subcarpeta_fecha}/{sop_uid_seguro}.png"
 
         metadata = {
             "Modality": getattr(ds, "Modality", "DX"),
             "SeriesNumber": getattr(ds, "SeriesNumber", None),
-            "SOPInstanceUID": sop_uid,
+            "SOPInstanceUID": sop_uid_seguro,
             "AccessionNumber": accession_number,
-            "StudyInstanceUID": study_uid
+            "StudyInstanceUID": study_uid_seguro
         }
 
         imagen = db.query(EstudioImagen).filter_by(ruta_archivo=str(destino_final)).first()
