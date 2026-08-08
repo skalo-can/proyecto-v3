@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 from pathlib import Path
+from pydantic import BaseModel # 🔥 IMPORTACIÓN CLAVE PARA LEER JSON
 
 from app.core.database import get_db
 from app.core.auth import obtener_usuario_actual
@@ -26,6 +27,10 @@ from app.core.config import AUDIOS_DIR
 # ---------------------------------------------------------
 AUDIO_BASE_PATH = AUDIOS_DIR
 
+# 🔥 NUEVO ESQUEMA PARA TRADUCIR EL JSON DE REACT A PYTHON
+class ReporteData(BaseModel):
+    texto: str
+
 
 # ---------------------------------------------------------
 # 1) OBTENER AUDIO DEL ESTUDIO
@@ -43,7 +48,6 @@ def obtener_audio_endpoint(
     - médico
     - transcriptora
     """
-
     requiere_rol(usuario, ["medico", "transcriptora"])
 
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
@@ -81,7 +85,6 @@ def transcribir_ia_endpoint(
     Genera una transcripción automática simulada.
     Solo médicos pueden ejecutar esta acción.
     """
-
     requiere_rol(usuario, ["medico"])
 
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
@@ -123,7 +126,6 @@ def transcribir_humano_endpoint(
     La transcriptora escucha el audio y escribe el reporte manualmente.
     Solo transcriptoras pueden ejecutar esta acción.
     """
-
     requiere_rol(usuario, ["transcriptora"])
 
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
@@ -149,29 +151,32 @@ def transcribir_humano_endpoint(
 @router.put("/{estudio_id}/reporte")
 def actualizar_reporte_endpoint(
     estudio_id: int,
-    texto: str,
+    datos: ReporteData, # 🔥 Ahora FastAPI lee la "caja" JSON usando Pydantic
     usuario=Depends(obtener_usuario_actual),
     db: Session = Depends(get_db)
 ):
     """
-    Permite corregir o actualizar el reporte antes de la firma.
-    Solo médicos pueden realizar esta acción.
+    Permite guardar el reporte y avanzar el estado del estudio específico.
     """
-
-    requiere_rol(usuario, ["medico"])
+    # 🔥 Ampliamos permisos para que tanto médicos como transcriptoras puedan guardar
+    requiere_rol(usuario, ["medico", "transcriptora", "superadmin", "admin"])
 
     estudio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
 
     if not estudio:
         raise HTTPException(status_code=404, detail="Estudio no encontrado.")
 
-    estudio.reporte_texto = texto
-    estudio.reporte_estado = "borrador"
+    # Extraemos el texto del modelo de datos validado
+    estudio.reporte_texto = datos.texto
+    
+    # 🔥 Actualizamos los estados de manera aislada para ESTE estudio
+    estudio.reporte_estado = "Transcrito"
+    estudio.estado_pacs = "Transcrito"
 
     db.commit()
     db.refresh(estudio)
 
     return {
-        "message": "Reporte actualizado.",
-        "texto": texto
-    } 
+        "message": "Reporte actualizado y guardado con éxito.",
+        "texto": datos.texto
+    }
