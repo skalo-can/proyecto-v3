@@ -258,19 +258,13 @@ def validar_pin_paciente(request_data: ValidarPinRequest, request: Request, db: 
 
 
 # =========================================================
-# 6) LISTAR IMÁGENES PARA EL VISOR DEL PACIENTE (LISTA PLANA CON METADATOS)
+# 6) LISTAR IMÁGENES PARA EL VISOR DEL PACIENTE (FORMATO COMPATIBLE)
 # =========================================================
-import pydicom
-
 @router.get("/imagenes/{token}")
 def obtener_imagenes_paciente(token: str, db: Session = Depends(get_db)):
     link = obtener_por_token(db, token)
-
     if not link or not link.activo:
         raise HTTPException(status_code=404, detail="ENLACE NO VÁLIDO")
-
-    if datetime.utcnow() > link.expira_en:
-        raise HTTPException(status_code=410, detail="EL ENLACE HA CADUCADO")
 
     imagenes_bd = (
         db.query(EstudioImagen)
@@ -279,53 +273,35 @@ def obtener_imagenes_paciente(token: str, db: Session = Depends(get_db)):
         .all()
     )
     
-    if not imagenes_bd:
-        return []
-
-    lista_plana = []
+    # Creamos un diccionario para agrupar por SeriesInstanceUID
+    grupos = {}
     
     for img in imagenes_bd:
-        # Reconstruimos el diccionario base de la imagen
-        img_data = {
-            "id": img.id,
-            "estudio_id": img.estudio_id,
-            "ruta_archivo": img.ruta_archivo,
-            "thumbnail": img.thumbnail,
-            # Valores de respaldo por si el archivo no se puede leer
-            "series_uid": "1", 
-            "series_description": "Serie Única",
-            "instance_number": img.id
-        }
-        
         ruta = Path(img.ruta_archivo)
+        serie_nombre = "Serie Única"
+        
         if ruta.exists():
             try:
-                # Extraemos la cabecera DICOM para obtener la serie real
                 ds = pydicom.dcmread(str(ruta), stop_before_pixels=True, force=True)
-                
-                s_uid = str(getattr(ds, "SeriesInstanceUID", img_data["series_uid"])).strip()
-                s_desc = str(getattr(ds, "SeriesDescription", img_data["series_description"])).strip()
-                i_num = getattr(ds, "InstanceNumber", None)
-                
-                # Inyectamos los metadatos con los nombres de variables más comunes
-                # para asegurar compatibilidad total con tu VisorDICOMWrapper
-                img_data["series_uid"] = s_uid
-                img_data["SeriesInstanceUID"] = s_uid
-                
-                img_data["series_description"] = s_desc
-                img_data["SeriesDescription"] = s_desc
-                
-                img_data["instance_number"] = int(i_num) if i_num else img.id
-                img_data["InstanceNumber"] = img_data["instance_number"]
-            except Exception:
+                # Extraemos el UID para agrupar y la descripción para el nombre
+                serie_uid = str(getattr(ds, "SeriesInstanceUID", "Default")).strip()
+                serie_desc = str(getattr(ds, "SeriesDescription", "Serie")).strip()
+                serie_nombre = f"{serie_desc} ({serie_uid[-4:]})"
+            except:
                 pass
-                
-        lista_plana.append(img_data)
+        
+        if serie_nombre not in grupos:
+            grupos[serie_nombre] = []
+        
+        grupos[serie_nombre].append({"id": img.id})
 
-    # Ordenamos la lista plana primero por Serie y luego por el número del corte
-    lista_plana.sort(key=lambda x: (x.get("series_uid", ""), x.get("instance_number", 0)))
-
-    return lista_plana
+    # Convertimos al formato {serie: "Nombre", imagenes: [...]} que espera tu frontend
+    resultado = [
+        {"serie": nombre, "imagenes": lista} 
+        for nombre, lista in grupos.items()
+    ]
+    
+    return resultado
 
 
 # =========================================================
