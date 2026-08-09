@@ -1,6 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
+from zoneinfo import ZoneInfo  # <-- 1. Importar ZoneInfo
 from app.models.whatsapp_log import WhatsAppLog
 
 # ----------------------------------------------------------
@@ -15,6 +16,10 @@ def crear_log(
     mensaje: str | None = None,
     detalle_error: str | None = None,
 ) -> WhatsAppLog:
+    
+    # 2. Obtener la hora exacta de tu zona local
+    hora_local = datetime.now(ZoneInfo("America/Toronto"))
+
     log = WhatsAppLog(
         estudio_id=estudio_id,
         telefono=telefono,
@@ -22,6 +27,7 @@ def crear_log(
         formato=formato,
         estado=estado,
         detalle_error=detalle_error,
+        creado_en=hora_local,  # <-- 3. Asignar explícitamente la hora local al campo de fecha
     )
     db.add(log)
     db.commit()
