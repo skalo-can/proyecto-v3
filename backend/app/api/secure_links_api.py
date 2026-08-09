@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from app.core.database import SessionLocal
 from app.models.estudio_imagen import EstudioImagen
 
+from collections import defaultdict
+
 # Importamos funciones directamente del CRUD
 from app.crud.secure_link_crud import (
     crear_link,
@@ -258,50 +260,39 @@ def validar_pin_paciente(request_data: ValidarPinRequest, request: Request, db: 
 
 
 # =========================================================
-# 6) LISTAR IMÁGENES PARA EL VISOR DEL PACIENTE (FORMATO COMPATIBLE)
+# 6) LISTAR IMÁGENES PARA EL VISOR DEL PACIENTE (CLON EXACTO LOCAL)
 # =========================================================
 @router.get("/imagenes/{token}")
 def obtener_imagenes_paciente(token: str, db: Session = Depends(get_db)):
     link = obtener_por_token(db, token)
+
     if not link or not link.activo:
         raise HTTPException(status_code=404, detail="ENLACE NO VÁLIDO")
 
-    imagenes_bd = (
+    if datetime.utcnow() > link.expira_en:
+        raise HTTPException(status_code=410, detail="EL ENLACE HA CADUCADO")
+
+    imagenes = (
         db.query(EstudioImagen)
         .filter(EstudioImagen.estudio_id == link.estudio_id)
         .order_by(EstudioImagen.id.asc())
         .all()
     )
     
-    # Creamos un diccionario para agrupar por SeriesInstanceUID
-    grupos = {}
-    
-    for img in imagenes_bd:
-        ruta = Path(img.ruta_archivo)
-        serie_nombre = "Serie Única"
-        
-        if ruta.exists():
-            try:
-                ds = pydicom.dcmread(str(ruta), stop_before_pixels=True, force=True)
-                # Extraemos el UID para agrupar y la descripción para el nombre
-                serie_uid = str(getattr(ds, "SeriesInstanceUID", "Default")).strip()
-                serie_desc = str(getattr(ds, "SeriesDescription", "Serie")).strip()
-                serie_nombre = f"{serie_desc} ({serie_uid[-4:]})"
-            except:
-                pass
-        
-        if serie_nombre not in grupos:
-            grupos[serie_nombre] = []
-        
-        grupos[serie_nombre].append({"id": img.id})
+    if not imagenes:
+        return []
 
-    # Convertimos al formato {serie: "Nombre", imagenes: [...]} que espera tu frontend
-    resultado = [
-        {"serie": nombre, "imagenes": lista} 
-        for nombre, lista in grupos.items()
-    ]
-    
-    return resultado
+    # 🔥 LÓGICA IDÉNTICA A LA DEL VISOR LOCAL
+    series_dict = defaultdict(list)
+    for img in imagenes:
+        nombre_serie = getattr(img, "series_description", None)
+        if not nombre_serie:
+            partes_ruta = Path(img.ruta_archivo).parts
+            nombre_serie = partes_ruta[-2] if len(partes_ruta) >= 2 else "Serie Principal"
+                
+        series_dict[nombre_serie].append({"id": img.id, "ruta_archivo": img.ruta_archivo})
+        
+    return [{"serie": str(k).upper(), "imagenes": v} for k, v in series_dict.items()]
 
 
 # =========================================================

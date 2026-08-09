@@ -90,4 +90,4 @@ def stream_dicom_invitado(
             "Accept-Ranges": "bytes",
             "Access-Control-Allow-Origin": "*",
         },
-    )
+    ) 

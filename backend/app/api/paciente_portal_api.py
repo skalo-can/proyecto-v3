@@ -76,8 +76,11 @@ def descargar_pdf_paciente_endpoint(
     return FileResponse(pdf_path, media_type="application/pdf")
 
 
+import pydicom
+from pathlib import Path
+
 # ---------------------------------------------------------
-# 3) OBTENER IMÁGENES DEL ESTUDIO
+# 3) OBTENER IMÁGENES DEL ESTUDIO (AGRUPADAS POR SERIE)
 # ---------------------------------------------------------
 @router.get("/estudios/{estudio_id}/imagenes")
 def obtener_imagenes_paciente_endpoint(
@@ -86,7 +89,7 @@ def obtener_imagenes_paciente_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    Devuelve la lista de imágenes asociadas al estudio.
+    Devuelve la lista de imágenes del estudio agrupadas por serie para el visor DICOM.
     """
 
     if usuario.rol != "paciente":
@@ -101,11 +104,45 @@ def obtener_imagenes_paciente_endpoint(
     if not estudio:
         raise HTTPException(status_code=404, detail="Estudio no encontrado.")
 
-    imagenes = (
+    imagenes_bd = (
         db.query(EstudioImagen)
         .filter(EstudioImagen.estudio_id == estudio_id)
         .order_by(EstudioImagen.id.asc())
         .all()
     )
 
-    return imagenes
+    if not imagenes_bd:
+        return []
+
+    # 🚀 MAGIA PACS: Agrupación física por cabeceras DICOM reales
+    series_dict = {}
+
+    for img in imagenes_bd:
+        ruta = Path(img.ruta_archivo)
+        nombre_serie = "Serie Única"
+
+        if ruta.exists():
+            try:
+                ds = pydicom.dcmread(str(ruta), stop_before_pixels=True, force=True)
+                desc = str(getattr(ds, "SeriesDescription", "Sin Descripción")).strip()
+                uid = str(getattr(ds, "SeriesInstanceUID", "Default")).strip()
+                nombre_serie = f"{desc} [{uid[-4:]}]"
+            except Exception:
+                pass
+
+        if nombre_serie not in series_dict:
+            series_dict[nombre_serie] = []
+
+        # Estructura que el VisorDICOMWrapper.jsx reconoce y procesa perfectamente
+        series_dict[nombre_serie].append({"id": img.id})
+
+    # Formato exacto requerido por el frontend: [ { "serie": "...", "imagenes": [...] } ]
+    resultado_agrupado = [
+        {
+            "serie": nombre,
+            "imagenes": lista_imgs
+        }
+        for nombre, lista_imgs in series_dict.items()
+    ]
+
+    return resultado_agrupado
