@@ -245,4 +245,4 @@ export const PortalPaciente = () => {
       </footer>
     </div>
   );
-}; 
+};

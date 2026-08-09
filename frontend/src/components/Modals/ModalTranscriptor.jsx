@@ -21,14 +21,17 @@ export default function ModalTranscriptor({ isWindow }) {
 
   useEffect(() => {
     if (estudioId) {
-      setAudioUrl(`http://localhost:8000/api/pacientes/${estudioId}/audio?t=${new Date().getTime()}`);
-      fetch(`http://localhost:8000/api/pacientes?busqueda=${estudioId}`)
+      // 🔥 CORRECCIÓN: Cargar URL de audio y datos del estudio apuntando al endpoint correcto
+      setAudioUrl(`http://localhost:8000/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`);
+      
+      fetch(`http://localhost:8000/api/pacientes`)
         .then(res => res.json())
         .then(data => {
-           const p = Array.isArray(data) ? data.find(x => x.id == estudioId) : data.items?.find(x => x.id == estudioId);
+           const list = Array.isArray(data) ? data : (data.items || []);
+           const p = list.find(x => String(x.estudio_interno_id) === String(estudioId));
            setPaciente(p);
         })
-        .catch(err => console.error("Error al cargar datos del paciente", err));
+        .catch(err => console.error("Error al cargar datos del estudio", err));
     }
   }, [estudioId]);
 
@@ -36,14 +39,12 @@ export default function ModalTranscriptor({ isWindow }) {
   useEffect(() => {
     const fetchDatosInit = async () => {
       try {
-        // 1. Cargar Plantillas
         const resPlantillas = await fetch(`http://localhost:8000/api/plantillas`);
         if (resPlantillas.ok) {
           const dataPlantillas = await resPlantillas.json();
           setPlantillas(dataPlantillas);
         }
         
-        // 2. Cargar Médicos (Solo radiólogos)
         const resMedicos = await fetch("http://localhost:8000/api/usuarios");
         if (resMedicos.ok) {
           const dataMedicos = await resMedicos.json();
@@ -57,24 +58,18 @@ export default function ModalTranscriptor({ isWindow }) {
     fetchDatosInit();
   }, []);
 
-  // 🔥 LÓGICA DE FILTRADO EN TIEMPO REAL
   const plantillasFiltradas = plantillas.filter(p => {
-    // Siempre mostramos las plantillas globales (las que no tienen médico asignado)
     if (!p.medico_id) return true;
-    // Si el transcriptor seleccionó un médico, mostramos también las de ese médico específico
     if (medicoSeleccionado && p.medico_id === parseInt(medicoSeleccionado)) return true;
-    // Todo lo demás se oculta
     return false;
   });
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // 1. Bloqueo de seguridad: Evita que el 'Espacio' normal pause el audio si el reproductor tiene el foco
       if (e.code === 'Space' && !e.ctrlKey && document.activeElement.tagName === 'AUDIO') {
         e.preventDefault();
       }
 
-      // 2. Ctrl + Espacio: Reproducir / Pausar
       if (e.ctrlKey && e.code === 'Space') {
         e.preventDefault(); 
         if (audioRef.current) {
@@ -82,7 +77,6 @@ export default function ModalTranscriptor({ isWindow }) {
         }
       }
       
-      // 3. Alt + Flechas: Atrasar / Adelantar
       if (e.altKey && e.code === 'ArrowLeft') {
         e.preventDefault();
         if (audioRef.current) audioRef.current.currentTime -= 5;
@@ -93,7 +87,6 @@ export default function ModalTranscriptor({ isWindow }) {
       }
     };
     
-    // Captura prioritaria activada
     document.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, []);
@@ -114,12 +107,13 @@ export default function ModalTranscriptor({ isWindow }) {
   const handleAutoTranscribir = async () => {
     setIsTranscribing(true);
     try {
-      const token = localStorage.getItem("token"); // 🔐 RESCATAMOS EL TOKEN
+      const token = localStorage.getItem("token"); 
 
-      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/transcribir-audio`, {
+      // 🔥 CORRECCIÓN: IA de Whisper apuntando al estudio
+      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/transcribir-audio`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}` // 🔐 ENVIAMOS EL TOKEN
+          "Authorization": `Bearer ${token}` 
         }
       });
       
@@ -143,13 +137,14 @@ export default function ModalTranscriptor({ isWindow }) {
       return;
     }
     try {
-      const token = localStorage.getItem("token"); // 🔐 RESCATAMOS EL TOKEN
+      const token = localStorage.getItem("token"); 
 
-      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/guardar-transcripcion`, {
+      // 🔥 CORRECCIÓN: Guardado de transcripción apuntando al estudio
+      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/guardar-transcripcion`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` // 🔥 AQUÍ ESTÁ LA LLAVE MÁGICA
+          "Authorization": `Bearer ${token}` 
         },
         body: JSON.stringify({ informe: texto }),
       });
@@ -216,10 +211,8 @@ export default function ModalTranscriptor({ isWindow }) {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         
-        {/* 🔥 ZONA IZQUIERDA: LOS DOS SELECTORES */}
         <div style={{ display: "flex", gap: "15px" }}>
           
-          {/* SELECTOR DEL RADIÓLOGO */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#1e293b", padding: "10px 15px", borderRadius: "6px", border: "1px solid #475569" }}>
             <span style={{ color: "#38bdf8", fontWeight: "bold", whiteSpace: "nowrap" }}>👨‍⚕️ Dictado por:</span>
             <select 
@@ -236,7 +229,6 @@ export default function ModalTranscriptor({ isWindow }) {
             </select>
           </div>
 
-          {/* SELECTOR DE PLANTILLAS */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#1e293b", padding: "10px 15px", borderRadius: "6px", border: "1px solid #475569" }}>
             <span style={{ color: "#fbbf24", fontWeight: "bold", whiteSpace: "nowrap" }}>📋 Insertar:</span>
             <select 

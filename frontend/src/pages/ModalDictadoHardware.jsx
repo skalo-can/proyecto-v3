@@ -3,7 +3,10 @@ import { useParams } from "react-router-dom";
 import { useAudioRecorder } from "./useAudioRecorder"; 
 
 export default function ModalDictadoHardware({ isWindow }) {
+  // NOTA: Aunque la ruta dice pacienteId, ahora la tabla le manda el ID del ESTUDIO
   const { pacienteId } = useParams();
+  const estudioId = pacienteId; // Renombramos internamente para mayor claridad
+  
   const [paciente, setPaciente] = useState(null);
   const audioRef = useRef(null);
   const [grabacionIniciada, setGrabacionIniciada] = useState(false);
@@ -17,17 +20,22 @@ export default function ModalDictadoHardware({ isWindow }) {
     reanudarGrabacionHardware, detenerGrabacionHardware
   } = useAudioRecorder();
 
+  // 🔥 CORRECCIÓN: Buscamos los datos cruzando con el ID del estudio
   useEffect(() => {
-    if (pacienteId) {
-      fetch(`http://localhost:8000/api/pacientes/${pacienteId}`)
+    if (estudioId) {
+      fetch(`http://localhost:8000/api/pacientes`)
         .then(res => {
           if (!res.ok) throw new Error("Error en servidor");
           return res.json();
         })
-        .then(data => setPaciente(data))
-        .catch(err => console.error("Error al cargar datos del paciente", err));
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data.items || []);
+          const p = list.find(x => String(x.estudio_interno_id) === String(estudioId));
+          setPaciente(p);
+        })
+        .catch(err => console.error("Error al cargar datos del estudio", err));
     }
-  }, [pacienteId]);
+  }, [estudioId]);
 
   const handleNavigate = (action) => {
     const a = audioRef.current;
@@ -49,7 +57,8 @@ export default function ModalDictadoHardware({ isWindow }) {
     const motivo = window.prompt("🚨 CONTROL DE CALIDAD PACS:\nEscriba el motivo detallado del rechazo:");
     if (!motivo) return; 
     try {
-      const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteId}/rechazar-estudio-imagen`, {
+      // 🔥 CORRECCIÓN: Ruta de rechazo por ID de estudio
+      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/rechazar-estudio-imagen`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nota_rechazo: motivo })
       });
       if (response.ok) {
@@ -71,17 +80,17 @@ export default function ModalDictadoHardware({ isWindow }) {
     formData.append("audio", blobFinal, `dictado_${cedula_real}.wav`);
     
     try {
-      const response = await fetch(`http://localhost:8000/api/pacientes/${paciente.id}/guardar-audio`, {
+      // 🔥 CORRECCIÓN: Ruta de guardado de audio por ID de estudio
+      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/guardar-audio`, {
         method: "POST",
         body: formData
       });
       
-      // 🛑 AQUÍ OBLIGAMOS AL SISTEMA A HABLAR SI HAY ERROR
       if (!response.ok) {
         const errorTexto = await response.text();
         alert(`❌ ALERTA DE BACKEND (No se guardó el audio):\nCódigo: ${response.status}\nDetalle: ${errorTexto}`);
         setProcesandoGuardado(false);
-        return; // Detenemos el cierre de ventana para que no engañe a la tabla
+        return; 
       }
       
       const canal = new BroadcastChannel("mipacs_refresco_flujo");
@@ -99,7 +108,7 @@ export default function ModalDictadoHardware({ isWindow }) {
     
     if (estaGrabando) {
       setProcesandoGuardado(true);
-      detenerGrabacionHardware(false); // Detiene y dispara el useEffect
+      detenerGrabacionHardware(false); 
     } else if (audioBlobReal) {
       setProcesandoGuardado(true);
       procesarEnvioServidor(audioBlobReal);
@@ -108,7 +117,6 @@ export default function ModalDictadoHardware({ isWindow }) {
     }
   };
 
-  // Escucha cuando el hardware termina de compilar el archivo .wav
   useEffect(() => {
     if (procesandoGuardado && audioBlobReal) {
       procesarEnvioServidor(audioBlobReal);

@@ -24,16 +24,10 @@ export default function ModalFirma() {
     if (usuarioGuardado) {
       try {
         const usuarioObj = JSON.parse(usuarioGuardado);
-        
-        // 🚀 RASTREADOR: Esto imprimirá en tu consola (F12) lo que realmente llegó en el Login
-        console.log("🕵️ Datos del usuario en memoria de React:", usuarioObj);
-        
         const nombre = usuarioObj.primer_nombre || "";
         const apellido = usuarioObj.primer_apellido || "";
         
         nombreFinal = `${nombre} ${apellido}`.trim() || usuarioObj.nombre || usuarioObj.nombre_completo || "";
-        
-        // 🚀 BÚSQUEDA AGRESIVA: Cubrimos todas las posibles variables de tu backend
         rmFinal = usuarioObj.registro_medico || usuarioObj.rm || usuarioObj.registro || usuarioObj.matricula || "";
         
       } catch (error) {
@@ -44,7 +38,8 @@ export default function ModalFirma() {
     setDatosMedicoLogueado({ nombre: nombreFinal, rm: rmFinal });
 
     if (estudioId) {
-      fetch(`http://localhost:8000/api/pacientes/${estudioId}/obtener-transcripcion`)
+      // 🔥 CORRECCIÓN: Recuperar texto apuntando al estudio
+      fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/obtener-transcripcion`)
         .then(res => res.json())
         .then(data => {
           const textoFinal = data.informe || data.informe_texto || data.informe_text || data.texto || data.informe_final || "";
@@ -54,7 +49,6 @@ export default function ModalFirma() {
     }
   }, [estudioId]);
 
-  // 🚀 LÓGICA DE SALTO
   const handleSeleccionAprobacion = (decision) => {
     setAprobado(decision);
     if (decision === true) {
@@ -66,7 +60,6 @@ export default function ModalFirma() {
     }
   };
 
-  // ⌨️ MOTOR DE ATAJOS
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Enter' && e.ctrlKey) {
@@ -84,7 +77,6 @@ export default function ModalFirma() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [reporteTexto, nombreMedico, registroMedico, aprobado, notaRechazo]);
 
-  // 🔏 EJECUCIÓN DE FIRMA
   const handleProcesarFirma = async () => {
     if (aprobado === false && !notaRechazo.trim()) {
       alert("⚠️ Debe ingresar una nota de explicación breve para devolver el informe.");
@@ -96,7 +88,8 @@ export default function ModalFirma() {
     try {
       const tokenSesion = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
 
-      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/firmar-informe`, {
+      // 🔥 CORRECCIÓN: Firma digital vinculada al estudio específico
+      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/firmar-informe`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -127,19 +120,19 @@ export default function ModalFirma() {
     }
   };
 
-// 🤖 4. ASISTENTE DE DIAGNÓSTICO AVANZADO CON INTEGRACIÓN IA (VERSIÓN REAL)
   const handleConsultarIA = async () => {
     setCargandoIA(true);
     try {
       const tokenSesion = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
       
-      const response = await fetch(`http://localhost:8000/api/pacientes/${estudioId}/asistencia-ia`, {
+      // 🔥 CORRECCIÓN: Consulta a Gemini apuntando al estudio
+      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/asistencia-ia`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "Authorization": tokenSesion ? `Bearer ${tokenSesion}` : ""
         },
-        body: JSON.stringify({ texto_actual: reporteTexto }) // Enviamos el texto actual a la IA
+        body: JSON.stringify({ texto_actual: reporteTexto }) 
       });
 
       if (!response.ok) {
@@ -149,7 +142,6 @@ export default function ModalFirma() {
 
       const data = await response.json();
       
-      // Agregamos la respuesta real de la IA al final de la caja de texto
       const sugerenciaIA = `\n\n${data.sugerencia}`;
       setReporteTexto(prev => prev + sugerenciaIA);
       

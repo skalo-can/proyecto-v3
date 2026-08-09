@@ -18,7 +18,7 @@ export default function Pacientes() {
 
   const [pacientes, setPacientes] = useState([]); 
   const [loading, setLoading] = useState(false);
-  const [seleccionados, setSeleccionados] = useState([]);
+  const [seleccionados, setSeleccionados] = useState([]); // Ahora guardará estudio_interno_id
   const [sortBy, setSortBy] = useState("fecha"); 
   const [sortOrder, setSortOrder] = useState("desc"); 
 
@@ -127,8 +127,9 @@ export default function Pacientes() {
     return sortOrder === "asc" ? <span style={{ color: '#fbbf24', marginLeft: '5px' }}>↑</span> : <span style={{ color: '#fbbf24', marginLeft: '5px' }}>↓</span>;
   };
   
-  const toggleSeleccionarPaciente = (id) => {
-    setSeleccionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  // 🔥 CORRECCIÓN: Ahora el checkbox usa el ID único del estudio
+  const toggleSeleccionarPaciente = (estudioInternoId) => {
+    setSeleccionados(prev => prev.includes(estudioInternoId) ? prev.filter(x => x !== estudioInternoId) : [...prev, estudioInternoId]);
   };
 
   const handleAbrirEnvioMultiple = () => { if (seleccionados.length > 0) setModalEnvioOpen(true); };
@@ -147,8 +148,9 @@ export default function Pacientes() {
     setFiltros(prev => ({ ...prev, fechaDesde: formatearFecha(desde), fechaHasta: hastaStr }));
   };
 
-  const abrirEditorPaciente = (paciente) => {
-    const p = pacientes.find(x => x.id === paciente.id) || paciente;
+  // La edición del paciente sigue actualizando al paciente, pero lo buscamos por el id del estudio de la fila
+  const abrirEditorPaciente = (estudio) => {
+    const p = pacientes.find(x => x.estudio_interno_id === estudio.estudio_interno_id) || estudio;
     setPacienteAEditar(p);
     setFormEdit({
       identificacion: p.identificacion || "", primer_nombre: p.primer_nombre || "",
@@ -175,11 +177,13 @@ export default function Pacientes() {
     const payload = { ...formEdit, modificado_por: user?.username || "Desconocido", motivo_cambio: motivoAuditoria };
 
     try {
+      // Guardamos la edición usando el ID del paciente (esto afecta los datos generales)
       const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteAEditar.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
       });
 
       if (response.ok) {
+        // Reflejamos los cambios en todas las filas que pertenezcan a este paciente
         setPacientes(prev => prev.map(item => item.id === pacienteAEditar.id ? { ...item, ...formEdit, segundo_nombre: formEdit.segundo_nombre || "-", segundo_apellido: formEdit.segundo_apellido || "-", email: formEdit.email || "-", telefono: formEdit.telefono || "-" } : item));
         alert("📝 Datos corregidos y registrados.");
         setModalEditOpen(false); setPacienteAEditar(null);
@@ -187,22 +191,23 @@ export default function Pacientes() {
     } catch (error) { alert("❌ Error de comunicación con la API."); }
   };
 
-  const handleReabrirFlujoEstudio = async (paciente) => {
-    if (!window.confirm(`⚠️ MODO MAESTRO:\n¿Reabrir el flujo para ${paciente.primer_nombre}?`)) return;
+  // 🔥 CORRECCIÓN: Flujo apuntando a /estudio/{id}
+  const handleReabrirFlujoEstudio = async (estudio) => {
+    if (!window.confirm(`⚠️ MODO MAESTRO:\n¿Reabrir el flujo para este estudio de ${estudio.primer_nombre}?`)) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/pacientes/${paciente.id}/reabrir-flujo`, {
+      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudio.estudio_interno_id}/reabrir-flujo`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ forzar_estado_proceso: true })
       });
-      if (response.ok) { setEstudiosAutorizados(prev => ({ ...prev, [paciente.id]: true })); alert("🔄 Flujo reabierto."); cargarDatos(); } 
+      if (response.ok) { setEstudiosAutorizados(prev => ({ ...prev, [estudio.estudio_interno_id]: true })); alert("🔄 Flujo reabierto."); cargarDatos(); } 
       else { alert("❌ Error al alterar el flujo."); }
     } catch (error) { alert("❌ Fallo en la red."); }
   };
 
-  // 🔥 NUEVA FUNCIÓN: Validar Estudio por Tecnólogo
-  const handleMarcarTomado = async (pacienteId) => {
+  // 🔥 CORRECCIÓN: Apuntando la validación del tecnólogo al estudio individual
+  const handleMarcarTomado = async (estudioId) => {
     try {
       const token = user?.token || localStorage.getItem("token");
-      const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteId}/marcar-tomado`, {
+      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/marcar-tomado`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -219,26 +224,28 @@ export default function Pacientes() {
     }
   };
 
-  const abrirModuloDictado = (pacienteId) => {
-    const pac = pacientes.find(p => p.id === pacienteId);
+  // 🔥 CORRECCIÓN: Los visores ahora abren usando el ID del estudio
+  const abrirModuloDictado = (estudioId) => {
+    const pac = pacientes.find(p => p.estudio_interno_id === estudioId);
     if (!pac) return;
-    if (!(!!estudiosAutorizados[pacienteId] || pac.estado_pacs === "Tomado")) return alert("🔒 Estudio Bloqueado.");
-    window.open(`/visor-dictado/${pacienteId}`, `Dictado_${pacienteId}`, `width=1000,height=950,top=50,left=200,resizable=yes`);
+    if (!(!!estudiosAutorizados[estudioId] || pac.estado_pacs === "Tomado")) return alert("🔒 Estudio Bloqueado.");
+    window.open(`/visor-dictado/${estudioId}`, `Dictado_${estudioId}`, `width=1000,height=950,top=50,left=200,resizable=yes`);
   };
 
-  const abrirModalTranscriptor = (id) => window.open(`/visor-transcriptor/${id}`, `Transcriptor_${id}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
-  const abrirModalFirma = (id) => window.open(`/visor-firma/${id}`, `Firma_${id}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
+  const abrirModalTranscriptor = (estudioId) => window.open(`/visor-transcriptor/${estudioId}`, `Transcriptor_${estudioId}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
+  const abrirModalFirma = (estudioId) => window.open(`/visor-firma/${estudioId}`, `Firma_${estudioId}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
 
-  const ejecutarPlayAudioTabla = (pacienteId) => {
-    let urlCargada = audiosClinicos[pacienteId];
+  const ejecutarPlayAudioTabla = (estudioId) => {
+    let urlCargada = audiosClinicos[estudioId];
     if (!urlCargada) {
-      const pac = pacientes.find(p => p.id === pacienteId);
+      const pac = pacientes.find(p => p.estudio_interno_id === estudioId);
       if (pac && (pac.estado_pacs === "Dictado" || (pac.flujo_clinico && pac.flujo_clinico.tiene_audio))) {
-        urlCargada = `http://localhost:8000/api/pacientes/${pacienteId}/audio?t=${new Date().getTime()}`;
-      } else return alert("ℹ️ No hay un dictado activo.");
+        // 🔥 Buscando el audio del estudio específico
+        urlCargada = `http://localhost:8000/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`;
+      } else return alert("ℹ️ No hay un dictado activo para este estudio.");
     }
 
-    if (audioActualJugando === pacienteId) {
+    if (audioActualJugando === estudioId) {
       if (reproductorGlobalRef.current) reproductorGlobalRef.current.pause();
       setAudioActualJugando(null);
     } else {
@@ -246,12 +253,13 @@ export default function Pacientes() {
       const nuevoAudio = new Audio(urlCargada);
       reproductorGlobalRef.current = nuevoAudio;
       nuevoAudio.play().catch(e => alert("❌ El navegador bloqueó el audio."));
-      setAudioActualJugando(pacienteId);
+      setAudioActualJugando(estudioId);
       nuevoAudio.onended = () => setAudioActualJugando(null);
     }
   };
 
-  const pacientesParaEnvio = pacientes.filter(p => seleccionados.includes(p.id)).map(p => ({ ...p, modality: p.modalidad || p.modality || "OTRO" }));
+  // 🔥 CORRECCIÓN: Filtramos los seleccionados por el ID del estudio
+  const pacientesParaEnvio = pacientes.filter(p => seleccionados.includes(p.estudio_interno_id)).map(p => ({ ...p, modality: p.modalidad || p.modality || "OTRO" }));
 
   return (
     <div style={styles.mainLayout}>
