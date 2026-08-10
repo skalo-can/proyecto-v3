@@ -50,6 +50,11 @@ class Usuario(Base):
     # ---------------------------------------------------------
     is_active = Column(Boolean, default=True, nullable=False, doc="Estado de acceso al sistema")
 
+    # 🛡️ PROTECCIÓN ANTI-FUERZA BRUTA (Nuevas columnas de seguridad)
+    intentos_fallidos = Column(Integer, default=0, nullable=False, doc="Contador de intentos de login fallidos")
+    
+    bloqueado = Column(Boolean, default=False, nullable=False, doc="Flag que bloquea la cuenta tras 5 intentos (Excepto SKALO)")
+
     creado_en = Column(
         DateTime(timezone=True), 
         server_default=func.now(), 
