@@ -44,7 +44,7 @@ export default function TablaPacientes({
     return () => window.removeEventListener("mouseup", stopDrag);
   }, []);
 
-  // 🔥 Apuntamos al endpoint que procesa por ID de estudio
+  // 🔥 CORRECCIÓN: Apuntamos al endpoint que procesa por ID de estudio
   const abrirPDF = (estudioId) => window.open(`http://localhost:8000/api/pacientes/estudio/${estudioId}/descargar-pdf`, "_blank");
 
   // 🔥 Lanza el visor pasando el ID de BD y el ID Real por URL
@@ -56,7 +56,7 @@ export default function TablaPacientes({
     );
   };
 
-  // 🔥 Apuntamos al endpoint de cancelación por ID de estudio
+  // 🔥 CORRECCIÓN: Apuntamos al endpoint de cancelación por ID de estudio
   const handleCancelarEstudio = async (estudioId) => {
     const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio.\nMotivo clínico/técnico:");
     if (!motivo || motivo.trim() === "") return; 
@@ -131,13 +131,13 @@ export default function TablaPacientes({
     }
   };
 
-  // 🔥 Arrastre inteligente con UniqueRowId para evitar bugs de selección
+  // 🔥 CORRECCIÓN: Arrastre inteligente con estudio_interno_id
   const handleRowMouseDown = (e, index, estudioId) => {
     if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
     if (e.shiftKey && lastIndex !== null) {
       window.getSelection().removeAllRanges(); 
       const start = Math.min(lastIndex, index), end = Math.max(lastIndex, index);
-      const rangeIds = pacientes.slice(start, end + 1).map(p => p.estudio_interno_id || p.id_estudio || p.id);
+      const rangeIds = pacientes.slice(start, end + 1).map(p => p.estudio_interno_id);
       if (!seleccionados.includes(estudioId)) { setSeleccionados(Array.from(new Set([...seleccionados, ...rangeIds]))); } 
       else { setSeleccionados(seleccionados.filter(sId => !rangeIds.includes(sId))); }
       return; 
@@ -157,8 +157,8 @@ export default function TablaPacientes({
     <table style={styles.tableStyle}>
       <thead style={styles.theadStyle}>
         <tr>
-          {/* 🔥 El checkbox "Seleccionar todos" ahora extrae el uniqueRowId */}
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}><input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.estudio_interno_id || p.id_estudio || p.id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} /></th>
+          {/* 🔥 CORRECCIÓN: Seleccionar todos mapeando estudio_interno_id */}
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}><input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.estudio_interno_id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} /></th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("estado_pacs")}>ESTADO {renderIconoOrden("estado_pacs")}</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>ID PACIENTE {renderIconoOrden("id")}</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("paciente")}>1ER APELLIDO {renderIconoOrden("paciente")}</th>
@@ -187,9 +187,6 @@ export default function TablaPacientes({
           </tr>
         ) : (
           pacientes.map((p, index) => {
-            // 🔥 Creamos un ID 100% único por estudio para evitar selecciones dobles
-            const uniqueRowId = p.estudio_interno_id || p.id_estudio || p.id;
-            
             const idReal = p.identificacion || p.id_paciente || p.id || "S/I";
             const primerNombre = p.primer_nombre || ""; const segundoNombre = p.segundo_nombre || "-";
             const primerApellido = p.primer_apellido || "Desconocido"; const segundoApellido = p.segundo_apellido || "-";
@@ -198,19 +195,19 @@ export default function TablaPacientes({
             const fechaReal = p.fecha_estudio || p.fecha || "S/F"; const horaReal = p.hora_estudio || "00:00";
             const descripcionReal = p.descripcion || p.study_description || p.procedimiento || "Sin descripción";
 
-            // Evaluamos la selección usando el identificador único del estudio
-            const estaSeleccionado = seleccionados.includes(uniqueRowId);
+            // 🔥 CORRECCIÓN: Verificar usando el estudio_interno_id
+            const estaSeleccionado = seleccionados.includes(p.estudio_interno_id);
             const estiloMod = obtenerEstiloModalidad(mReal);
-            const estaDesbloqueado = !!estudiosAutorizados[uniqueRowId] || p.estado_pacs === "Tomado";
+            const estaDesbloqueado = !!estudiosAutorizados[p.estudio_interno_id] || p.estado_pacs === "Tomado";
 
             const esEstadoInicial = p.estado_pacs === "Importado" || p.estado_pacs === "Tomado" || !p.estado_pacs;
             const estudioAbierto = p.estado_pacs !== "Firmado" && p.estado_pacs !== "Cancelado";
             const canEditPaciente = canUseHerramientasMedicas || ((userRol === "recepcion" || userRol === "tecnologo") && esEstadoInicial) || (tienePermisoDinamicoEditar && estudioAbierto);
 
             return (
-              <tr key={uniqueRowId} onMouseDown={(e) => handleRowMouseDown(e, index, uniqueRowId)} onMouseEnter={() => handleRowMouseEnter(index, uniqueRowId)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
+              <tr key={p.estudio_interno_id} onMouseDown={(e) => handleRowMouseDown(e, index, p.estudio_interno_id)} onMouseEnter={() => handleRowMouseEnter(index, p.estudio_interno_id)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-                  <input type="checkbox" checked={estaSeleccionado} onChange={() => toggleSeleccionarPaciente(uniqueRowId)} />
+                  <input type="checkbox" checked={estaSeleccionado} onChange={() => toggleSeleccionarPaciente(p.estudio_interno_id)} />
                 </td>
                 <td style={styles.tdStyle}><span style={{ ...styles.badge, backgroundColor: p.estado_pacs === "Cancelado" ? "#171717" : p.estado_pacs === "Urgencia" ? "#f97316" : p.estado_pacs === "Rechazado" ? "#ef4444" : p.estado_pacs === "Entregado" ? "#a855f7" : p.estado_pacs === "Firmado" ? "#10b981" : p.estado_pacs === "Transcrito" ? "#2563eb" : p.estado_pacs === "Dictado" ? "#d97706" : p.estado_pacs === "Tomado" ? "#3b82f6" : "#475569", border: p.estado_pacs === "Cancelado" ? "1px solid #475569" : "none" }}>{p.estado_pacs || "Importado"}</span></td>
                 <td style={styles.tdStyle}>{idReal}</td>
@@ -228,7 +225,7 @@ export default function TablaPacientes({
                     
                     {userRol === 'tecnologo' && (p.estado_pacs === 'Importado' || p.estado_pacs === 'Pendiente' || !p.estado_pacs) && (
                         <button
-                            onClick={() => handleMarcarTomado(uniqueRowId)}
+                            onClick={() => handleMarcarTomado(p.estudio_interno_id)}
                             style={{ background: "#10b981", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}
                             title="Validar paciente y asignar a mis métricas"
                         >
@@ -237,27 +234,27 @@ export default function TablaPacientes({
                     )}
 
                     {p.estado_pacs === "Urgencia" && canUseHerramientasMedicas && (
-                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}><span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }}>🚨 Urgencia</span><button onClick={() => abrirModuloDictado(uniqueRowId)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>🎙️ Oficial</button></div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}><span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }}>🚨 Urgencia</span><button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>🎙️ Oficial</button></div>
                     )}
                     {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && canUseHerramientasMedicas && (
-                      <button onClick={() => abrirModuloDictado(uniqueRowId)} style={{ ...styles.iconFlujoBase, color: estaDesbloqueado ? "#10b981" : "#ef4444", backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", cursor: estaDesbloqueado ? "pointer" : "not-allowed", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>{estaDesbloqueado ? "🎙️ Grabar" : "🔒 Bloqueado"}</button>
+                      <button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: estaDesbloqueado ? "#10b981" : "#ef4444", backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", cursor: estaDesbloqueado ? "pointer" : "not-allowed", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>{estaDesbloqueado ? "🎙️ Grabar" : "🔒 Bloqueado"}</button>
                     )}
                     {p.estado_pacs === "Dictado" && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                        <button onClick={() => ejecutarPlayAudioTabla(uniqueRowId)} style={{ ...styles.iconFlujoBase, color: "#3b82f6", backgroundColor: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", gap: "6px" }}>🔊 Play</button>
-                        {(canUseHerramientasMedicas || userRol === "transcriptor") && (<button onClick={() => abrirModalTranscriptor(uniqueRowId)} style={{ padding: "6px 12px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>✍️ Transcribir</button>)}
+                        <button onClick={() => ejecutarPlayAudioTabla(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: "#3b82f6", backgroundColor: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", gap: "6px" }}>🔊 Play</button>
+                        {(canUseHerramientasMedicas || userRol === "transcriptor") && (<button onClick={() => abrirModalTranscriptor(p.estudio_interno_id)} style={{ padding: "6px 12px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>✍️ Transcribir</button>)}
                       </div>
                     )}
-                    {p.estado_pacs === "Transcrito" && canUseHerramientasMedicas && (<button onClick={() => abrirModalFirma(uniqueRowId)} style={{ padding: "6px 12px", backgroundColor: "#10b981", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}>🔏 Validar y Firmar</button>)}
+                    {p.estado_pacs === "Transcrito" && canUseHerramientasMedicas && (<button onClick={() => abrirModalFirma(p.estudio_interno_id)} style={{ padding: "6px 12px", backgroundColor: "#10b981", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}>🔏 Validar y Firmar</button>)}
                     {p.estado_pacs === "Firmado" && (
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                         <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", gap: "4px" }}>✅ Completado</span>
-                        <button onClick={() => abrirPDF(uniqueRowId)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "12px", display: "flex", gap: "4px" }}>📄 PDF</button>
+                        <button onClick={() => abrirPDF(p.estudio_interno_id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "12px", display: "flex", gap: "4px" }}>📄 PDF</button>
                         {(userRol === "recepcion" || isAdmin) && (
                           <>
-                            <button onClick={() => handleEnvioManual('WhatsApp', uniqueRowId, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
-                            <button onClick={() => handleEnvioManual('Email', uniqueRowId, idReal, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
-                            <button onClick={() => handleEnvioManual('SMS', uniqueRowId, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
+                            <button onClick={() => handleEnvioManual('WhatsApp', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
+                            <button onClick={() => handleEnvioManual('Email', p.estudio_interno_id, idReal, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
+                            <button onClick={() => handleEnvioManual('SMS', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
                           </>
                         )}
                       </div>
@@ -277,14 +274,14 @@ export default function TablaPacientes({
                     {canUseHerramientasMedicas && (
                       <>
                         <button style={{ ...styles.btnEditar, backgroundColor: '#3b82f6', color: '#fff', border: 'none' }} onClick={() => handleReabrirFlujoEstudio(p)} title="Reabrir Flujo">🔄</button>
-                        {p.estado_pacs !== "Cancelado" && p.estado_pacs !== "Firmado" && (<button style={{ ...styles.btnEditar, backgroundColor: '#ef4444', color: '#fff', border: 'none' }} onClick={() => handleCancelarEstudio(uniqueRowId)} title="Abortar">🛑</button>)}
+                        {p.estado_pacs !== "Cancelado" && p.estado_pacs !== "Firmado" && (<button style={{ ...styles.btnEditar, backgroundColor: '#ef4444', color: '#fff', border: 'none' }} onClick={() => handleCancelarEstudio(p.estudio_interno_id)} title="Abortar">🛑</button>)}
                       </>
                     )}
                   </div>
                 </td>
                 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-                  <button style={styles.btnVisor} onClick={() => abrirVisorMedico(uniqueRowId, idReal)}>ABRIR</button>
+                  <button style={styles.btnVisor} onClick={() => abrirVisorMedico(p.estudio_interno_id, idReal)}>ABRIR</button>
                 </td>
               </tr>
             );

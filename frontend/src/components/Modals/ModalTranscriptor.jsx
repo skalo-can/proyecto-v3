@@ -17,17 +17,17 @@ export default function ModalTranscriptor({ isWindow }) {
   
   const audioRef = useRef(null);
 
-  // 🔄 CARGA INICIAL PROTEGIDA Y SEGURA (Endpoints nuevos + Seguridad Token)
+  // 🔄 CARGA INICIAL PROTEGIDA Y SEGURA
   useEffect(() => {
     if (estudioId) {
       const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
       const headers = { "Authorization": `Bearer ${token}` };
 
-      // 1. 🔥 Descargar el audio de forma segura usando Blob
+      // 1. Descargar el audio enviando el Token de Seguridad (Para evitar 401)
       fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`, { headers })
       .then(res => {
         if (!res.ok) throw new Error("Audio no disponible o sin autorización");
-        return res.blob(); // Convertimos el audio en un archivo temporal seguro
+        return res.blob(); 
       })
       .then(blob => {
         const audioBlobUrl = URL.createObjectURL(blob);
@@ -35,7 +35,7 @@ export default function ModalTranscriptor({ isWindow }) {
       })
       .catch(err => console.warn("Aviso de Audio:", err.message));
 
-      // 2. Cargar datos de cabecera con Token
+      // 2. Cargar datos de cabecera apuntando a tu endpoint original
       fetch(`http://localhost:8000/api/pacientes`, { headers })
         .then(res => res.json())
         .then(data => {
@@ -47,7 +47,7 @@ export default function ModalTranscriptor({ isWindow }) {
     }
   }, [estudioId]);
 
-  // 🔥 EFECTO DE CARGA MÚLTIPLE (Plantillas + Médicos con Seguridad)
+  // 🔥 EFECTO DE CARGA MULTIPLE (Plantillas + Médicos)
   useEffect(() => {
     const fetchDatosInit = async () => {
       try {
@@ -126,7 +126,7 @@ export default function ModalTranscriptor({ isWindow }) {
       const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/transcribir-audio`, {
         method: "POST",
         headers: {
-          "Authorization": token ? `Bearer ${token}` : "" 
+          "Authorization": `Bearer ${token}` 
         }
       });
       
@@ -156,9 +156,9 @@ export default function ModalTranscriptor({ isWindow }) {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : "" 
+          "Authorization": `Bearer ${token}` 
         },
-        body: JSON.stringify({ texto: texto }),
+        body: JSON.stringify({ informe: texto }),
       });
       
       if (!response.ok) throw new Error("Error en el servidor");
