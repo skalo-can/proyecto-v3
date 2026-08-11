@@ -10,21 +10,33 @@ export default function ModalTranscriptor({ isWindow }) {
   const [plantillas, setPlantillas] = useState([]);
   const [plantillaSeleccionada, setPlantillaSeleccionada] = useState("");
   
-  // 🔥 NUEVOS ESTADOS PARA EL FILTRO DE MÉDICOS
   const [medicos, setMedicos] = useState([]);
   const [medicoSeleccionado, setMedicoSeleccionado] = useState("");
   
-  // 🚀 ESTADO PARA LA IA
   const [isTranscribing, setIsTranscribing] = useState(false);
   
   const audioRef = useRef(null);
 
+  // 🔄 CARGA INICIAL PROTEGIDA Y SEGURA (Endpoints nuevos + Seguridad Token)
   useEffect(() => {
     if (estudioId) {
-      // 🔥 CORRECCIÓN: Cargar URL de audio y datos del estudio apuntando al endpoint correcto
-      setAudioUrl(`http://localhost:8000/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`);
-      
-      fetch(`http://localhost:8000/api/pacientes`)
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+      const headers = { "Authorization": `Bearer ${token}` };
+
+      // 1. 🔥 Descargar el audio de forma segura usando Blob
+      fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error("Audio no disponible o sin autorización");
+        return res.blob(); // Convertimos el audio en un archivo temporal seguro
+      })
+      .then(blob => {
+        const audioBlobUrl = URL.createObjectURL(blob);
+        setAudioUrl(audioBlobUrl);
+      })
+      .catch(err => console.warn("Aviso de Audio:", err.message));
+
+      // 2. Cargar datos de cabecera con Token
+      fetch(`http://localhost:8000/api/pacientes`, { headers })
         .then(res => res.json())
         .then(data => {
            const list = Array.isArray(data) ? data : (data.items || []);
@@ -35,17 +47,20 @@ export default function ModalTranscriptor({ isWindow }) {
     }
   }, [estudioId]);
 
-  // 🔥 NUEVO EFECTO DE CARGA MULTIPLE (Plantillas + Médicos)
+  // 🔥 EFECTO DE CARGA MÚLTIPLE (Plantillas + Médicos con Seguridad)
   useEffect(() => {
     const fetchDatosInit = async () => {
       try {
-        const resPlantillas = await fetch(`http://localhost:8000/api/plantillas`);
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+        const headers = { "Authorization": `Bearer ${token}` };
+
+        const resPlantillas = await fetch(`http://localhost:8000/api/plantillas`, { headers });
         if (resPlantillas.ok) {
           const dataPlantillas = await resPlantillas.json();
           setPlantillas(dataPlantillas);
         }
         
-        const resMedicos = await fetch("http://localhost:8000/api/usuarios");
+        const resMedicos = await fetch(`http://localhost:8000/api/usuarios`, { headers });
         if (resMedicos.ok) {
           const dataMedicos = await resMedicos.json();
           const radiologos = dataMedicos.filter(u => u.rol && u.rol.toLowerCase().includes('radiologo'));
@@ -64,19 +79,18 @@ export default function ModalTranscriptor({ isWindow }) {
     return false;
   });
 
+  // ⌨️ MOTOR DE ATAJOS
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space' && !e.ctrlKey && document.activeElement.tagName === 'AUDIO') {
         e.preventDefault();
       }
-
       if (e.ctrlKey && e.code === 'Space') {
         e.preventDefault(); 
         if (audioRef.current) {
           audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause();
         }
       }
-      
       if (e.altKey && e.code === 'ArrowLeft') {
         e.preventDefault();
         if (audioRef.current) audioRef.current.currentTime -= 5;
@@ -107,13 +121,12 @@ export default function ModalTranscriptor({ isWindow }) {
   const handleAutoTranscribir = async () => {
     setIsTranscribing(true);
     try {
-      const token = localStorage.getItem("token"); 
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || ""; 
 
-      // 🔥 CORRECCIÓN: IA de Whisper apuntando al estudio
       const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/transcribir-audio`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}` 
+          "Authorization": token ? `Bearer ${token}` : "" 
         }
       });
       
@@ -137,17 +150,17 @@ export default function ModalTranscriptor({ isWindow }) {
       return;
     }
     try {
-      const token = localStorage.getItem("token"); 
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token") || ""; 
 
-      // 🔥 CORRECCIÓN: Guardado de transcripción apuntando al estudio
       const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/guardar-transcripcion`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` 
+          "Authorization": token ? `Bearer ${token}` : "" 
         },
-        body: JSON.stringify({ informe: texto }),
+        body: JSON.stringify({ texto: texto }),
       });
+      
       if (!response.ok) throw new Error("Error en el servidor");
 
       const canal = new BroadcastChannel("mipacs_refresco_flujo");
@@ -156,6 +169,7 @@ export default function ModalTranscriptor({ isWindow }) {
 
       window.close(); 
     } catch (error) {
+      console.error(error);
       alert("❌ Hubo un fallo al conectar con la API.");
     }
   };
