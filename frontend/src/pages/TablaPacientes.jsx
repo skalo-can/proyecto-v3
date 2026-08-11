@@ -12,7 +12,6 @@ export default function TablaPacientes({
 
   const { user } = useAuth();
 
-  // 🛡️ BLINDAJE EXTREMO
   const userRol = String(user?.rol || "").toLowerCase().trim();
   const currentIdentificador = String(user?.username || user?.nombre || user?.email || "").toUpperCase();
   
@@ -21,7 +20,6 @@ export default function TablaPacientes({
   const isRadiologo = userRol === "radiologo" || userRol.startsWith("medico");
   const canUseHerramientasMedicas = isRadiologo || isAdmin;
 
-  // 🛡️ LECTOR DINÁMICO ENVUELTO EN TRY-CATCH
   let tienePermisoDinamicoEditar = false;
   try {
     const permisos = user?.permisos || [];
@@ -44,10 +42,8 @@ export default function TablaPacientes({
     return () => window.removeEventListener("mouseup", stopDrag);
   }, []);
 
-  // 🔥 CORRECCIÓN: Apuntamos al endpoint que procesa por ID de estudio
   const abrirPDF = (estudioId) => window.open(`http://localhost:8000/api/pacientes/estudio/${estudioId}/descargar-pdf`, "_blank");
 
-  // 🔥 Lanza el visor pasando el ID de BD y el ID Real por URL
   const abrirVisorMedico = (estudioId, idReal) => {
     window.open(
       `/imagenes-estudio/${estudioId}?id_real=${idReal}`, 
@@ -56,7 +52,6 @@ export default function TablaPacientes({
     );
   };
 
-  // 🔥 CORRECCIÓN: Apuntamos al endpoint de cancelación por ID de estudio
   const handleCancelarEstudio = async (estudioId) => {
     const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio.\nMotivo clínico/técnico:");
     if (!motivo || motivo.trim() === "") return; 
@@ -69,7 +64,6 @@ export default function TablaPacientes({
     } catch (error) { alert("❌ Error de comunicación con la API."); }
   };
 
-  // 🔥 Envío 100% Silencioso y Auditado por el Backend
   const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
     if (!destino || destino === "-" || destino.trim() === "") {
       return alert(`❌ Faltan datos para envío. Por favor, edite el paciente y agregue su ${tipoMetodo}.`);
@@ -131,7 +125,6 @@ export default function TablaPacientes({
     }
   };
 
-  // 🔥 CORRECCIÓN: Arrastre inteligente con estudio_interno_id
   const handleRowMouseDown = (e, index, estudioId) => {
     if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
     if (e.shiftKey && lastIndex !== null) {
@@ -157,7 +150,6 @@ export default function TablaPacientes({
     <table style={styles.tableStyle}>
       <thead style={styles.theadStyle}>
         <tr>
-          {/* 🔥 CORRECCIÓN: Seleccionar todos mapeando estudio_interno_id */}
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}><input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.estudio_interno_id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} /></th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("estado_pacs")}>ESTADO {renderIconoOrden("estado_pacs")}</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>ID PACIENTE {renderIconoOrden("id")}</th>
@@ -195,7 +187,6 @@ export default function TablaPacientes({
             const fechaReal = p.fecha_estudio || p.fecha || "S/F"; const horaReal = p.hora_estudio || "00:00";
             const descripcionReal = p.descripcion || p.study_description || p.procedimiento || "Sin descripción";
 
-            // 🔥 CORRECCIÓN: Verificar usando el estudio_interno_id
             const estaSeleccionado = seleccionados.includes(p.estudio_interno_id);
             const estiloMod = obtenerEstiloModalidad(mReal);
             const estaDesbloqueado = !!estudiosAutorizados[p.estudio_interno_id] || p.estado_pacs === "Tomado";
