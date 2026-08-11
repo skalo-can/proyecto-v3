@@ -10,11 +10,22 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
+# =========================================================
+# 🟢 INDICADOR VISUAL AL ARRANCAR EL SERVIDOR
+# =========================================================
+print("\n" + "="*55)
+print("🟢 [MI_PACS] MÓDULO DE WHATSAPP (SELENIUM) CARGADO 🟢")
+print("🤖 Servicio en espera. Se activará bajo demanda...")
+print("="*55 + "\n")
+
 def enviar_mensaje_whatsapp(numero: str, mensaje: str) -> bool:
     """
     Envía un mensaje de WhatsApp automáticamente usando una sesión persistente de WhatsApp Web.
     """
     numero_limpio = str(numero).replace(" ", "").replace("-", "").replace("+", "").strip()
+    
+    # 🟢 INDICADOR VISUAL DE EJECUCIÓN (DESPERTANDO AL BOT)
+    print(f"\n🚀 [BOT WHATSAPP] Iniciando navegador para enviar mensaje a: {numero_limpio}...")
     
     # Carpeta local donde se guardan las cookies/sesión
     user_data_dir = os.path.abspath("./whatsapp_session")
@@ -32,7 +43,7 @@ def enviar_mensaje_whatsapp(numero: str, mensaje: str) -> bool:
         url = f"https://web.whatsapp.com/send?phone={numero_limpio}&text={mensaje_codificado}"
         
         driver.get(url)
-        print("⏳ Esperando a que cargue WhatsApp Web...")
+        print("⏳ [BOT WHATSAPP] Esperando a que cargue WhatsApp Web...")
 
         # Esperar hasta 25 segundos a que la caja de texto editable esté presente
         wait = WebDriverWait(driver, 25)
@@ -56,11 +67,11 @@ def enviar_mensaje_whatsapp(numero: str, mensaje: str) -> bool:
             pass # Si la tecla ENTER ya lo envió, ignoramos la excepción del botón
 
         time.sleep(4)  # Esperar a que se procese el envío
-        print("✅ Mensaje enviado automáticamente por WhatsApp Web.")
+        print("✅ [BOT WHATSAPP] Mensaje enviado automáticamente. Apagando navegador.\n")
         return True
 
     except Exception as e:
-        print(f"❌ Error al enviar mensaje mediante Selenium: {e}")
+        print(f"❌ [BOT WHATSAPP] Error al enviar mensaje mediante Selenium: {e}\n")
         return False
     finally:
         if driver:

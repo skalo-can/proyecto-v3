@@ -19,6 +19,8 @@ from app.models.usuario import Usuario
 
 from app.services.whatsapp_service import enviar_mensaje_whatsapp
 
+from fastapi.responses import JSONResponse
+
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 # =========================================================
@@ -108,10 +110,15 @@ def login_endpoint(
                 db.commit()
             else:
                 # INMUNIDAD SKALO: Nunca se bloquea, pero se notifica el ataque
-                if intentos_actuales % 5 == 0: # Alerta cada 5 intentos para no saturar
+                if intentos_actuales % 5 == 0: 
                     background_tasks.add_task(enviar_alerta_seguridad, ip_cliente, identifier, "Ataque de fuerza bruta detectado contra la cuenta MAESTRA")
 
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas o cuenta inactiva.")
+        # 🔥 SOLUCIÓN: Usamos JSONResponse para que la tarea en segundo plano NO se destruya
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Credenciales inválidas o cuenta inactiva."},
+            background=background_tasks
+        )
 
     # 4. Reseteo de intentos fallidos al ingresar correctamente
     if getattr(usuario, "intentos_fallidos", 0) > 0:
@@ -125,9 +132,12 @@ def login_endpoint(
         
         if not (rol_valido or es_skalo):
             background_tasks.add_task(enviar_alerta_seguridad, ip_cliente, identifier, f"Intento de acceso remoto bloqueado para el rol: {usuario.rol}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, 
-                detail="Su perfil está restringido exclusivamente a la red de la clínica."
+            
+            # 🔥 SOLUCIÓN: Usamos JSONResponse para que la tarea en segundo plano NO se destruya
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Su perfil está restringido exclusivamente a la red de la clínica."},
+                background=background_tasks
             )
 
     # 6. Generación de token
