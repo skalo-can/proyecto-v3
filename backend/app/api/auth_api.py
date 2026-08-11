@@ -9,11 +9,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Backgrou
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 import ipaddress
+import requests
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.auth import crear_token
 from app.core.security import verify_password
 from app.models.usuario import Usuario
+
+from app.services.whatsapp_service import enviar_mensaje_whatsapp
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
@@ -30,11 +34,31 @@ def is_local_network(ip_str: str) -> bool:
 
 def enviar_alerta_seguridad(ip_atacante: str, identificador: str, motivo: str):
     """
-    Función en segundo plano para enviar alertas de actividad sospechosa.
-    Aquí puedes integrar tu API de WhatsApp o un envío de correo (SMTP).
+    Función en segundo plano que conecta las alertas de seguridad 
+    NATIVAMENTE con el servicio de WhatsApp (Selenium).
     """
-    mensaje = f"🚨 ALERTA DE SEGURIDAD: {motivo}\nIP: {ip_atacante}\nUsuario objetivo: {identificador}"
-    print(mensaje) # Reemplaza con tu función real de WhatsApp/Email
+    hora_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # 1. Formateamos el mensaje con estilo para WhatsApp
+    mensaje_whatsapp = (
+        f"🚨 *ALERTA DE SEGURIDAD MI_PACS* 🚨\n\n"
+        f"⚠️ *Motivo:* {motivo}\n"
+        f"👤 *Usuario Objetivo:* {identificador}\n"
+        f"🌐 *IP Origen:* {ip_atacante}\n"
+        f"🕒 *Hora:* {hora_actual}\n\n"
+        f"🛡️ _Sistema Zero Trust Activado_"
+    )
+    
+    print(mensaje_whatsapp) # Log en consola
+
+    # 2. Tu número de teléfono canadiense (Ej: +1705...)
+    numero_skalo = "+16478652950" 
+
+    # 3. Disparamos la alerta saltando el protocolo HTTP (Llamada directa al servicio)
+    try:
+        enviar_mensaje_whatsapp(numero_skalo, mensaje_whatsapp)
+    except Exception as e:
+        print(f"❌ Falló la conexión interna con el bot de WhatsApp: {e}")
 
 # =========================================================
 # 🔒 ENDPOINT DE LOGIN BLINDADO
