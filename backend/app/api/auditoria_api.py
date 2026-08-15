@@ -28,7 +28,7 @@ def listar_auditoria_dashboard(
     db: Session = Depends(get_db),
     usuario = Depends(obtener_usuario_actual)
 ):
-    requiere_rol(usuario, ["admin", "medico", "recepcion"])
+    requiere_rol(usuario, ["superadmin", "admin", "medico", "recepcion"])
     
     try:
         registros = db.query(AuditoriaDescarga).order_by(AuditoriaDescarga.creado_en.desc()).limit(limit).all()
