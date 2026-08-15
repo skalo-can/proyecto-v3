@@ -95,4 +95,8 @@ class UsuarioListItem(BaseModel):
     registro_medico: Optional[str] = None
     es_urgenciologo: bool = False
 
+    # 🛑 CAMPOS DE SEGURIDAD (El puente hacia React)
+    bloqueado: bool = False
+    intentos_fallidos: int = 0
+
     model_config = ConfigDict(from_attributes=True)
