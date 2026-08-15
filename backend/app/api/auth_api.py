@@ -70,7 +70,7 @@ def enviar_alerta_seguridad(ip_atacante: str, identificador: str, motivo: str):
     try:
         auditoria_descarga_crud.crear_registro(
             db=db,
-            estudio_id=None,
+            estudio_id=0,
             tipo="SEGURIDAD",
             resultado="bloqueado",
             usuario_id=None,
