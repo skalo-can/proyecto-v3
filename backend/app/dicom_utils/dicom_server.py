@@ -14,6 +14,8 @@ from app.core.database import SessionLocal
 from app.crud.crud_modality import register_modality
 from app.models.ris_orden import RISOrden
 
+from pydicom.uid import generate_uid  # 🔥 AGREGAR ESTA LÍNEA AL INICIO DEL ARCHIVO
+
 # 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
 from app.core.config import BACKEND_DIR
 
@@ -58,12 +60,21 @@ def handle_association(event):
         _log(f"⚠️ Error en registro de asociación: {e}")
 
 def handle_find(event):
-    """Manejador de consultas. Solo expone órdenes 'Iniciado'."""
+    """Manejador de consultas. Expone órdenes activas para la Worklist."""
     _log("🔍 Consulta DICOM (C-FIND) recibida.")
     identifier = event.identifier
     db = SessionLocal()
+    
+    # Obtenemos el nombre de la estación que nos está llamando (Ej: RADGEN)
+    calling_ae_raw = event.assoc.requestor.ae_title
+    calling_ae = calling_ae_raw.decode().strip() if isinstance(calling_ae_raw, bytes) else str(calling_ae_raw).strip()
+
     try:
-        ordenes_activas = db.query(RISOrden).filter(RISOrden.estado_ris == "Iniciado").all()
+        # 🔥 SOLUCIÓN 1: Ampliamos el filtro para incluir "En Espera"
+        ordenes_activas = db.query(RISOrden).filter(
+            RISOrden.estado_ris.in_(["En Espera", "Iniciado", "Programado"])
+        ).all()
+        
         _log(f"📋 Enviando {len(ordenes_activas)} órdenes activas a la modalidad.")
 
         for orden in ordenes_activas:
@@ -71,6 +82,11 @@ def handle_find(event):
             ds.PatientName = f"{orden.apellido}^{orden.nombre}"
             ds.PatientID = str(orden.id_institucional)
             ds.AccessionNumber = str(orden.accession_number)
+            
+            # 🔥 SOLUCIÓN 2: Generamos el Study Instance UID obligatorio
+            # (Si tu base de datos ya lo tiene, cámbialo por orden.study_uid)
+            ds.StudyInstanceUID = generate_uid() 
+            ds.RequestedProcedureID = str(orden.id_orden)
             
             sex_val = str(orden.sexo).upper() if orden.sexo else 'O'
             ds.PatientSex = sex_val[0] if sex_val[0] in ['M', 'F', 'O'] else 'O'
@@ -99,12 +115,17 @@ def handle_find(event):
 
             sps_step = Dataset()
             sps_step.Modality = orden.modalidad
-            sps_step.ScheduledStationAETitle = "AGFA_NX" 
+            
+            # 🔥 SOLUCIÓN 3: Le respondemos a la estación con su propio AE Title
+            sps_step.ScheduledStationAETitle = calling_ae 
             sps_step.ScheduledProcedureStepStartDate = datetime.now().strftime('%Y%m%d')
+            sps_step.ScheduledProcedureStepStartTime = datetime.now().strftime('%H%M%S')
             sps_step.ScheduledProcedureStepDescription = f"Estudio de {orden.modalidad}"
+            
             ds.ScheduledProcedureStepSequence = [sps_step]
             ds.QueryRetrieveLevel = "WORKLIST"
 
+            # Completar los tags vacíos solicitados por el equipo
             for elem in identifier:
                 if elem.tag not in ds:
                     ds.add(elem)
