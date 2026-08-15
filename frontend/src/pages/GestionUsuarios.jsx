@@ -141,18 +141,19 @@ export default function GestionUsuarios() {
     };
 
     const handleCambiarEstado = async (nuevoEstado) => {
-        const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
-        if (ids.length === 0) return alert("Seleccione usuarios en la tabla");
-        const accion = nuevoEstado ? "ACTIVAR" : "BLOQUEAR";
-        try {
-            for (let id of ids) {
-                await axios.patch(`http://localhost:8000/api/usuarios/${id}/estado?activo=${nuevoEstado}`);
-            }
-            alert(`✅ Usuarios actualizados: ${accion}`);
-            setSelectedUsers({});
-            fetchUsuarios();
-        } catch (err) { alert(`Error al intentar ${accion}.`); }
-    };
+            const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
+            if (ids.length === 0) return alert("Seleccione usuarios en la tabla");
+            const accion = nuevoEstado ? "ACTIVAR" : "BLOQUEAR";
+            try {
+                for (let id of ids) {
+                    // 🔥 SOLUCIÓN: Usamos axios.put en lugar de patch para evitar el bloqueo del CORS
+                    await axios.put(`http://localhost:8000/api/usuarios/${id}/estado?activo=${nuevoEstado}`);
+                }
+                alert(`✅ Usuarios actualizados: ${accion}`);
+                setSelectedUsers({});
+                fetchUsuarios();
+            } catch (err) { alert(`Error al intentar ${accion}.`); }
+        };
 
     const handleEliminar = async () => {
         const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
@@ -321,4 +322,4 @@ export default function GestionUsuarios() {
             </main>
         </div>
     );
-}
+} 

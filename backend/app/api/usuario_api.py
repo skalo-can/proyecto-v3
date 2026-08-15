@@ -70,7 +70,8 @@ async def actualizar_usuario(usuario_id: int, data: dict, db: Session = Depends(
     db.commit()
     return {"status": "success", "message": "Usuario actualizado correctamente"}
 
-@router.patch("/{usuario_id}/estado")
+# 🔥 SOLUCIÓN: Cambiado a @router.put y agregado el reseteo de seguridad anti-hackeos
+@router.put("/{usuario_id}/estado")
 def cambiar_estado_usuario(usuario_id: int, activo: bool, db: Session = Depends(get_db)):
     user = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not user:
@@ -80,6 +81,14 @@ def cambiar_estado_usuario(usuario_id: int, activo: bool, db: Session = Depends(
          raise HTTPException(status_code=400, detail="El estado de SKALO no puede ser alterado.")
 
     user.is_active = activo
+
+    # Si se está activando la cuenta desde el panel, reseteamos sus bloqueos
+    if activo:
+        if hasattr(user, 'bloqueado'):
+            user.bloqueado = False
+        if hasattr(user, 'intentos_fallidos'):
+            user.intentos_fallidos = 0
+
     db.commit()
     return {"status": "success", "activo": activo}
 
@@ -105,4 +114,4 @@ async def eliminar_usuario(usuario_id: int, db: Session = Depends(get_db)):
         return {"status": "success", "message": "Colaborador eliminado correctamente"}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al eliminar: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al eliminar: {str(e)}") 
