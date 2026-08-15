@@ -13,7 +13,7 @@ from app.models.paciente import Paciente
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
 
-router = APIRouter(tags=["Auditoría general"], prefix="/api/auditoria")
+router = APIRouter(tags=["Auditoría general"], prefix="/auditoria")
 
 def get_db():
     db = SessionLocal()
