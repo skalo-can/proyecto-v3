@@ -17,8 +17,9 @@ export default function AuditoriaPage() {
     try {
       setCargando(true);
       // 🔥 SOLUCIÓN: Ruta dinámica. Si estás en la web usa tu dominio, si estás local usa localhost
+      // 🔥 CORRECCIÓN: Volvemos a usar 127.0.0.1 para que el CORS del backend lo deje pasar
       const apiBase = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') 
-        ? 'http://localhost:8000' 
+        ? 'http://127.0.0.1:8000' 
         : window.location.origin;
 
       const response = await fetch(`${apiBase}/auditoria/dashboard`, {
