@@ -17,6 +17,8 @@ from app.core.auth import crear_token
 from app.core.security import verify_password
 from app.models.usuario import Usuario
 
+from app.crud import auditoria_descarga_crud
+
 from app.services.whatsapp_service import enviar_mensaje_whatsapp
 
 from fastapi.responses import JSONResponse
@@ -37,7 +39,8 @@ def is_local_network(ip_str: str) -> bool:
 def enviar_alerta_seguridad(ip_atacante: str, identificador: str, motivo: str):
     """
     Función en segundo plano que conecta las alertas de seguridad 
-    NATIVAMENTE con el servicio de WhatsApp (Selenium).
+    NATIVAMENTE con el servicio de WhatsApp (Selenium) y guarda 
+    el registro en la Auditoría General.
     """
     hora_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -53,7 +56,7 @@ def enviar_alerta_seguridad(ip_atacante: str, identificador: str, motivo: str):
     
     print(mensaje_whatsapp) # Log en consola
 
-    # 2. Tu número de teléfono canadiense (Ej: +1705...)
+    # 2. Tu número de teléfono canadiense
     numero_skalo = "+16478652950" 
 
     # 3. Disparamos la alerta saltando el protocolo HTTP (Llamada directa al servicio)
@@ -61,6 +64,23 @@ def enviar_alerta_seguridad(ip_atacante: str, identificador: str, motivo: str):
         enviar_mensaje_whatsapp(numero_skalo, mensaje_whatsapp)
     except Exception as e:
         print(f"❌ Falló la conexión interna con el bot de WhatsApp: {e}")
+
+    # 4. 🔥 NUEVO: Registro silencioso en la base de datos (Auditoría General)
+    db = SessionLocal()
+    try:
+        auditoria_descarga_crud.crear_registro(
+            db=db,
+            estudio_id=None,
+            tipo="SEGURIDAD",
+            resultado="bloqueado",
+            usuario_id=None,
+            email=identificador, 
+            ip=ip_atacante
+        )
+    except Exception as e:
+        print(f"❌ Error al registrar en la tabla de auditoría: {e}")
+    finally:
+        db.close()
 
 # =========================================================
 # 🔒 ENDPOINT DE LOGIN BLINDADO
