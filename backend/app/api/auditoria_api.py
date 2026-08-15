@@ -13,7 +13,7 @@ from app.models.paciente import Paciente
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
 
-router = APIRouter(tags=["Auditoría descargas"], prefix="/auditoria")
+router = APIRouter(tags=["Auditoría general"], prefix="/auditoria")
 
 def get_db():
     db = SessionLocal()
@@ -28,7 +28,6 @@ def listar_auditoria_dashboard(
     db: Session = Depends(get_db),
     usuario = Depends(obtener_usuario_actual)
 ):
-    # Restringimos el acceso a personal autorizado
     requiere_rol(usuario, ["admin", "medico", "recepcion"])
     
     try:
@@ -36,10 +35,10 @@ def listar_auditoria_dashboard(
         
         resultado_api = []
         for r in registros:
-            nombre_paciente = "Paciente Desconocido"
-            nombre_estudio = "Estudio sin descripción"
-            
             if r.estudio_id:
+                # 🏥 LÓGICA ORIGINAL: Descargas de estudios clínicos
+                nombre_paciente = "Paciente Desconocido"
+                nombre_estudio = "Estudio sin descripción"
                 estudio_real = db.query(Estudio).filter(Estudio.id == r.estudio_id).first()
                 if estudio_real:
                     tipo = getattr(estudio_real, 'tipo_estudio', 'DICOM') or 'DICOM'
@@ -53,7 +52,16 @@ def listar_auditoria_dashboard(
                         nombre_paciente = f"{n1} {a1}".strip()
                         if not nombre_paciente:
                             nombre_paciente = getattr(paciente_real, 'identificacion', 'Sin Nombre')
-            
+                
+                estudio_formateado = f"[{str(r.tipo).upper() if r.tipo else 'CLÍNICO'}] {nombre_estudio}"
+            else:
+                # 🔥 LÓGICA EVOLUCIONADA: Eventos de Seguridad y Sistema (Sin estudio)
+                nombre_paciente = r.email or "Usuario del Sistema"
+                if r.tipo and r.tipo.upper() == 'SEGURIDAD':
+                    estudio_formateado = "⚠️ ALERTA DE SEGURIDAD / BLOQUEO"
+                else:
+                    estudio_formateado = "Evento de Sistema General"
+
             fecha_str = "Sin fecha"
             if r.creado_en:
                 if isinstance(r.creado_en, str):
@@ -66,13 +74,13 @@ def listar_auditoria_dashboard(
                         fecha_str = fecha_local.strftime("%d/%m/%Y %I:%M %p")
                     except Exception:
                         fecha_str = str(r.creado_en)
-                
+            
             estado_resultado = str(r.resultado or "ok").strip().lower()
             
             resultado_api.append({
                 "id": r.id,
                 "paciente": nombre_paciente,
-                "estudio": f"[{str(r.tipo).upper() if r.tipo else 'SISTEMA'}] {nombre_estudio}",
+                "estudio": estudio_formateado,
                 "ip": r.ip or "Local",
                 "resultado": estado_resultado,
                 "fecha": fecha_str
@@ -84,6 +92,25 @@ def listar_auditoria_dashboard(
         print(f"🔥 ERROR FATAL EN DASHBOARD: {e}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+# 🔥 NUEVO ENDPOINT: Puerto de entrada exclusivo para reportes de hackeo
+@router.post("/registrar-seguridad")
+def registrar_alerta_seguridad(
+    username_atacado: str,
+    ip_origen: str,
+    resultado: str = "bloqueado",
+    db: Session = Depends(get_db)
+):
+    registro = auditoria_descarga_crud.crear_registro(
+        db=db,
+        estudio_id=None,
+        tipo="SEGURIDAD",
+        resultado=resultado,
+        usuario_id=None,
+        email=username_atacado, 
+        ip=ip_origen,
+    )
+    return {"status": "ok", "id": registro.id}
 
 @router.post("/registrar-descarga")
 def registrar_descarga(
