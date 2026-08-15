@@ -13,6 +13,10 @@ class RISOrden(Base):
     medico_referente = Column(String)
     prioridad = Column(String, default="Rutina")
     accession_number = Column(String, unique=True, index=True, nullable=False)
+
+    # 🔥 NUEVO: Identificador mundial único del estudio DICOM
+    study_instance_uid = Column(String, unique=True, index=True, nullable=True)
+
     estado_ris = Column(String, default="En Espera")
     estado_pacs = Column(String, default="Sin Imágenes")
     fecha_creacion = Column(DateTime, server_default=func.now())

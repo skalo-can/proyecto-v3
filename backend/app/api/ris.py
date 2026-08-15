@@ -1,3 +1,4 @@
+from pydicom.uid import generate_uid  # 🔥 NUEVA IMPORTACIÓN PARA EL UID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -21,12 +22,19 @@ def get_db():
 # --- CREATE ---
 @router.post("/order", response_model=RISOrdenResponse)
 def post_nueva_orden(orden: RISOrdenCreate, db: Session = Depends(get_db)):
-    """Registra una nueva orden en el RIS"""
+    """Registra una nueva orden en el RIS y sella su identificador DICOM universal."""
     try:
+        # 1. Creamos la orden con la función CRUD original
         nueva_orden = crear_orden_ris(db=db, orden=orden)
-        # Opcional: Si quieres que nazca ya como 'Iniciado' descomenta la línea de abajo
-        # nueva_orden.estado_ris = "Iniciado"
-        # db.commit()
+        
+        # 2. 🔥 INYECCIÓN PROFESIONAL: Generamos el "ADN" único del estudio al instante
+        # y lo guardamos permanentemente en el registro.
+        nueva_orden.study_instance_uid = generate_uid()
+        
+        # 3. Confirmamos el guardado en la base de datos
+        db.commit()
+        db.refresh(nueva_orden)
+        
         return nueva_orden
     except Exception as e:
         print(f"Error detallado: {e}")
