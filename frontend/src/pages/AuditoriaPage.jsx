@@ -16,13 +16,14 @@ export default function AuditoriaPage() {
   const fetchAuditoria = async () => {
     try {
       setCargando(true);
-      // 🔥 SOLUCIÓN: Ruta dinámica. Si estás en la web usa tu dominio, si estás local usa localhost
-      // 🔥 CORRECCIÓN: Volvemos a usar 127.0.0.1 para que el CORS del backend lo deje pasar
+      
+      // 🔥 SOLUCIÓN: Si estás en local usa http, si estás en internet usa tu dominio seguro
       const apiBase = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') 
         ? 'http://127.0.0.1:8000' 
-        : window.location.origin;
+        : 'https://portal.mipacs.net';
 
-      const response = await fetch(`${apiBase}/auditoria/dashboard`, {
+      // 🔥 Agregamos /api/ a la ruta para que Nginx permita el paso hacia Python
+      const response = await fetch(`${apiBase}/api/auditoria/dashboard`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
