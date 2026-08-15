@@ -305,8 +305,14 @@ export default function GestionUsuarios() {
                                                 </span>
                                             </td>
                                             <td>
-                                                <span style={{color: u.is_active ? '#10b981' : '#ef4444', fontWeight: 'bold'}}>
-                                                    {u.is_active ? '● OPERATIVO' : '○ BLOQUEADO'}
+                                                <span style={{
+                                                    color: u.bloqueado ? '#f97316' : (u.is_active ? '#10b981' : '#ef4444'), 
+                                                    fontWeight: 'bold',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                }}>
+                                                    {u.bloqueado ? '🛑 BLOQUEO SEGURIDAD' : (u.is_active ? '● OPERATIVO' : '○ INACTIVO')}
                                                 </span>
                                             </td>
                                             <td onClick={(e) => e.stopPropagation()}>
