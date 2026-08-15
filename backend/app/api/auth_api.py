@@ -12,7 +12,7 @@ import ipaddress
 import requests
 from datetime import datetime
 
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.core.auth import crear_token
 from app.core.security import verify_password
 from app.models.usuario import Usuario
