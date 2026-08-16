@@ -33,7 +33,7 @@ def stream_dicom_clinico(
         raise HTTPException(status_code=404, detail="Imagen no encontrada.")
 
     # Restauramos tu seguridad original perfecta
-    requiere_rol(usuario, ["admin", "superadmin", "medico", "radiologo", "tecnico", "tecnologo", "paciente"])
+    requiere_rol(usuario, ["admin", "superadmin", "medico", "radiologo", "recepcion", "tecnologo", "paciente", "transcriptor", "invitado", "auxiliar", "it_biomedica"])
 
     file_path = Path(imagen.ruta_archivo).resolve()
     if not file_path.exists():
@@ -90,4 +90,4 @@ def stream_dicom_invitado(
             "Accept-Ranges": "bytes",
             "Access-Control-Allow-Origin": "*",
         },
-    ) 
+    )

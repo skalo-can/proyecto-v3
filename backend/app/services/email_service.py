@@ -54,10 +54,11 @@ def enviar_correo(destinatario: str, asunto: str, mensaje_html: str) -> str:
 # ---------------------------------------------------------
 # 🚀 MOTOR PARA EL ENVÍO DE RESULTADOS (PDF) CORREGIDO
 # ---------------------------------------------------------
-def procesar_envio_email(paciente_id: str, correo_destino: str, ruta_exacta_pdf: str) -> str:
+# 🔥 Agregamos enlace_visor a los parámetros
+def procesar_envio_email(paciente_id: str, correo_destino: str, ruta_exacta_pdf: str, enlace_visor: str = None) -> str:
     """
     Función diseñada para BackgroundTasks.
-    Busca el PDF en la ruta estructurada (Año/Mes/Día) y lo envía por correo.
+    Busca el PDF y lo envía por correo junto con el link del portal.
     """
     msg = MIMEMultipart()
     msg["Subject"] = f"Resultados de su Estudio Médico - ID: {paciente_id}"
@@ -68,9 +69,21 @@ def procesar_envio_email(paciente_id: str, correo_destino: str, ruta_exacta_pdf:
         "Estimado paciente,\n\n"
         "Adjunto encontrará el informe en formato PDF de su estudio radiológico, "
         "debidamente validado y firmado por el médico especialista.\n\n"
+    )
+
+    # 🔥 Si nos llegó el enlace, lo inyectamos en el mensaje
+    if enlace_visor:
+        cuerpo_mensaje += (
+            "Adicionalmente, puede visualizar las imágenes radiológicas de su estudio accediendo al siguiente enlace seguro:\n"
+            f"👉 {enlace_visor}\n\n"
+            "(Nota: Por su seguridad, el enlace es válido por 48 horas y se le solicitará su fecha de nacimiento).\n\n"
+        )
+
+    cuerpo_mensaje += (
         "Atentamente,\n"
         "Centro Radiológico MI_PACS"
     )
+    
     msg.attach(MIMEText(cuerpo_mensaje, "plain"))
 
     # 🔥 Usamos la ruta estructurada que nos manda la API

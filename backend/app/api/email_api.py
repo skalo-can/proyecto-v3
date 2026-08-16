@@ -1,3 +1,4 @@
+from typing import Optional
 import os
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
@@ -17,9 +18,9 @@ def get_db():
         yield db
     finally:
         db.close()
-
 class EmailPayload(BaseModel):
     email: str
+    enlace_visor: Optional[str] = None  # 🔥 Ahora FastAPI sabe que es 100% legal recibir esto
 
 @router.post("/enviar-estudio/{estudio_id}")
 def enviar_estudio_pdf(
@@ -74,7 +75,8 @@ def enviar_estudio_pdf(
         procesar_envio_email, 
         paciente_id=str(cedula_real), 
         correo_destino=payload.email, 
-        ruta_exacta_pdf=ruta_exacta_pdf
+        ruta_exacta_pdf=ruta_exacta_pdf,
+        enlace_visor=payload.enlace_visor  # 🔥 ESTA ES LA MAGIA QUE FALTABA
     )
 
     return {"status": "success", "detail": "El correo se está enviando en segundo plano."}

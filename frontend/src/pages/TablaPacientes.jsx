@@ -95,9 +95,25 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
         alert(`✅ WhatsApp enviado con éxito al ${destino} y registrado en la bitácora.`);
       } 
       // ==========================================
-      // 2. PASARELA EMAIL (¡NUEVO: Envío automatizado en 2do plano!)
+      // 2. PASARELA EMAIL (Con Enlace Seguro del Visor)
       // ==========================================
       else if (tipoMetodo === 'Email') {
+        // A) Generamos el enlace seguro primero
+        const linkRes = await fetch(`${apiBase}/api/secure-links/generar/${estudioId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
+        });
+        
+        let urlSegura = "";
+        if (linkRes.ok) {
+          const data = await linkRes.json();
+          urlSegura = `${apiBase}/portal/${data.link}`;
+          console.log("🔗 Link generado con éxito:", urlSegura); // 🔥 Agrega esta línea
+        } else {
+          console.error("❌ Falló la generación del link de seguridad."); // 🔥 Y esta línea 
+        }
+
+        // B) Despachamos el correo con el PDF y el Enlace
         const response = await fetch(`${apiBase}/api/email/enviar-estudio/${estudioId}`, {
           method: "POST",
           headers: { 
@@ -105,12 +121,32 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
             "Authorization": `Bearer ${token}`
           },
           body: JSON.stringify({
-            email: destino
+            email: destino,
+            enlace_visor: urlSegura // 🔥 Se lo pasamos al backend
           })
         });
 
         if (!response.ok) throw new Error((await response.json()).detail || "Error en el servidor de correos");
         alert(`✅ Correo enviado silenciosamente con éxito a ${destino}`);
+      }
+
+      // ==========================================
+      // 3. PASARELA SMS (Mantiene su flujo manual original)
+      // ==========================================
+      else if (tipoMetodo === 'SMS') {
+        const linkRes = await fetch(`${apiBase}/api/secure-links/generar/${estudioId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
+        });
+        
+        if (!linkRes.ok) throw new Error("No se pudo generar el token de seguridad");
+        
+        const data = await linkRes.json();
+        const urlSegura = `${apiBase}/portal/${data.link}`;      
+        const mensaje = `Hola. Clínica Asotrauma le informa que sus imágenes radiológicas ya están disponibles.\n\nPara visualizarlas, ingrese al siguiente enlace y escriba su Fecha de Nacimiento (DíaMesAño) por seguridad. Válido por 48 horas:\n\n${urlSegura}\n\nGracias por confiar en nosotros.`;
+
+        const urlSms = `sms:${destino.replace(/\D/g, '')}?body=${encodeURIComponent(mensaje)}`;
+        window.location.href = urlSms;
       }
     } catch (error) { 
       console.error(error);
@@ -238,6 +274,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                           <>
                             <button onClick={() => handleEnvioManual('WhatsApp', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
                             <button onClick={() => handleEnvioManual('Email', p.estudio_interno_id, idReal, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
+                            <button onClick={() => handleEnvioManual('SMS', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
                           </>
                         )}
                       </div>
