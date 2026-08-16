@@ -64,7 +64,7 @@ export default function TablaPacientes({
     } catch (error) { alert("❌ Error de comunicación con la API."); }
   };
 
-  const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
+const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
     if (!destino || destino === "-" || destino.trim() === "") {
       return alert(`❌ Faltan datos para envío. Por favor, edite el paciente y agregue su ${tipoMetodo}.`);
     }
@@ -75,6 +75,9 @@ export default function TablaPacientes({
       const apiBase = window.location.origin;
       const token = localStorage.getItem("token")?.replace(/['"]+/g, '');
 
+      // ==========================================
+      // 1. PASARELA WHATSAPP
+      // ==========================================
       if (tipoMetodo === 'WhatsApp') {
         const response = await fetch(`${apiBase}/api/whatsapp/enviar-estudio/${estudioId}`, {
           method: "POST",
@@ -88,36 +91,26 @@ export default function TablaPacientes({
           })
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || "Error en pasarela de WhatsApp");
-        }
-
+        if (!response.ok) throw new Error((await response.json()).detail || "Error en pasarela de WhatsApp");
         alert(`✅ WhatsApp enviado con éxito al ${destino} y registrado en la bitácora.`);
       } 
-      else {
-        const linkRes = await fetch(`${apiBase}/api/secure-links/generar/${estudioId}`, {
+      // ==========================================
+      // 2. PASARELA EMAIL (¡NUEVO: Envío automatizado en 2do plano!)
+      // ==========================================
+      else if (tipoMetodo === 'Email') {
+        const response = await fetch(`${apiBase}/api/email/enviar-estudio/${estudioId}`, {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
-          }
+          },
+          body: JSON.stringify({
+            email: destino
+          })
         });
-        
-        if (!linkRes.ok) throw new Error("No se pudo generar el token de seguridad");
-        
-        const data = await linkRes.json();
-        const urlSegura = `${apiBase}/portal/${data.link}`;      
-        const mensaje = `Hola. Clínica Asotrauma le informa que sus imágenes radiológicas ya están disponibles.\n\nPara visualizarlas, ingrese al siguiente enlace y escriba su Fecha de Nacimiento (DíaMesAño) por seguridad. Válido por 48 horas:\n\n${urlSegura}\n\nGracias por confiar en nosotros.`;
 
-        if (tipoMetodo === 'Email') {
-          const urlEmail = `mailto:${destino}?subject=Resultados Radiológicos - Clínica Asotrauma&body=${encodeURIComponent(mensaje)}`;
-          window.location.href = urlEmail;
-        } 
-        else if (tipoMetodo === 'SMS') {
-          const urlSms = `sms:${destino.replace(/\D/g, '')}?body=${encodeURIComponent(mensaje)}`;
-          window.location.href = urlSms;
-        }
+        if (!response.ok) throw new Error((await response.json()).detail || "Error en el servidor de correos");
+        alert(`✅ Correo enviado silenciosamente con éxito a ${destino}`);
       }
     } catch (error) { 
       console.error(error);
@@ -245,7 +238,6 @@ export default function TablaPacientes({
                           <>
                             <button onClick={() => handleEnvioManual('WhatsApp', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
                             <button onClick={() => handleEnvioManual('Email', p.estudio_interno_id, idReal, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
-                            <button onClick={() => handleEnvioManual('SMS', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
                           </>
                         )}
                       </div>
@@ -281,4 +273,4 @@ export default function TablaPacientes({
       </tbody>
     </table>
   );
-}
+} 

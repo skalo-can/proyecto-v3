@@ -76,6 +76,7 @@ from app.api import dicom_config_api
 from app.api.dicom_modalities_api import router as dicom_modalities_router
 from app.api.ris_tecnologo_api import router as tecnologo_api
 from app.api.usuario_api import router as usuario_api
+from app.api import email_api  # 🔥 Agregamos el nuevo router de correos
 
 # Servidor DICOM dinámico y Scheduler
 from app.services.dicom_service import reiniciar_servidor_dicom
@@ -227,6 +228,7 @@ app.include_router(admin_config_router)
 app.include_router(backup_router, prefix="/api", tags=["Gestión de Backups"])
 app.include_router(plantillas_api.router, prefix="/api")
 app.include_router(firmas_api.router, prefix="/api")
+app.include_router(email_api.router, prefix="/api")
 
 @app.post("/api/notify-new-study")
 async def trigger_notification():

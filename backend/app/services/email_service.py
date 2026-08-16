@@ -96,4 +96,4 @@ def procesar_envio_email(paciente_id: str, correo_destino: str, ruta_exacta_pdf:
         
     except Exception as e:
         print(f"❌ Error crítico en el motor de correo PDF: {e}")
-        raise RuntimeError(f"Error enviando resultado PDF: {str(e)}")
+        raise RuntimeError(f"Error enviando resultado PDF: {str(e)}") 

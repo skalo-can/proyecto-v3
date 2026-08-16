@@ -1,6 +1,6 @@
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
-SMTP_USER = "tu_correo@gmail.com"
-SMTP_PASSWORD = "tu_contraseña_de_aplicación"
+SMTP_USER = "mipacs.radiologia@gmail.com"
+SMTP_PASSWORD = "izevxxxdeasglhcb"
 
-FROM_EMAIL = "MI_PACS <tu_correo@gmail.com>"
+FROM_EMAIL = "MI_PACS <mipacs.radiologia@gmail.com>"
