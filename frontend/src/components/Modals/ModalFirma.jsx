@@ -14,6 +14,11 @@ export default function ModalFirma() {
 
   const [datosMedicoLogueado, setDatosMedicoLogueado] = useState({ nombre: "", rm: "" });
 
+  // 🔥 RUTA DINÁMICA: Detecta si estamos en desarrollo o en la red del hospital
+  const apiBase = window.location.origin.includes(":5173") 
+    ? "http://localhost:8000" 
+    : window.location.origin;
+
   // 🔄 CARGA INICIAL
   useEffect(() => {
     let nombreFinal = "";
@@ -38,8 +43,8 @@ export default function ModalFirma() {
     setDatosMedicoLogueado({ nombre: nombreFinal, rm: rmFinal });
 
     if (estudioId) {
-      // 🔥 CORRECCIÓN: Recuperar texto apuntando al estudio
-      fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/obtener-transcripcion`)
+      // 🔥 CORRECCIÓN: Recuperar texto usando ruta dinámica
+      fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/obtener-transcripcion`)
         .then(res => res.json())
         .then(data => {
           const textoFinal = data.informe || data.informe_texto || data.informe_text || data.texto || data.informe_final || "";
@@ -47,7 +52,7 @@ export default function ModalFirma() {
         })
         .catch(err => console.error("❌ Error en fetch de transcripción:", err));
     }
-  }, [estudioId]);
+  }, [estudioId, apiBase]);
 
   const handleSeleccionAprobacion = (decision) => {
     setAprobado(decision);
@@ -88,8 +93,8 @@ export default function ModalFirma() {
     try {
       const tokenSesion = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
 
-      // 🔥 CORRECCIÓN: Firma digital vinculada al estudio específico
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/firmar-informe`, {
+      // 🔥 CORRECCIÓN: Firma digital vinculada a la ruta dinámica
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/firmar-informe`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -125,8 +130,8 @@ export default function ModalFirma() {
     try {
       const tokenSesion = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
       
-      // 🔥 CORRECCIÓN: Consulta a Gemini apuntando al estudio
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/asistencia-ia`, {
+      // 🔥 CORRECCIÓN: Consulta a Gemini apuntando a la ruta dinámica
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/asistencia-ia`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
