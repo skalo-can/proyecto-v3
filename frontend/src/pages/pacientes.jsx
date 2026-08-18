@@ -35,8 +35,19 @@ export default function Pacientes() {
   const [modalEnvioOpen, setModalEnvioOpen] = useState(false);
 
   const reproductorGlobalRef = useRef(null); 
-  const hoyStr = new Date().toISOString().split('T')[0];
 
+  // 🔥 PARCHE ANTI-SAFARI: Generador de fecha local infalible
+  const obtenerFechaLocal = (diasOffset = 0) => {
+    const fecha = new Date();
+    fecha.setDate(fecha.getDate() + diasOffset);
+    const año = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    return `${año}-${mes}-${dia}`;
+  };
+
+  const hoyStr = obtenerFechaLocal(0);
+  
   const [filtros, setFiltros] = useState({ 
     fechaDesde: hoyStr, fechaHasta: hoyStr, fechaExacta: "", modalidad: "", busqueda: "", estado: "" 
   });
@@ -135,17 +146,21 @@ export default function Pacientes() {
   const handleAbrirEnvioMultiple = () => { if (seleccionados.length > 0) setModalEnvioOpen(true); };
 
   const setFiltroRapido = (tipo) => {
-    const hoy = new Date();
-    const formatearFecha = (fecha) => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
-    const hoyStrLocal = formatearFecha(hoy);
-    let desde = new Date(); let hastaStr = hoyStrLocal; 
-
-    setSeleccionados([]); setBusquedaProfunda(false); 
+    setSeleccionados([]); 
+    setBusquedaProfunda(false); 
     
-    if (tipo === "AYER") { desde.setDate(hoy.getDate() - 1); hastaStr = formatearFecha(desde); } 
-    else if (tipo === "SEMANA") { desde.setDate(hoy.getDate() - 7); }
+    let desdeStr = obtenerFechaLocal(0);
+    let hastaStr = obtenerFechaLocal(0); 
 
-    setFiltros(prev => ({ ...prev, fechaDesde: formatearFecha(desde), fechaHasta: hastaStr }));
+    if (tipo === "AYER") { 
+      desdeStr = obtenerFechaLocal(-1); 
+      hastaStr = obtenerFechaLocal(-1); 
+    } 
+    else if (tipo === "SEMANA") { 
+      desdeStr = obtenerFechaLocal(-7); 
+    }
+
+    setFiltros(prev => ({ ...prev, fechaDesde: desdeStr, fechaHasta: hastaStr }));
   };
 
   // La edición del paciente sigue actualizando al paciente, pero lo buscamos por el id del estudio de la fila
