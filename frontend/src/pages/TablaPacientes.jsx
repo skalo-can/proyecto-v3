@@ -20,6 +20,11 @@ export default function TablaPacientes({
   const isRadiologo = userRol === "radiologo" || userRol.startsWith("medico");
   const canUseHerramientasMedicas = isRadiologo || isAdmin;
 
+  // 🔥 RUTA DINÁMICA: Detecta si estamos en desarrollo o en la red del hospital
+  const apiBase = window.location.origin.includes(":5173") 
+    ? "http://localhost:8000" 
+    : window.location.origin;
+
   let tienePermisoDinamicoEditar = false;
   try {
     const permisos = user?.permisos || [];
@@ -42,7 +47,8 @@ export default function TablaPacientes({
     return () => window.removeEventListener("mouseup", stopDrag);
   }, []);
 
-  const abrirPDF = (estudioId) => window.open(`http://localhost:8000/api/pacientes/estudio/${estudioId}/descargar-pdf`, "_blank");
+  // 🔥 ACTUALIZADO: URL Dinámica
+  const abrirPDF = (estudioId) => window.open(`${apiBase}/api/pacientes/estudio/${estudioId}/descargar-pdf`, "_blank");
 
   const abrirVisorMedico = (estudioId, idReal) => {
     window.open(
@@ -52,11 +58,12 @@ export default function TablaPacientes({
     );
   };
 
+  // 🔥 ACTUALIZADO: URL Dinámica
   const handleCancelarEstudio = async (estudioId) => {
     const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio.\nMotivo clínico/técnico:");
     if (!motivo || motivo.trim() === "") return; 
     try {
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/cancelar-estudio`, {
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/cancelar-estudio`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motivo_cancelacion: motivo })
       });
       if (response.ok) { alert("✅ Estudio cancelado."); window.location.reload(); } 
@@ -72,7 +79,6 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
     if (!window.confirm(`📤 ¿Confirmar envío automatizado por ${tipoMetodo} al destino: ${destino}?`)) return;
     
     try {
-      const apiBase = window.location.origin;
       const token = localStorage.getItem("token")?.replace(/['"]+/g, '');
 
       // ==========================================
@@ -108,9 +114,9 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
         if (linkRes.ok) {
           const data = await linkRes.json();
           urlSegura = `${apiBase}/portal/${data.link}`;
-          console.log("🔗 Link generado con éxito:", urlSegura); // 🔥 Agrega esta línea
+          console.log("🔗 Link generado con éxito:", urlSegura); 
         } else {
-          console.error("❌ Falló la generación del link de seguridad."); // 🔥 Y esta línea 
+          console.error("❌ Falló la generación del link de seguridad.");  
         }
 
         // B) Despachamos el correo con el PDF y el Enlace
@@ -122,7 +128,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           },
           body: JSON.stringify({
             email: destino,
-            enlace_visor: urlSegura // 🔥 Se lo pasamos al backend
+            enlace_visor: urlSegura 
           })
         });
 
@@ -313,4 +319,4 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
       </tbody>
     </table>
   );
-} 
+}

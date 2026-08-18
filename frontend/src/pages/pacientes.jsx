@@ -46,6 +46,11 @@ export default function Pacientes() {
     return `${año}-${mes}-${dia}`;
   };
 
+  // 🔥 RUTA DINÁMICA: Detecta si estamos en desarrollo o en la red del hospital
+  const apiBase = window.location.origin.includes(":5173") 
+    ? "http://localhost:8000" 
+    : window.location.origin;
+
   const hoyStr = obtenerFechaLocal(0);
   
   const [filtros, setFiltros] = useState({ 
@@ -95,7 +100,7 @@ export default function Pacientes() {
 
     const params = new URLSearchParams(paramsObj);
 
-    fetch(`http://localhost:8000/api/pacientes?${params}`) 
+    fetch(`${apiBase}/api/pacientes?${params}`)
       .then((res) => res.json())
       .then((data) => {
         setPacientes(Array.isArray(data) ? data : (data.items || []));
@@ -193,7 +198,7 @@ export default function Pacientes() {
 
     try {
       // Guardamos la edición usando el ID del paciente (esto afecta los datos generales)
-      const response = await fetch(`http://localhost:8000/api/pacientes/${pacienteAEditar.id}`, {
+    const response = await fetch(`${apiBase}/api/pacientes/${pacienteAEditar.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
       });
 
@@ -210,7 +215,7 @@ export default function Pacientes() {
   const handleReabrirFlujoEstudio = async (estudio) => {
     if (!window.confirm(`⚠️ MODO MAESTRO:\n¿Reabrir el flujo para este estudio de ${estudio.primer_nombre}?`)) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudio.estudio_interno_id}/reabrir-flujo`, {
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudio.estudio_interno_id}/reabrir-flujo`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ forzar_estado_proceso: true })
       });
       if (response.ok) { setEstudiosAutorizados(prev => ({ ...prev, [estudio.estudio_interno_id]: true })); alert("🔄 Flujo reabierto."); cargarDatos(); } 
@@ -222,8 +227,7 @@ export default function Pacientes() {
   const handleMarcarTomado = async (estudioId) => {
     try {
       const token = user?.token || localStorage.getItem("token");
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/marcar-tomado`, {
-        method: "POST",
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/marcar-tomado`, {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
@@ -256,7 +260,7 @@ export default function Pacientes() {
       const pac = pacientes.find(p => p.estudio_interno_id === estudioId);
       if (pac && (pac.estado_pacs === "Dictado" || (pac.flujo_clinico && pac.flujo_clinico.tiene_audio))) {
         // 🔥 Buscando el audio del estudio específico
-        urlCargada = `http://localhost:8000/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`;
+        urlCargada = `${apiBase}/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`;
       } else return alert("ℹ️ No hay un dictado activo para este estudio.");
     }
 
