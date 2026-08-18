@@ -164,15 +164,15 @@ ORIGINES_SEGUROS = [
     "http://localhost:5173", 
     "http://127.0.0.1:5173", 
     "http://localhost:3000", 
-    "https://erratic-irritable-occupier.ngrok-free.dev",
-    "https://portal.mipacs.net", # Agregamos tu dominio de Cloudflare
+    "http://portal.mipacs.net",  # 🔥 Agregamos versión sin 's' por si Cloudflare la pasa así
+    "https://portal.mipacs.net", # 🔥 Versión segura
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ORIGINES_SEGUROS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
+    allow_methods=["*"], # 🔥 CAMBIO CLAVE: Permitir TODOS los métodos sin restricciones
     allow_headers=["*"],
 )
 
