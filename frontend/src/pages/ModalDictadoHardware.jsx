@@ -5,7 +5,7 @@ import { useAudioRecorder } from "./useAudioRecorder";
 export default function ModalDictadoHardware({ isWindow }) {
   // NOTA: Aunque la ruta dice pacienteId, ahora la tabla le manda el ID del ESTUDIO
   const { pacienteId } = useParams();
-  const estudioId = pacienteId; // Renombramos internamente para mayor claridad
+  const estudioId = pacienteId; 
   
   const [paciente, setPaciente] = useState(null);
   const audioRef = useRef(null);
@@ -20,10 +20,15 @@ export default function ModalDictadoHardware({ isWindow }) {
     reanudarGrabacionHardware, detenerGrabacionHardware
   } = useAudioRecorder();
 
-  // 🔥 CORRECCIÓN: Buscamos los datos cruzando con el ID del estudio
+  // 🔥 RUTA DINÁMICA: Detecta si estamos en desarrollo o en la red del hospital
+  const apiBase = window.location.origin.includes(":5173") 
+    ? "http://localhost:8000" 
+    : window.location.origin;
+
+  // 🔥 CORRECCIÓN: Buscamos los datos cruzando con el ID del estudio usando apiBase
   useEffect(() => {
     if (estudioId) {
-      fetch(`http://localhost:8000/api/pacientes`)
+      fetch(`${apiBase}/api/pacientes`)
         .then(res => {
           if (!res.ok) throw new Error("Error en servidor");
           return res.json();
@@ -35,7 +40,7 @@ export default function ModalDictadoHardware({ isWindow }) {
         })
         .catch(err => console.error("Error al cargar datos del estudio", err));
     }
-  }, [estudioId]);
+  }, [estudioId, apiBase]);
 
   const handleNavigate = (action) => {
     const a = audioRef.current;
@@ -57,8 +62,8 @@ export default function ModalDictadoHardware({ isWindow }) {
     const motivo = window.prompt("🚨 CONTROL DE CALIDAD PACS:\nEscriba el motivo detallado del rechazo:");
     if (!motivo) return; 
     try {
-      // 🔥 CORRECCIÓN: Ruta de rechazo por ID de estudio
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/rechazar-estudio-imagen`, {
+      // 🔥 CORRECCIÓN: Ruta de rechazo dinámica
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/rechazar-estudio-imagen`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nota_rechazo: motivo })
       });
       if (response.ok) {
@@ -80,8 +85,8 @@ export default function ModalDictadoHardware({ isWindow }) {
     formData.append("audio", blobFinal, `dictado_${cedula_real}.wav`);
     
     try {
-      // 🔥 CORRECCIÓN: Ruta de guardado de audio por ID de estudio
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/guardar-audio`, {
+      // 🔥 CORRECCIÓN: Ruta de guardado dinámica
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/guardar-audio`, {
         method: "POST",
         body: formData
       });

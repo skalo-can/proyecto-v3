@@ -17,6 +17,11 @@ export default function ModalTranscriptor({ isWindow }) {
   
   const audioRef = useRef(null);
 
+  // 🔥 RUTA DINÁMICA: Detecta si estamos en desarrollo o en la red del hospital
+  const apiBase = window.location.origin.includes(":5173") 
+    ? "http://localhost:8000" 
+    : window.location.origin;
+
   // 🔄 CARGA INICIAL PROTEGIDA Y SEGURA
   useEffect(() => {
     if (estudioId) {
@@ -24,7 +29,7 @@ export default function ModalTranscriptor({ isWindow }) {
       const headers = { "Authorization": `Bearer ${token}` };
 
       // 1. Descargar el audio enviando el Token de Seguridad (Para evitar 401)
-      fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`, { headers })
+      fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`, { headers })
       .then(res => {
         if (!res.ok) throw new Error("Audio no disponible o sin autorización");
         return res.blob(); 
@@ -36,7 +41,7 @@ export default function ModalTranscriptor({ isWindow }) {
       .catch(err => console.warn("Aviso de Audio:", err.message));
 
       // 2. Cargar datos de cabecera apuntando a tu endpoint original
-      fetch(`http://localhost:8000/api/pacientes`, { headers })
+      fetch(`${apiBase}/api/pacientes`, { headers })
         .then(res => res.json())
         .then(data => {
            const list = Array.isArray(data) ? data : (data.items || []);
@@ -45,7 +50,7 @@ export default function ModalTranscriptor({ isWindow }) {
         })
         .catch(err => console.error("Error al cargar datos del estudio", err));
     }
-  }, [estudioId]);
+  }, [estudioId, apiBase]);
 
   // 🔥 EFECTO DE CARGA MULTIPLE (Plantillas + Médicos)
   useEffect(() => {
@@ -54,13 +59,13 @@ export default function ModalTranscriptor({ isWindow }) {
         const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
         const headers = { "Authorization": `Bearer ${token}` };
 
-        const resPlantillas = await fetch(`http://localhost:8000/api/plantillas`, { headers });
+        const resPlantillas = await fetch(`${apiBase}/api/plantillas`, { headers });
         if (resPlantillas.ok) {
           const dataPlantillas = await resPlantillas.json();
           setPlantillas(dataPlantillas);
         }
         
-        const resMedicos = await fetch(`http://localhost:8000/api/usuarios`, { headers });
+        const resMedicos = await fetch(`${apiBase}/api/usuarios`, { headers });
         if (resMedicos.ok) {
           const dataMedicos = await resMedicos.json();
           const radiologos = dataMedicos.filter(u => u.rol && u.rol.toLowerCase().includes('radiologo'));
@@ -71,7 +76,7 @@ export default function ModalTranscriptor({ isWindow }) {
       }
     };
     fetchDatosInit();
-  }, []);
+  }, [apiBase]);
 
   const plantillasFiltradas = plantillas.filter(p => {
     if (!p.medico_id) return true;
@@ -123,7 +128,7 @@ export default function ModalTranscriptor({ isWindow }) {
     try {
       const token = localStorage.getItem("token") || localStorage.getItem("access_token") || ""; 
 
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/transcribir-audio`, {
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/transcribir-audio`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}` 
@@ -152,7 +157,7 @@ export default function ModalTranscriptor({ isWindow }) {
     try {
       const token = localStorage.getItem("token") || localStorage.getItem("access_token") || ""; 
 
-      const response = await fetch(`http://localhost:8000/api/pacientes/estudio/${estudioId}/guardar-transcripcion`, {
+      const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/guardar-transcripcion`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
