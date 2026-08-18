@@ -148,7 +148,7 @@ def login_endpoint(
 
     # 5. CONTROL DE ACCESO GEOGRÁFICO Y POR ROLES (INTERNET VS LAN)
     if not es_red_local:
-        rol_valido = usuario.rol.lower() in ["radiologo", "admin", "superadmin"]
+        rol_valido = usuario.rol.lower() in ["radiologo", "admin", "superadmin", "transcriptor"]
         
         if not (rol_valido or es_skalo):
             background_tasks.add_task(enviar_alerta_seguridad, ip_cliente, identifier, f"Intento de acceso remoto bloqueado para el rol: {usuario.rol}")
