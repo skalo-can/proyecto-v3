@@ -207,7 +207,25 @@ export default function ModalTranscriptor({ isWindow }) {
       </div>
 
       <div style={{ padding: "15px", backgroundColor: "#111418", borderRadius: "8px", border: "1px solid #333", marginBottom: "20px", display: "flex", gap: "20px", alignItems: "center" }}>
-        <audio ref={audioRef} src={audioUrl} controls style={{ flex: 1 }} />
+        {/* 🔥 REPRODUCTOR FÍSICO OCULTO (Bypass estricto para Safari y streaming 206) */}
+        <audio ref={audioRef} style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }} controls preload="auto" />
+        
+        {/* Botón manual de Play/Pausa visible para el transcriptor */}
+        <button 
+          onClick={() => {
+            const a = audioRef.current;
+            if (!a) return;
+            if (a.paused) {
+              if (audioUrl && !a.src) a.src = audioUrl;
+              a.play().catch(() => alert("❌ Safari bloqueó la reproducción. Haz clic en la página primero."));
+            } else {
+              a.pause();
+            }
+          }}
+          style={{ ...btnEstilo, background: "#3b82f6", color: "#fff" }}
+        >
+          ▶️ Play / Pausa
+        </button>
         
         <button 
           onClick={handleAutoTranscribir} 
