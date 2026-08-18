@@ -227,12 +227,16 @@ export default function Pacientes() {
   const handleMarcarTomado = async (estudioId) => {
     try {
       const token = user?.token || localStorage.getItem("token");
+      
+      // Usamos apiBase dinámica y forzamos el método POST
       const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/marcar-tomado`, {
+        method: "POST", 
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         }
       });
+      
       if (response.ok) {
         cargarDatos(); // Refresca la tabla automáticamente
       } else {
