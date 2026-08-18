@@ -258,29 +258,48 @@ export default function Pacientes() {
   const abrirModalTranscriptor = (estudioId) => window.open(`/visor-transcriptor/${estudioId}`, `Transcriptor_${estudioId}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
   const abrirModalFirma = (estudioId) => window.open(`/visor-firma/${estudioId}`, `Firma_${estudioId}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
 
+  // 🔥 SOLUCIÓN INFALIBLE: Autocrea el reproductor si no existe en el DOM
   const ejecutarPlayAudioTabla = (estudioId) => {
+    let reproductor = reproductorGlobalRef.current;
+    
+    // Si la referencia del DOM aún no está lista, la creamos dinámicamente al vuelo
+    if (!reproductor) {
+      reproductor = document.createElement('audio');
+      reproductor.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
+      document.body.appendChild(reproductor);
+      reproductorGlobalRef.current = reproductor;
+    }
+
     let urlCargada = audiosClinicos[estudioId];
     if (!urlCargada) {
       const pac = pacientes.find(p => p.estudio_interno_id === estudioId);
       if (pac && (pac.estado_pacs === "Dictado" || (pac.flujo_clinico && pac.flujo_clinico.tiene_audio))) {
-        // 🔥 Buscando el audio del estudio específico
         urlCargada = `${apiBase}/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`;
       } else return alert("ℹ️ No hay un dictado activo para este estudio.");
     }
 
     if (audioActualJugando === estudioId) {
-      if (reproductorGlobalRef.current) reproductorGlobalRef.current.pause();
+      reproductor.pause();
       setAudioActualJugando(null);
     } else {
-      if (reproductorGlobalRef.current) reproductorGlobalRef.current.pause();
-      const nuevoAudio = new Audio(urlCargada);
-      reproductorGlobalRef.current = nuevoAudio;
-      nuevoAudio.play().catch(e => alert("❌ El navegador bloqueó el audio."));
-      setAudioActualJugando(estudioId);
-      nuevoAudio.onended = () => setAudioActualJugando(null);
+      reproductor.pause();
+      reproductor.src = urlCargada;
+      reproductor.load();
+      
+      const playPromise = reproductor.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          setAudioActualJugando(estudioId);
+        }).catch(e => {
+          console.error("Safari bloqueó el audio:", e);
+          alert("❌ El navegador bloqueó el audio. Asegúrate de permitir la reproducción en este sitio.");
+        });
+      }
+      
+      reproductor.onended = () => setAudioActualJugando(null);
     }
   };
-
+  
   // 🔥 CORRECCIÓN: Filtramos los seleccionados por el ID del estudio
   const pacientesParaEnvio = pacientes.filter(p => seleccionados.includes(p.estudio_interno_id)).map(p => ({ ...p, modality: p.modalidad || p.modality || "OTRO" }));
 
