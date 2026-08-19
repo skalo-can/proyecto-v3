@@ -85,33 +85,47 @@ export default function Pacientes() {
   }, [user]);
 
   const cargarDatos = useCallback(() => {
-    setLoading(true);
-    let paramsObj = { modalidad: filtros.modalidad || "", estado: filtros.estado || "", busqueda: filtros.busqueda || "", sort_by: sortBy, order: sortOrder };
+      setLoading(true);
+      let paramsObj = { modalidad: filtros.modalidad || "", estado: filtros.estado || "", busqueda: filtros.busqueda || "", sort_by: sortBy, order: sortOrder };
 
-    if (busquedaProfunda) {
-      if ((filtros.busqueda || "").trim() === "" && filtros.fechaExacta === "") {
-        paramsObj.fechaDesde = filtros.fechaDesde; paramsObj.fechaHasta = filtros.fechaHasta;
+      if (busquedaProfunda) {
+        if ((filtros.busqueda || "").trim() === "" && filtros.fechaExacta === "") {
+          paramsObj.fechaDesde = filtros.fechaDesde; paramsObj.fechaHasta = filtros.fechaHasta;
+        } else {
+          paramsObj.fechaDesde = filtros.fechaExacta || ""; paramsObj.fechaHasta = filtros.fechaExacta || ""; 
+        }
       } else {
-        paramsObj.fechaDesde = filtros.fechaExacta || ""; paramsObj.fechaHasta = filtros.fechaExacta || ""; 
+        paramsObj.fechaDesde = filtros.fechaDesde; paramsObj.fechaHasta = filtros.fechaHasta;
       }
-    } else {
-      paramsObj.fechaDesde = filtros.fechaDesde; paramsObj.fechaHasta = filtros.fechaHasta;
-    }
 
-    const params = new URLSearchParams(paramsObj);
+      const params = new URLSearchParams(paramsObj);
 
-    fetch(`${apiBase}/api/pacientes?${params}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setPacientes(Array.isArray(data) ? data : (data.items || []));
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error cargando el repositorio PACS:", err);
-        setLoading(false);
-      });
-  }, [filtros, sortBy, sortOrder, busquedaProfunda]);
+      fetch(`${apiBase}/api/pacientes?${params}`)
+        .then((res) => res.json())
+        .then((data) => {
+          let datos = Array.isArray(data) ? data : (data.items || []);
+          
+          // 🧠 MOTOR DE ORDENAMIENTO IA (Triage Automático)
+          // Fuerza a que los pacientes críticos floten automáticamente a la cima de la tabla
+          datos.sort((a, b) => {
+            const pesos = { "CRITICO": 3, "URGENTE": 2, "NORMAL": 1 };
+            const pesoA = pesos[a.prioridad_ia] || 1; // Si no tiene, asume NORMAL
+            const pesoB = pesos[b.prioridad_ia] || 1;
+            
+            if (pesoA !== pesoB) {
+              return pesoB - pesoA; // Mayor peso va primero
+            }
+            return 0; // Si tienen la misma urgencia, respeta el orden de llegada
+          });
 
+          setPacientes(datos);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error("Error cargando el repositorio PACS:", err);
+          setLoading(false);
+        });
+    }, [filtros, sortBy, sortOrder, busquedaProfunda]);
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
   useEffect(() => {

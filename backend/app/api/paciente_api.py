@@ -23,6 +23,7 @@ from google import genai
 
 from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -208,6 +209,8 @@ def listar(
             "hora_estudio": hora_final,
             "descripcion": descripcion_final,
             "estado_pacs": estado_actual,      # 🟢 Cada estudio muestra su estado real independiente
+            # 🔥 AQUÍ ESTÁ LA LÍNEA MÁGICA QUE FALTABA 🔥
+            "prioridad_ia": getattr(estudio_principal, "prioridad_ia", "NORMAL") or "NORMAL",
             "pdf_path": getattr(estudio_principal, "pdf_path", None), 
             "flujo_clinico": {
                 "tiene_audio": tiene_audio or (estado_actual == "Dictado"),
@@ -956,11 +959,64 @@ def cancelar_estudio_definitivo(
         raise HTTPException(status_code=500, detail=f"Error al cancelar: {str(e)}")
 
 # =====================================================================
+# 🧠 FASE 2: MOTOR DE INTELIGENCIA LOCAL (TRIAGE AUTOMÁTICO)
+# =====================================================================
+def motor_analisis_local_background(estudio_id: int):
+    """
+    Analiza el estudio en segundo plano buscando palabras clave clínicas críticas.
+    """
+    # Importamos aquí adentro para evitar problemas de referencias circulares
+    from app.core.database import SessionLocal
+    from app.models.estudio import Estudio
+    
+    db_ia = SessionLocal()
+    try:
+        print(f"🤖 [IA LOCAL] Iniciando análisis de triage para estudio {estudio_id}...")
+        
+        estudio = db_ia.query(Estudio).filter(Estudio.id == estudio_id).first()
+        if not estudio:
+            return
+
+        # 1. Extraemos toda la información clínica
+        modalidad = getattr(estudio, 'modalidad', '') or ''
+        motivo = getattr(estudio, 'motivo_estudio', '') or ''
+        nota = getattr(estudio, 'nota_urgencia', '') or ''
+        
+        descripcion_clinica = f"{modalidad} {motivo} {nota}".upper()
+
+        # 2. Diccionarios de Conocimiento
+        palabras_criticas = ["POLITRAUMATISMO", "ACV", "INFARTO", "HEMORRAGIA", "URGENCIA VITAL", "UCI", "BALA", "HERIDA", "TEP", "ICTUS", "DERRAME"]
+        palabras_urgentes = ["FRACTURA", "DOLOR INTENSO", "DISNEA", "URGENCIAS", "APENDICITIS", "COLICO", "CÓLICO"]
+
+        prioridad_asignada = "NORMAL"
+
+        # 3. Inferencia de prioridad
+        if any(palabra in descripcion_clinica for palabra in palabras_criticas):
+            prioridad_asignada = "CRITICO"
+        elif any(palabra in descripcion_clinica for palabra in palabras_urgentes):
+            prioridad_asignada = "URGENTE"
+
+        # 4. Guardado silencioso
+        if hasattr(estudio, 'prioridad_ia'):
+            estudio.prioridad_ia = prioridad_asignada
+        else:
+            setattr(estudio, 'prioridad_ia', prioridad_asignada)
+            
+        db_ia.commit()
+        print(f"✅ [IA LOCAL] Estudio {estudio_id} clasificado exitosamente como: {prioridad_asignada}")
+
+    except Exception as e:
+        print(f"❌ [IA LOCAL] Fallo en el análisis: {e}")
+    finally:
+        db_ia.close()
+
+# =====================================================================
 # 🚀 ENDPOINT EXCLUSIVO PARA PRODUCTIVIDAD DE TECNÓLOGOS
 # =====================================================================
 @router.post("/estudio/{estudio_id}/marcar-tomado")
 @router.post("/{paciente_id}/marcar-tomado")
 def marcar_estudio_tomado(
+    background_tasks: BackgroundTasks, # 🔥 Inyectamos el ejecutor en segundo plano
     estudio_id: int = None,
     paciente_id: int = None, 
     usuario=Depends(obtener_usuario_actual), 
@@ -985,7 +1041,6 @@ def marcar_estudio_tomado(
         elif hasattr(estudio, 'tecnico_id'):
             estudio.tecnico_id = usuario.id
         elif hasattr(estudio, 'usuario_id'): 
-            # Fallback por si usan la columna genérica
             estudio.usuario_id = usuario.id
 
         # 3. Guardamos la hora exacta para los tiempos de respuesta (TAT)
@@ -994,12 +1049,16 @@ def marcar_estudio_tomado(
             estudio.fecha_actualizacion = datetime.now()
 
         db.commit()
+        
+        # 🧠 DISPARADOR DE IA: Despierta el motor local para clasificar el estudio
+        # Le pasamos el estudio.id para que sepa a quién buscar
+        background_tasks.add_task(motor_analisis_local_background, estudio.id)
+
         return {"status": "success", "message": f"Estudio {estudio.id} validado y asignado exitosamente al Tecnólogo."}
         
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al registrar la productividad técnica: {str(e)}")
-
 
 # =====================================================================
 # 🪄 AUTO-TRANSCRIPCIÓN CON INTELIGENCIA ARTIFICIAL (WHISPER)
@@ -1067,4 +1126,4 @@ def auto_transcribir_con_ia(
         print("🚨 ERROR FATAL DE WHISPER 🚨")
         traceback.print_exc()
         print("="*50 + "\n")
-        raise HTTPException(status_code=500, detail=f"Fallo crítico: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Fallo crítico: {str(e)}") 

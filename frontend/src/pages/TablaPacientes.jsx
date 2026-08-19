@@ -204,7 +204,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>VISOR</th>
         </tr>
       </thead>
-      <tbody>
+<tbody>
         {(!pacientes || pacientes.length === 0) ? (
           <tr>
             <td colSpan="17" style={styles.waitingState}>
@@ -230,8 +230,34 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
             const estudioAbierto = p.estado_pacs !== "Firmado" && p.estado_pacs !== "Cancelado";
             const canEditPaciente = canUseHerramientasMedicas || ((userRol === "recepcion" || userRol === "tecnologo") && esEstadoInicial) || (tienePermisoDinamicoEditar && estudioAbierto);
 
+            // 🧠 LÓGICA DE VISUALIZACIÓN IA (TRIAGE AUTOMÁTICO)
+            const esCritico = p.prioridad_ia === "CRITICO";
+            const esUrgente = p.prioridad_ia === "URGENTE";
+            const esNormal = p.prioridad_ia === "NORMAL";
+            
+            const estadoActivo = p.estado_pacs !== "Firmado" && p.estado_pacs !== "Cancelado";
+            const yaPasoPorIA = p.estado_pacs !== "Importado"; // Para no pintar de verde los que aún no han sido validados por el tecnólogo
+
+            // Determinar colores de la fila (Priorizando selecciones manuales y bloqueos)
+            let bgColor = "#111418";
+            let borderL = "4px solid transparent";
+
+            if (estaSeleccionado) {
+              bgColor = "#1e222b"; borderL = "4px solid #fbbf24";
+            } else if (p.estado_pacs === "Cancelado") {
+              bgColor = "#0f172a"; borderL = "4px solid #475569";
+            } else if (p.estado_pacs === "Rechazado") {
+              bgColor = "#2a1215"; borderL = "4px solid #ef4444";
+            } else if (esCritico && estadoActivo) {
+              bgColor = "rgba(239, 68, 68, 0.15)"; borderL = "4px solid #ef4444"; // 🚨 Alerta Roja
+            } else if (esUrgente && estadoActivo) {
+              bgColor = "rgba(249, 115, 22, 0.15)"; borderL = "4px solid #f97316"; // ⚠️ Alerta Naranja
+            } else if (esNormal && estadoActivo && yaPasoPorIA) {
+              bgColor = "rgba(16, 185, 129, 0.06)"; borderL = "4px solid #10b981"; // 🟢 Verde Suave (IA validó)
+            }
+
             return (
-              <tr key={p.estudio_interno_id} onMouseDown={(e) => handleRowMouseDown(e, index, p.estudio_interno_id)} onMouseEnter={() => handleRowMouseEnter(index, p.estudio_interno_id)} style={{ ...styles.trStyle, backgroundColor: estaSeleccionado ? "#1e222b" : p.estado_pacs === "Cancelado" ? "#0f172a" : p.estado_pacs === "Rechazado" ? "#2a1215" : "#111418", borderLeft: estaSeleccionado ? "4px solid #fbbf24" : p.estado_pacs === "Cancelado" ? "4px solid #475569" : p.estado_pacs === "Rechazado" ? "4px solid #ef4444" : "4px solid transparent", opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
+              <tr key={p.estudio_interno_id} onMouseDown={(e) => handleRowMouseDown(e, index, p.estudio_interno_id)} onMouseEnter={() => handleRowMouseEnter(index, p.estudio_interno_id)} style={{ ...styles.trStyle, backgroundColor: bgColor, borderLeft: borderL, opacity: p.estado_pacs === "Cancelado" ? 0.6 : 1, userSelect: "none" }}>
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={estaSeleccionado} onChange={() => toggleSeleccionarPaciente(p.estudio_interno_id)} />
                 </td>
@@ -280,7 +306,6 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                           <>
                             <button onClick={() => handleEnvioManual('WhatsApp', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
                             <button onClick={() => handleEnvioManual('Email', p.estudio_interno_id, idReal, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
-                            {/* 🔥 El botón de SMS ahora obedece al archivo .env */}
                             {import.meta.env.VITE_HABILITAR_SMS === "true" && (
                             <button onClick={() => handleEnvioManual('SMS', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
                             )}
@@ -294,7 +319,15 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                 <td style={styles.tdStyle}><div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}><span style={styles.fechaBadge}>{fechaReal}</span><span style={{ fontSize: '0.7rem', color: '#a8a29e', fontWeight: 'bold', fontFamily: 'monospace' }}>🕒 {horaReal}</span></div></td> 
                 <td style={styles.tdStyle}>{p.sexo || "M"}</td>
                 <td style={styles.tdStyle}><span style={{ ...styles.badge, backgroundColor: estiloMod.bg, color: estiloMod.color, border: estiloMod.border, padding: '6px 12px', fontSize: '0.75rem', boxShadow: `0 0 8px ${estiloMod.bg}` }}>{mReal}</span></td>
-                <td style={{ ...styles.tdStyle, color: '#f8fafc', fontWeight: '500', fontSize: '0.85rem' }}>{descripcionReal}</td>
+                
+                {/* 🔥 CELDA CON EL DISTINTIVO VISUAL DE IA 🔥 */}
+                <td style={{ ...styles.tdStyle, color: '#f8fafc', fontWeight: '500', fontSize: '0.85rem' }}>
+                  {esCritico && estadoActivo && <span title="¡ALERTA IA: Posible patología crítica!" style={{ marginRight: '6px', fontSize: '1.2rem' }}>🚨</span>}
+                  {esUrgente && estadoActivo && <span title="¡AVISO IA: Posible urgencia!" style={{ marginRight: '6px', fontSize: '1.2rem' }}>⚠️</span>}
+                  {esNormal && estadoActivo && yaPasoPorIA && <span title="IA: Estudio sin hallazgos críticos evidentes" style={{ marginRight: '6px', fontSize: '1.2rem' }}>🟢</span>}
+                  {descripcionReal}
+                </td>
+                
                 <td style={styles.tdStyle}>{p.departamento || "Radiología"}</td>
 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>

@@ -117,6 +117,14 @@ def auto_migrar_columnas_pacs():
     except sqlite3.OperationalError:
         pass
 
+    # 👇 -------- FASE 1: NUEVA COLUMNA IA LOCAL -------- 👇
+    try:
+        cursor.execute("ALTER TABLE estudios ADD COLUMN prioridad_ia VARCHAR(20) DEFAULT 'NORMAL'")
+        print("✅ [SQLITE] Columna 'prioridad_ia' forzada en estudios para Triage.")
+    except sqlite3.OperationalError:
+        pass
+    # 👆 ------------------------------------------------ 👆
+
     conn.commit()
     conn.close()
     print("🚀 Parcheo nativo finalizado. El sistema puede arrancar.")

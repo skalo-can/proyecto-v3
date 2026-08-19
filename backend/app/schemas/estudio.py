@@ -77,6 +77,7 @@ class EstudioListItem(BaseModel):
     fecha_estudio: date
     estado: EstadoEstudio
     descripcion: str | None
+    prioridad_ia: str | None = "NORMAL" # 🔥 AGREGADO
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -94,5 +95,6 @@ class EstudioResponse(BaseModel):
     descripcion: str | None
     creado_en: datetime
     actualizado_en: datetime
+    prioridad_ia: str | None = "NORMAL" # 🔥 AGREGADO
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True) 

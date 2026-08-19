@@ -87,6 +87,14 @@ class Estudio(Base):
         doc="Estado persistente del dictado médico (Importado, Dictado, Urgencia, etc.)"
     )
 
+    # 🤖 NUEVO: Campo para Triage de Inteligencia Artificial Local
+    prioridad_ia: Mapped[str | None] = mapped_column(
+        String(50),
+        default="NORMAL",
+        nullable=True,
+        doc="Nivel de prioridad clínica asignado por el motor de IA"
+    )
+
     # ---------------------------------------------------------
     # 🚨 CAMPOS DEL FLUJO DE URGENCIAS (FAST-TRACK)
     # ---------------------------------------------------------
