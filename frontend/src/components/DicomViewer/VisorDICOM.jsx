@@ -34,7 +34,7 @@ import Viewport from "./Viewport.jsx";
 
 const TOOL_GROUP_ID = "mipacs-tool-group";
 
-export default function VisorDICOM({ urls = [], modo = "medico", iaResultado = null }) {
+export default function VisorDICOM({ urls = [], modo = "medico", iaResultado = null, onVolver, onToggleHistory }) {
   const navigate = useNavigate();
 
   const [viewport, setViewport] = useState(null);
@@ -252,11 +252,12 @@ export default function VisorDICOM({ urls = [], modo = "medico", iaResultado = n
       <div style={{ flex: 3, position: "relative" }}>
         
         {/* 🔥 BOTÓN CLÍNICO DE VOLVER */}
-        <button onClick={() => navigate(-1)}>← Volver</button>
+        <button onClick={onVolver} style={{ padding: "6px 12px", background: "#334155", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", marginBottom: "10px" }}>← Volver</button>
 
-        <h2>Visor DICOM</h2>
+        <h2 style={{ color: "#f8fafc", margin: "0 0 10px 0" }}>Visor DICOM Principal</h2>
 
-        <Toolbar viewport={viewport} toolGroup={toolGroup} />
+        {/* 🛠️ AQUI PASAMOS EL EVENTO AL TOOLBAR */}
+        <Toolbar viewport={viewport} toolGroup={toolGroup} onToggleHistory={onToggleHistory} />
 
         {modo === "medico" && (
           <AdvancedToolbar viewport={viewport} toolGroup={toolGroup} />
@@ -390,4 +391,4 @@ export default function VisorDICOM({ urls = [], modo = "medico", iaResultado = n
       )}
     </div>
   );
-}
+} 

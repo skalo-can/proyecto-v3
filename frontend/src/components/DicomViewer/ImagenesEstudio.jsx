@@ -63,7 +63,7 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
   }, [estudioId]);
 
   // ---------------------------------------------------------
-  // Comparación con estudio previo
+  // Comparación con estudio previo (Lógica actualizada Historial eFilm)
   // ---------------------------------------------------------
   async function compararConPrevio() {
     try {
@@ -73,7 +73,7 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
       const data = await res.json();
 
       if (!data || !data.id) {
-        alert("Este paciente no tiene estudios previos.");
+        alert("Este paciente no tiene estudios previos para comparar.");
         return;
       }
 
@@ -91,6 +91,8 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
           return ruta;
         });
 
+      // 🔥 APAGAMOS EL VISOR NORMAL Y ENCENDEMOS LA COMPARACIÓN
+      setMostrarVisor(false);
       setMostrarComparacion({
         actual: listaDeImagenes,
         previo: urlsPrevio,
@@ -105,6 +107,23 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
   // ---------------------------------------------------------
   // Renderizado de visualizadores clínicos
   // ---------------------------------------------------------
+  
+  // 1. Primero evaluamos si debe mostrar la comparación
+  if (mostrarComparacion) {
+    return (
+      <CompareViewer
+        urlsA={mostrarComparacion.actual}
+        urlsB={mostrarComparacion.previo}
+        iaResultado={iaResultado}
+        onVolver={() => {
+          setMostrarComparacion(null);
+          setMostrarVisor(true); // 🔥 Regresa al visor normal sin cerrar todo
+        }}
+      />
+    );
+  }
+
+  // 2. Si no está en comparación, evaluamos si debe mostrar el visor normal
   if (mostrarVisor) {
     return (
       <VisorDICOM
@@ -112,10 +131,12 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
         modo="medico"
         iaResultado={iaResultado}
         onVolver={() => setMostrarVisor(false)}
+        onToggleHistory={compararConPrevio} // 🔗 AQUÍ CONECTAMOS EL BOTÓN PREMIUM
       />
     );
   }
 
+  // 3. Evaluamos MPR
   if (mostrarMPR) {
     return (
       <MPRViewer
@@ -126,23 +147,12 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
     );
   }
 
-  if (mostrarComparacion) {
-    return (
-      <CompareViewer
-        urlsA={mostrarComparacion.actual}
-        urlsB={mostrarComparacion.previo}
-        iaResultado={iaResultado}
-        onVolver={() => setMostrarComparacion(null)}
-      />
-    );
-  }
-
   if (urlSeleccionada) {
     return <ViewerContainer url={urlSeleccionada} />;
   }
 
   // ---------------------------------------------------------
-  // Lista de imágenes con miniaturas + doble click
+  // Lista de imágenes con miniaturas + doble click (Galería)
   // ---------------------------------------------------------
   return (
     <div style={{ padding: "20px" }}>

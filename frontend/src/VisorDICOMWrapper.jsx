@@ -1,6 +1,20 @@
+/**
+ * VisorDICOMWrapper.jsx — MI_PACS
+ * ---------------------------------------------------------
+ * Visor clínico de producción con herramientas premium inyectadas.
+ * ✔ Modificado para soportar ROI, Negativo, Flip H/V, Limpiar
+ * ✔ Conectado DIRECTAMENTE al CompareViewer (Historial)
+ */
+
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+
+
+
+// 🔥 ATENCIÓN: Asegúrate de que esta ruta apunte a tu CompareViewer.
+// Si tu VisorDICOMWrapper está en la carpeta 'pages', esta ruta es correcta:
+import CompareViewer from "./components/DicomViewer/CompareViewer";
 
 import cornerstone from "cornerstone-core";
 import cornerstoneTools from "cornerstone-tools";
@@ -22,6 +36,12 @@ cornerstoneWADOImageLoader.webWorkerManager.initialize({
 });
 
 cornerstoneTools.init({ globalToolSyncEnabled: true, showSVGCursors: true });
+
+// 🎨 CONFIGURACIÓN VISUAL MEJORADA PARA TEXTOS (Color Amarillo)
+cornerstoneTools.textStyle.setFont('16px Arial, Helvetica, sans-serif');
+cornerstoneTools.toolColors.setToolColor('#ffcc00'); // Amarillo para reposo
+cornerstoneTools.toolColors.setActiveColor('#00ff00'); // Verde neón al dibujar
+cornerstoneTools.toolStyle.setToolWidth(2);
 
 const API_BASE = window.location.origin;
 
@@ -70,6 +90,9 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const [indiceActual, setIndiceActual] = useState(0);
   const [loading, setLoading] = useState(true);
   
+  // 📂 NUEVO ESTADO PARA EL HISTORIAL (eFilm)
+  const [mostrarComparacion, setMostrarComparacion] = useState(null);
+
   const [isCinePlaying, setIsCinePlaying] = useState(false);
   const [cineSpeed, setCineSpeed] = useState(15); 
   
@@ -81,7 +104,6 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const isDragging3D = useRef(false);
   const lastMouseX = useRef(0);
 
-  // 🔥 LÓGICA DE SEGURIDAD BLINDADA
   const tokenUrl = searchParams.get("token") || tokenPaciente;
   const isGuest = esPortalPaciente || !!tokenUrl;
   
@@ -158,16 +180,12 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     fetchImagenes();
   }, [currentId, activeToken, isGuest, cleanLocalToken]);
 
-  // 🚀 AUTO-AJUSTE AL GIRAR LA PANTALLA O CAMBIAR DE TAMAÑO
   useEffect(() => {
     const handleResize = () => {
       const element = dicomElementRef.current;
       if (element) {
-        try {
-          cornerstone.resize(element, true);
-        } catch (e) {
-          console.warn("Resize warning:", e);
-        }
+        try { cornerstone.resize(element, true); } 
+        catch (e) { console.warn("Resize warning:", e); }
       }
     };
     window.addEventListener("resize", handleResize);
@@ -194,8 +212,11 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     if (isRadiologo) {
       const LengthTool = cornerstoneTools.LengthTool;
       const AngleTool = cornerstoneTools.AngleTool;
+      const EllipticalRoiTool = cornerstoneTools.EllipticalRoiTool; 
+
       cornerstoneTools.addTool(LengthTool);
       cornerstoneTools.addTool(AngleTool);
+      cornerstoneTools.addTool(EllipticalRoiTool);
     }
 
     cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 1 });
@@ -298,6 +319,92 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     isDragging3D.current = false;
   };
 
+  const toggleNegativo = () => {
+    const el = dicomElementRef.current;
+    if (el) {
+      const vp = cornerstone.getViewport(el);
+      vp.invert = !vp.invert;
+      cornerstone.setViewport(el, vp);
+    }
+  };
+
+  const toggleFlipH = () => {
+    const el = dicomElementRef.current;
+    if (el) {
+      const vp = cornerstone.getViewport(el);
+      vp.hflip = !vp.hflip;
+      cornerstone.setViewport(el, vp);
+    }
+  };
+
+  const toggleFlipV = () => {
+    const el = dicomElementRef.current;
+    if (el) {
+      const vp = cornerstone.getViewport(el);
+      vp.vflip = !vp.vflip;
+      cornerstone.setViewport(el, vp);
+    }
+  };
+
+  const limpiarTrazos = () => {
+    const el = dicomElementRef.current;
+    if (el) {
+      cornerstoneTools.clearToolState(el, "Length");
+      cornerstoneTools.clearToolState(el, "Angle");
+      cornerstoneTools.clearToolState(el, "EllipticalRoi");
+      cornerstone.updateImage(el);
+    }
+  };
+
+  // 📂 LÓGICA INCORPORADA PARA BUSCAR EL HISTORIAL DIRECTAMENTE
+  const abrirHistorialComparativo = async () => {
+    try {
+      console.log("MI_PACS → Solicitando estudio previo...");
+      const res = await fetch(`${API_BASE}/api/estudios/${currentId}/previo`, {
+        headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
+      });
+      const data = await res.json();
+
+      if (!data || !data.id) {
+        alert("Este paciente no tiene estudios previos para comparar.");
+        return;
+      }
+
+      const resPrevio = await fetch(`${API_BASE}/api/estudios/${data.id}/imagenes`, {
+        headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
+      });
+      const imgsPrevio = await resPrevio.json();
+
+      // Formatear las URLs para el CompareViewer (no llevan wadouri: aquí)
+      const urlsPrevioRaw = imgsPrevio.map(img => {
+        if (isGuest) return `${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
+        return `${API_BASE}/api/dicom/stream/${img.id}`;
+      });
+
+      const urlsActualesRaw = imagenesActuales.map(u => u.replace("wadouri:", ""));
+
+      // 🔄 Cambiar la vista a comparación
+      setMostrarComparacion({ actual: urlsActualesRaw, previo: urlsPrevioRaw });
+
+    } catch (err) {
+      console.error("Error cargando historial:", err);
+      alert("No se pudo cargar el historial del paciente.");
+    }
+  };
+
+// 🎭 RENDERIZADO CONDICIONAL: SI HAY COMPARACIÓN, MUESTRA EL SPLIT SCREEN
+  if (mostrarComparacion) {
+    return (
+      <div style={{ width: "100%", height: "100vh", backgroundColor: "#000" }}>
+        <CompareViewer
+          seriesA={mostrarComparacion.actual}  // ← Cambiamos urlsA por seriesA
+          seriesB={mostrarComparacion.previo}  // ← Cambiamos urlsB por seriesB
+          onVolver={() => setMostrarComparacion(null)}
+        />
+      </div>
+    );
+  }
+  
   return (
     <div style={styles.visorContainer}>
       
@@ -311,7 +418,6 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
           </span>
         </div>
 
-        {/* 🚀 BARRA SUPERIOR CON SCROLL HORIZONTAL TÁCTIL PARA MÓVILES */}
         <div style={{ display: "flex", gap: "6px", alignItems: "center", overflowX: "auto", flex: 1, paddingLeft: "10px", whiteSpace: "nowrap", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
           <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>🌓 Contraste</button>
           <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 Zoom</button>
@@ -337,6 +443,23 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
               <div style={styles.divisor} />
               <button style={herramientaActiva === "Length" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Length")}>📏 Medir</button>
               <button style={herramientaActiva === "Angle" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Angle")}>📐 Ángulo</button>
+              
+              <button style={herramientaActiva === "EllipticalRoi" ? styles.btnPremiumActivo : styles.btnPremium} onClick={() => activarHerramienta("EllipticalRoi")} title="Densidad y Área (ROI)">
+                🎯 ROI
+              </button>
+              <button style={styles.btnPremium} onClick={toggleNegativo} title="Invertir Colores">
+                🌗 Negativo
+              </button>
+              <button style={styles.btnLimpiar} onClick={limpiarTrazos} title="Borrar todas las mediciones de la imagen">
+                🧹 Limpiar
+              </button>
+              <button style={styles.btnTool} onClick={toggleFlipH}>↔️ Flip H</button>
+              <button style={styles.btnTool} onClick={toggleFlipV}>↕️ Flip V</button>
+              
+              {/* 🔗 BOTÓN HISTORIAL DIRECTAMENTE CONECTADO */}
+              <button style={styles.btnEfilm} onClick={abrirHistorialComparativo} title="Comparar con historial">
+                📂 Historial
+              </button>
             </>
           )}
 
@@ -463,14 +586,23 @@ const styles = {
   visorContainer: { display: "flex", flexDirection: "column", height: "100%", width: "100%", backgroundColor: "#000", overflow: "hidden", fontFamily: "system-ui, sans-serif" },
   toolbar: { height: "60px", backgroundColor: "#111418", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0 },
   btnCerrar: { backgroundColor: "#ef4444", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
+  
   btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", transition: "all 0.2s", flexShrink: 0 },
   btnToolActivo: { backgroundColor: "#3b82f6", color: "#fff", border: "1px solid #2563eb", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
+  
+  btnPremium: { backgroundColor: "#064e3b", color: "#d1fae5", border: "1px solid #047857", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0, transition: "0.2s" },
+  btnPremiumActivo: { backgroundColor: "#10b981", color: "#000", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(16, 185, 129, 0.5)", flexShrink: 0 },
+  
+  btnLimpiar: { backgroundColor: "#7f1d1d", color: "#fecaca", border: "1px solid #991b1b", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
+  btnEfilm: { backgroundColor: "#b45309", color: "#fef3c7", border: "1px solid #92400e", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
+
   btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btn3DActivo: { backgroundColor: "#38bdf8", color: "#000", border: "1px solid #0284c7", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(56, 189, 248, 0.5)", flexShrink: 0 },
   btnCine: { backgroundColor: "#4c1d95", color: "#ede9fe", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btnCineActivo: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #6d28d9", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(124, 58, 237, 0.5)", flexShrink: 0 },
   btnToolSeguridad: { backgroundColor: "#0f766e", color: "#ccfbf1", border: "1px solid #115e59", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btnToolActivoSeguridad: { backgroundColor: "#14b8a6", color: "#000", border: "1px solid #0d9488", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(20, 184, 166, 0.5)", flexShrink: 0 },
+  
   divisor: { width: "1px", backgroundColor: "#475569", margin: "0 5px", height: "24px", flexShrink: 0 },
   mainArea: { display: "flex", flex: 1, overflow: "hidden" },
   sidebar: { width: "120px", backgroundColor: "#0f172a", borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", padding: "10px 0" },
