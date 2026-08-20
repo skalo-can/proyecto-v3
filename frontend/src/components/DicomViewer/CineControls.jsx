@@ -142,7 +142,7 @@ export default function CineControls({ viewport, stack }) {
       }}
     >
       <button onClick={prev}>◀ Corte anterior</button>
-      <button onClick={next}>Corte siguiente ▶</button>
+      <button onClick={next}>siguiente corte ▶</button>
 
       {!isPlaying ? (
         <button onClick={play}>▶ Reproducir</button>
