@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://localhost:8000/api/auditoria";
+const API = "http://192.168.5.21:8000/api/auditoria";
 
 export const listarAuditoria = async (limit = 100) => {
   const res = await axios.get(`${API}/listar?limit=${limit}`);

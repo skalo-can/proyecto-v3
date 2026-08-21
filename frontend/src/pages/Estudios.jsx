@@ -48,7 +48,7 @@ export default function Estudios() {
       offset: pagina * limit,
     });
 
-    fetch(`http://localhost:8000/filtros/estudios?${params}`)
+    fetch(`http://192.168.5.21:8000/filtros/estudios?${params}`)
       .then((res) => res.json())
       .then((data) => {
         setEstudios(data.items);

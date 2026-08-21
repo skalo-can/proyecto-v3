@@ -55,7 +55,7 @@ export default function SystemConfig({ onOpenDicom }) {
 
   const resetDatabase = () => {
     if (!window.confirm("⚠️ ¿Seguro que deseas resetear toda la base de datos?")) return;
-    fetch("http://localhost:8000/admin/reset-db", { method: "POST" })
+    fetch("http://192.168.5.21:8000/admin/reset-db", { method: "POST" })
       .then(() => alert("Base de datos reseteada correctamente."))
       .catch(() => alert("Error al resetear la base de datos."));
   };

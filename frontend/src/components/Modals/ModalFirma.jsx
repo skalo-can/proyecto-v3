@@ -16,7 +16,7 @@ export default function ModalFirma() {
 
   // 🔥 RUTA DINÁMICA: Detecta si estamos en desarrollo o en la red del hospital
   const apiBase = window.location.origin.includes(":5173") 
-    ? "http://localhost:8000" 
+    ? "http://192.168.5.21:8000" 
     : window.location.origin;
 
   // 🔄 CARGA INICIAL

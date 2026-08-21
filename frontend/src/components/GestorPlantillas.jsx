@@ -18,7 +18,7 @@ export default function GestorPlantillas() {
 
   const cargarPlantillas = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/plantillas");
+      const response = await fetch("http://192.168.5.21:8000/api/plantillas");
       if (response.ok) {
         const data = await response.json();
         setPlantillas(data);
@@ -30,7 +30,7 @@ export default function GestorPlantillas() {
 
   const cargarMedicos = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/usuarios");
+      const response = await fetch("http://192.168.5.21:8000/api/usuarios");
       if (response.ok) {
         const data = await response.json();
         const listaMedicos = data.filter(u => u.rol && u.rol.toLowerCase().includes('radiologo'));
@@ -87,8 +87,8 @@ export default function GestorPlantillas() {
       };
 
       const url = isEditing 
-        ? `http://localhost:8000/api/plantillas/${editId}` 
-        : "http://localhost:8000/api/plantillas";
+        ? `http://192.168.5.21:8000/api/plantillas/${editId}` 
+        : "http://192.168.5.21:8000/api/plantillas";
         
       const method = isEditing ? "PUT" : "POST";
 
@@ -114,7 +114,7 @@ export default function GestorPlantillas() {
   const handleEliminar = async (id) => {
     if (!window.confirm("⚠️ ¿Estás seguro de que deseas eliminar esta plantilla de forma permanente?")) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/plantillas/${id}`, { method: "DELETE" });
+      const response = await fetch(`http://192.168.5.21:8000/api/plantillas/${id}`, { method: "DELETE" });
       if (!response.ok) throw new Error("No se pudo eliminar la plantilla");
       cargarPlantillas();
     } catch (error) {

@@ -23,7 +23,7 @@ export default function ImportarPage() {
     const verificarEstadoImportacion = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.get('http://localhost:8000/api/importacion-fisica/estado', {
+            const res = await axios.get('http://192.168.5.21:8000/api/importacion-fisica/estado', {
                 headers: { 
                     'Authorization': `Bearer ${tokenLimpio}`,
                     'Accept': 'application/json'
@@ -55,7 +55,7 @@ export default function ImportarPage() {
         const reconectarProgreso = async () => {
             try {
                 const tokenLimpio = obtenerTokenLimpio();
-                const res = await axios.get('http://localhost:8000/api/importacion-fisica/estado', {
+                const res = await axios.get('http://192.168.5.21:8000/api/importacion-fisica/estado', {
                     headers: { 'Authorization': `Bearer ${tokenLimpio}`, 'Accept': 'application/json' }
                 });
                 
@@ -103,7 +103,7 @@ export default function ImportarPage() {
         setResumenFinal(null);
         
         try {
-            const res = await axios.post('http://localhost:8000/api/importacion-fisica/disco-externo', {}, {
+            const res = await axios.post('http://192.168.5.21:8000/api/importacion-fisica/disco-externo', {}, {
                 headers: { 
                     'Authorization': `Bearer ${tokenLimpio}`,
                     'Content-Type': 'application/json'
@@ -137,7 +137,7 @@ export default function ImportarPage() {
 
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            await axios.post('http://localhost:8000/api/importacion-fisica/cancelar', {}, {
+            await axios.post('http://192.168.5.21:8000/api/importacion-fisica/cancelar', {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
             alert("🛑 Orden de cancelación enviada. El proceso se detendrá en unos segundos.");
@@ -150,7 +150,7 @@ export default function ImportarPage() {
     const handleExportarBD = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.post('http://localhost:8000/api/importacion-fisica/exportar-bd', {}, {
+            const res = await axios.post('http://192.168.5.21:8000/api/importacion-fisica/exportar-bd', {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
             alert(`✅ Base de datos exportada con éxito.\nDetalle: ${res.data.message || "Operación completada"}`);
@@ -162,7 +162,7 @@ export default function ImportarPage() {
     const handleImportarBD = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.post('http://localhost:8000/api/importacion-fisica/importar-bd', {}, {
+            const res = await axios.post('http://192.168.5.21:8000/api/importacion-fisica/importar-bd', {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
             alert(`✅ Base de datos importada con éxito.\nDetalle: ${res.data.message || "Operación completada"}`);

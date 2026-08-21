@@ -36,7 +36,7 @@ export default function ExportarPage() {
         
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.get(`http://localhost:8000/api/pacientes?busqueda=${criterio}`, {
+            const res = await axios.get(`http://192.168.5.21:8000/api/pacientes?busqueda=${criterio}`, {
                 headers: { Authorization: `Bearer ${tokenLimpio}` }
             });
 
@@ -109,7 +109,7 @@ export default function ExportarPage() {
             
             const estudiosAExportar = estudios.filter(est => seleccionados.includes(est.estudio_unico_id));
 
-            const res = await axios.post('http://localhost:8000/api/pacientes/exportar/medios-externos', {
+            const res = await axios.post('http://192.168.5.21:8000/api/pacientes/exportar/medios-externos', {
                 estudios_ids: estudiosAExportar.map(e => e.estudio_real_id),
                 incluir_visor: incluirVisor,
                 modo_destino: modoDestino

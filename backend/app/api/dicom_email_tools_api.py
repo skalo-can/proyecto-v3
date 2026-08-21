@@ -150,7 +150,7 @@ def generar_link_seguro(archivo: Path, expiracion_horas: int = 48) -> str:
     # Aquí podrías guardar token, ruta y expiración en BD.
     # Por ahora, asumimos acceso directo vía /static/exports.
     relative = archivo.relative_to(STATIC_DIR)
-    url_base = settings.BACKEND_CORS_ORIGINS[0] if settings.BACKEND_CORS_ORIGINS else "http://localhost:8000"
+    url_base = settings.BACKEND_CORS_ORIGINS[0] if settings.BACKEND_CORS_ORIGINS else "http://192.168.5.21:8000"
     return f"{url_base}/static/{relative.as_posix()}?token={token}&exp={int(expires_at.timestamp())}"
 
 

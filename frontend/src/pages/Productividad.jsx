@@ -22,7 +22,7 @@ export default function Productividad() {
             fecha_hasta: filtros.fechaHasta, 
             rol: "TODOS" 
         });
-        const res = await fetch(`http://localhost:8000/api/productividad-real?${params}`);
+        const res = await fetch(`http://192.168.5.21:8000/api/productividad-real?${params}`);
         let data = await res.json();
         
         data = data.map(d => ({

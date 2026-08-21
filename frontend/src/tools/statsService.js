@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8000/api/stats";
+const API_URL = "http://192.168.5.21:8000/api/stats";
 
 /* ---------------------------------------------------------
    WRAPPER PROFESIONAL PARA FETCH
