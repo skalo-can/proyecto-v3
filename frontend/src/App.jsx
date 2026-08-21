@@ -2,6 +2,29 @@ import React, { useState } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import axios from "axios"; // 🚀 IMPORTACIÓN AÑADIDA PARA EL INTERCEPTOR
+
+// =====================================================================
+// 🛡️ ESCUDO INTERCEPTOR GLOBAL DE SEGURIDAD
+// =====================================================================
+// Si cualquier pantalla (como el temporizador de importación) recibe un 
+// error 401 (No Autorizado), este escudo detiene la petición, borra el 
+// rastro de la sesión y manda al usuario al Login automáticamente.
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      console.warn("🔒 Seguridad: Sesión inválida o expirada. Redirigiendo al Login...");
+      localStorage.removeItem("token");
+      
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+// =====================================================================
 
 // Componentes y Páginas
 import { Header } from "./components/Header";
@@ -208,4 +231,4 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   );
-} 
+}
