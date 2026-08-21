@@ -9,7 +9,8 @@ const TecnologoConsole = () => {
 
     const fetchWorklist = useCallback(async () => {
         try {
-            const response = await axios.get(`http://localhost:8000/api/ris/worklist?t=${Date.now()}`);
+            // 🔥 AQUÍ CORREGIMOS LA IP
+            const response = await axios.get(`http://192.168.5.21:8000/api/ris/worklist?t=${Date.now()}`);
             setPacientes(response.data);
             setLoading(false);
         } catch (err) {
@@ -25,7 +26,8 @@ const TecnologoConsole = () => {
 
     const handleAtender = async (id) => {
         try {
-            await axios.put(`http://localhost:8000/api/ris/order/atender/${id}`, { usuario_id: 1 });
+            // 🔥 AQUÍ TAMBIÉN CORREGIMOS LA IP
+            await axios.put(`http://192.168.5.21:8000/api/ris/order/atender/${id}`, { usuario_id: 1 });
             setPacientes(prev => prev.filter(p => p.id_orden !== id));
         } catch (err) {
             alert("Error al procesar la atención.");

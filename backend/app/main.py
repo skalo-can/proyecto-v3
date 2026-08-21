@@ -174,6 +174,7 @@ ORIGINES_SEGUROS = [
     "http://localhost:3000", 
     "http://portal.mipacs.net",  # 🔥 Agregamos versión sin 's' por si Cloudflare la pasa así
     "https://portal.mipacs.net", # 🔥 Versión segura
+    "http://192.168.5.21:5173",  # 👈 DEBE ESTAR EXACTAMENTE ASÍ
 ]
 
 app.add_middleware(
