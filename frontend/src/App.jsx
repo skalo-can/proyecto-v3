@@ -61,6 +61,20 @@ import ModalDictadoHardware from "./pages/ModalDictadoHardware";
 import ModalTranscriptor from "./components/Modals/ModalTranscriptor";
 import ModalFirma from "./components/Modals/ModalFirma";
 
+// =====================================================================
+// 🌍 DETECTOR AUTOMÁTICO DE ENTORNO (HOSPITAL-GRADE)
+// =====================================================================
+let apiUrl = "http://192.168.5.21:8000"; // Por defecto, asume que no hay internet (Intranet)
+
+// Si la URL del navegador contiene el dominio público, cambia la ruta hacia internet
+if (window.location.hostname.includes("portal.mipacs.net")) {
+  apiUrl = "https://portal.mipacs.net";
+}
+
+// Hacemos que esta variable esté disponible en todo el sistema
+window.API_URL = apiUrl;
+// =====================================================================
+
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, loading, user } = useAuth();
 
@@ -231,4 +245,4 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   );
-}
+} 

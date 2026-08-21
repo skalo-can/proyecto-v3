@@ -17,7 +17,8 @@ const RecuperarBackupsPage = () => {
     setCargando(true);
     setError(null);
     try {
-      const response = await fetch(`http://192.168.5.21:8000/api/backup/buscar-en-nas?q=${encodeURIComponent(busqueda)}`, {
+      // ✅ CÓDIGO CORREGIDO: Usando el Enrutador Dinámico
+      const response = await fetch(`${window.API_URL}/api/backup/buscar-en-nas?q=${encodeURIComponent(busqueda)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -37,7 +38,8 @@ const RecuperarBackupsPage = () => {
 
   const abrirCarpeta = async (ruta) => {
     try {
-      const res = await fetch("http://192.168.5.21:8000/api/backup/abrir-ubicacion", {
+      // ✅ CÓDIGO CORREGIDO: Usando el Enrutador Dinámico
+      const res = await fetch(`${window.API_URL}/api/backup/abrir-ubicacion`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
