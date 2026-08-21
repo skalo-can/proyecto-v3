@@ -72,7 +72,7 @@ export default function Sidebar({ isOpen, onClose }) {
     }
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/reset/soft", {
+      const response = await fetch("http://192.168.5.21:8000/api/reset/soft", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.token}` }
       });

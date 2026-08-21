@@ -17,7 +17,7 @@ const RecuperarBackupsPage = () => {
     setCargando(true);
     setError(null);
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/backup/buscar-en-nas?q=${encodeURIComponent(busqueda)}`, {
+      const response = await fetch(`http://192.168.5.21:8000/api/backup/buscar-en-nas?q=${encodeURIComponent(busqueda)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -37,7 +37,7 @@ const RecuperarBackupsPage = () => {
 
   const abrirCarpeta = async (ruta) => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/backup/abrir-ubicacion", {
+      const res = await fetch("http://192.168.5.21:8000/api/backup/abrir-ubicacion", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

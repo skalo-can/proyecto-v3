@@ -16,7 +16,7 @@ export default function SystemConfig({ onOpenDicom }) {
   useEffect(() => {
     setLoading(true);
     axios
-      .get("http://127.0.0.1:8000/status")
+      .get("http://192.168.5.21:8000/status")
       .then((res) => setSystemInfo(res.data))
       .catch(() => setError("No se pudo obtener el estado del sistema."))
       .finally(() => setLoading(false));
@@ -34,21 +34,21 @@ export default function SystemConfig({ onOpenDicom }) {
 
   const limpiarThumbnails = () => {
     axios
-      .post("http://127.0.0.1:8000/api/reset/thumbnails")
+      .post("http://192.168.5.21:8000/api/reset/thumbnails")
       .then(() => setMessage("Thumbnails limpiados correctamente."))
       .catch(() => setError("Error al limpiar thumbnails."));
   };
 
   const limpiarInbox = () => {
     axios
-      .post("http://127.0.0.1:8000/api/reset/inbox")
+      .post("http://192.168.5.21:8000/api/reset/inbox")
       .then(() => setMessage("Inbox DICOM limpiado correctamente."))
       .catch(() => setError("Error al limpiar inbox."));
   };
 
   const reiniciarServicios = () => {
     axios
-      .post("http://127.0.0.1:8000/api/reset/restart-services")
+      .post("http://192.168.5.21:8000/api/reset/restart-services")
       .then(() => setMessage("Servicios reiniciados correctamente."))
       .catch(() => setError("Error al reiniciar servicios."));
   };
@@ -87,7 +87,7 @@ export default function SystemConfig({ onOpenDicom }) {
         ) : (
           <div>
             <p><strong>Estado:</strong> {systemInfo?.message || "Desconocido"}</p>
-            <p><strong>Backend:</strong> http://127.0.0.1:8000</p>
+            <p><strong>Backend:</strong> http://192.168.5.21:8000</p>
             <p><strong>Frontend:</strong> http://127.0.0.1:5173</p>
             <p><strong>Versión MI_PACS:</strong> 3.0</p>
           </div>

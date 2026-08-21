@@ -60,7 +60,7 @@ export default function DashboardStats() {
 
   const fetchGlobalStats = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/stats-dashboard", {
+      const response = await fetch("http://192.168.5.21:8000/api/stats-dashboard", {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
@@ -97,7 +97,7 @@ export default function DashboardStats() {
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/stats-dashboard?inicio=${filtros.inicio}&fin=${filtros.fin}`, {
+      const response = await fetch(`http://192.168.5.21:8000/api/stats-dashboard?inicio=${filtros.inicio}&fin=${filtros.fin}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

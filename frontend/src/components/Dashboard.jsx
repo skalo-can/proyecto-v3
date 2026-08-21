@@ -33,7 +33,7 @@ export default function ConfiguracionPACS() {
   // 🚀 CARGA INICIAL DESDE LA BASE DE DATOS
   useEffect(() => {
     // 1. Cargar Configuración del Servidor Local
-    fetch('http://127.0.0.1:8000/api/dicom/config', { headers: { Authorization: `Bearer ${token}` } })
+    fetch('http://192.168.5.21:8000/api/dicom/config', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         if (data && data.ae_title) {
@@ -43,7 +43,7 @@ export default function ConfiguracionPACS() {
       .catch(() => agregarLog("[ADVERTENCIA] Usando configuración local por desconexión de API."));
 
     // 2. Cargar Nodos (Estaciones) desde la Base de Datos
-    fetch('http://127.0.0.1:8000/api/dicom/nodos', { headers: { Authorization: `Bearer ${token}` } })
+    fetch('http://192.168.5.21:8000/api/dicom/nodos', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -67,7 +67,7 @@ export default function ConfiguracionPACS() {
     e.preventDefault();
     setLoading(true); setServerStatus("REINICIANDO");
     try {
-      await fetch("http://127.0.0.1:8000/api/dicom/config", {
+      await fetch("http://192.168.5.21:8000/api/dicom/config", {
         method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ae_title: dicomConfig.ae_title, ip_address: dicomConfig.ip, port: parseInt(dicomConfig.port), client_ae: dicomConfig.client_ae })
       });
@@ -89,7 +89,7 @@ export default function ConfiguracionPACS() {
   const handleGuardarNodo = async (e) => {
     e.preventDefault();
     const metodo = editandoId ? "PUT" : "POST";
-    const url = editandoId ? `http://127.0.0.1:8000/api/dicom/nodos/${editandoId}` : `http://127.0.0.1:8000/api/dicom/nodos`;
+    const url = editandoId ? `http://192.168.5.21:8000/api/dicom/nodos/${editandoId}` : `http://192.168.5.21:8000/api/dicom/nodos`;
 
     try {
       // 1. Enviamos al servidor
@@ -147,7 +147,7 @@ export default function ConfiguracionPACS() {
     if(!window.confirm(`¿Está seguro de eliminar permanentemente la estación: ${nombre}?`)) return;
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/dicom/nodos/${id}`, {
+      const response = await fetch(`http://192.168.5.21:8000/api/dicom/nodos/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -169,7 +169,7 @@ export default function ConfiguracionPACS() {
     const estadoNuevo = !nodoActual.activo;
     
     try {
-      await fetch(`http://127.0.0.1:8000/api/dicom/nodos/${nodoActual.id}`, {
+      await fetch(`http://192.168.5.21:8000/api/dicom/nodos/${nodoActual.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...nodoActual, activo: estadoNuevo })
@@ -185,7 +185,7 @@ export default function ConfiguracionPACS() {
   const toggleAutoEnvio = async (nodoActual) => {
     const estadoNuevo = !nodoActual.auto_envio;
     try {
-      await fetch(`http://127.0.0.1:8000/api/dicom/nodos/${nodoActual.id}`, {
+      await fetch(`http://192.168.5.21:8000/api/dicom/nodos/${nodoActual.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...nodoActual, auto_envio: estadoNuevo })

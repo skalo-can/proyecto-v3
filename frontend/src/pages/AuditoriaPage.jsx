@@ -19,7 +19,7 @@ export default function AuditoriaPage() {
       
       // 🔥 SOLUCIÓN: Si estás en local usa http, si estás en internet usa tu dominio seguro
       const apiBase = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') 
-        ? 'http://127.0.0.1:8000' 
+        ? 'http://192.168.5.21:8000' 
         : 'https://portal.mipacs.net';
 
       // 🔥 Agregamos /api/ a la ruta para que Nginx permita el paso hacia Python

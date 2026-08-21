@@ -67,7 +67,7 @@ class ArchivoEstudioResponse(ArchivoEstudioBase):
     # Campo derivado para el frontend
     url: Optional[str] = Field(
         default=None,
-        example="http://127.0.0.1:8000/static/archivos/estudio_1.pdf",
+        example="http://192.168.5.21:8000/static/archivos/estudio_1.pdf",
         description="URL absoluta del archivo"
     )
 

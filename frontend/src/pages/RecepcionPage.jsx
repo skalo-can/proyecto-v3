@@ -18,10 +18,10 @@ export default function RecepcionPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const resWorklist = await axios.get(`http://127.0.0.1:8000/api/ris/worklist?all_active=true&t=${Date.now()}`);
+      const resWorklist = await axios.get(`http://192.168.5.21:8000/api/ris/worklist?all_active=true&t=${Date.now()}`);
       setOrders(resWorklist.data);
 
-      const resFields = await axios.get("http://127.0.0.1:8000/api/dicom/campos-activos");
+      const resFields = await axios.get("http://192.168.5.21:8000/api/dicom/campos-activos");
       setDynamicFields(resFields.data);
     } catch (error) {
       console.error("Error cargando datos:", error);
@@ -39,10 +39,10 @@ export default function RecepcionPage() {
   const handleRegisterOrder = async (orderData) => {
     try {
       if (orderToEdit) {
-        await axios.put(`http://127.0.0.1:8000/api/ris/order/${orderToEdit.id_orden}`, orderData);
+        await axios.put(`http://192.168.5.21:8000/api/ris/order/${orderToEdit.id_orden}`, orderData);
         setOrderToEdit(null);
       } else {
-        await axios.post("http://127.0.0.1:8000/api/ris/order", orderData);
+        await axios.post("http://192.168.5.21:8000/api/ris/order", orderData);
       }
       fetchData(); 
     } catch (error) {
@@ -55,7 +55,7 @@ export default function RecepcionPage() {
     const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar esta orden?");
     if (confirmacion) {
       try {
-        await axios.delete(`http://127.0.0.1:8000/api/ris/order/${orderId}`);
+        await axios.delete(`http://192.168.5.21:8000/api/ris/order/${orderId}`);
         fetchData();
       } catch (error) {
         alert(error.response?.data?.detail || "No se pudo eliminar.");
@@ -70,7 +70,7 @@ export default function RecepcionPage() {
 
   const handleStartOrder = async (order) => {
     try {
-      await axios.put(`http://127.0.0.1:8000/api/ris/order/start/${order.id_orden}`);
+      await axios.put(`http://192.168.5.21:8000/api/ris/order/start/${order.id_orden}`);
       await fetchData();
       alert(`✅ Paciente ${order.nombre} enviado a la Worklist (${order.modalidad})`);
     } catch (error) {
@@ -81,7 +81,7 @@ export default function RecepcionPage() {
 
   const handleAtenderOrder = async (orderId) => {
     try {
-      await axios.put(`http://127.0.0.1:8000/api/ris/order/atender/${orderId}`);
+      await axios.put(`http://192.168.5.21:8000/api/ris/order/atender/${orderId}`);
       await fetchData();
     } catch (error) {
       console.error("Error al atender la orden:", error);

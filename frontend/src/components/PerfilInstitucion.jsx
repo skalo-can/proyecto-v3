@@ -28,7 +28,7 @@ export default function PerfilInstitucion() {
 
   // 🚀 CARGAR DATOS REALES AL MONTAR EL COMPONENTE
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/admin/perfil-institucion", {
+    fetch("http://192.168.5.21:8000/api/admin/perfil-institucion", {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -64,7 +64,7 @@ export default function PerfilInstitucion() {
   const guardarPerfil = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/admin/perfil-institucion", {
+      const res = await fetch("http://192.168.5.21:8000/api/admin/perfil-institucion", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

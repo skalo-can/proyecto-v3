@@ -86,7 +86,7 @@ class EstudioImagenResponse(BaseModel):
 
     url: Optional[str] = Field(
         default=None,
-        example="http://127.0.0.1:8000/static/dicoms/rx_torax_1.dcm",
+        example="http://192.168.5.21:8000/static/dicoms/rx_torax_1.dcm",
         description="URL absoluta para el frontend"
     )
 

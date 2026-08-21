@@ -9,7 +9,7 @@ export default function ModalEnviarEstudios({ isOpen, onClose, estudiosSeleccion
   useEffect(() => {
     if (isOpen) {
       // 🚀 NOTA: Aquí debes hacer el fetch real a tu base de datos para traer los nodos que configuraste en ConfiguracionPACS.jsx
-      // fetch('http://127.0.0.1:8000/api/dicom/nodos').then(...)
+      // fetch('http://192.168.5.21:8000/api/dicom/nodos').then(...)
       
       // Simulamos los nodos guardados para propósitos de prueba
       setNodos([
@@ -38,7 +38,7 @@ export default function ModalEnviarEstudios({ isOpen, onClose, estudiosSeleccion
     try {
       // 🚀 Aquí haces el llamado a tu backend para disparar el C-STORE (ej. DCMTK o Pynetdicom)
       /*
-      await fetch("http://127.0.0.1:8000/api/dicom/send", {
+      await fetch("http://192.168.5.21:8000/api/dicom/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ destino_aet: nodoSeleccionado, estudios_ids: estudiosSeleccionados.map(e => e.id) })

@@ -39,7 +39,7 @@ export default function BackupConfigPage() {
 
 useEffect(() => {
     // 1. Cargar configuración de base de datos (Cron y Legal)
-    fetch("http://127.0.0.1:8000/api/admin/config", {
+    fetch("http://192.168.5.21:8000/api/admin/config", {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -54,7 +54,7 @@ useEffect(() => {
       .catch((err) => console.error("Error cargando parámetros DB:", err));
 
     // 🚀 2. NUEVO: Cargar configuración del JSON (Modalidades, Ruta NAS, Maduración)
-    fetch("http://127.0.0.1:8000/api/backup/config", {
+    fetch("http://192.168.5.21:8000/api/backup/config", {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -84,7 +84,7 @@ useEffect(() => {
   // 🚀 LÓGICA DE RECONEXIÓN Y POLLING (Igual a ImportarPage) - NO SE TOCA
   const verificarEstadoRutina = async () => {
     try {
-        const res = await fetch("http://127.0.0.1:8000/api/admin/estado-rutina", {
+        const res = await fetch("http://192.168.5.21:8000/api/admin/estado-rutina", {
             headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
@@ -115,7 +115,7 @@ useEffect(() => {
     let componenteMontado = true;
     const reconectarProgreso = async () => {
         try {
-            const res = await fetch("http://127.0.0.1:8000/api/admin/estado-rutina", {
+            const res = await fetch("http://192.168.5.21:8000/api/admin/estado-rutina", {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = await res.json();
@@ -144,13 +144,13 @@ useEffect(() => {
     const modSeleccionadas = Object.keys(modalidades).filter(key => modalidades[key]);
 
     try {
-      const resBackup = await fetch("http://127.0.0.1:8000/api/backup/config", {
+      const resBackup = await fetch("http://192.168.5.21:8000/api/backup/config", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ dias_maduracion: diasMaduracion, modalidades: modSeleccionadas, nas_ruta: nasRuta, copia_internacional: copiaInternacional })
       });
 
-      const resCron = await fetch("http://127.0.0.1:8000/api/admin/config", {
+      const resCron = await fetch("http://192.168.5.21:8000/api/admin/config", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ hora_backup: horaBackup, umbral_purga: umbralPurga, retencion_legal_anios: retencionLegalAnios, escudo_pediatrico: escudoPediatrico })
@@ -170,7 +170,7 @@ useEffect(() => {
     if (!window.confirm("¿Desea ejecutar la rutina de copias de seguridad en este instante?")) return;
     setLoading(true);
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/backup/run", {
+      const response = await fetch("http://192.168.5.21:8000/api/backup/run", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -198,7 +198,7 @@ useEffect(() => {
     if (!window.confirm("⚠️ ¿Desea iniciar el Mantenimiento Profundo?\nEsto compactará la base de datos y mejorará la velocidad.")) return;
     setLoading(true);
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/admin/mantenimiento-profundo", {
+      const response = await fetch("http://192.168.5.21:8000/api/admin/mantenimiento-profundo", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -225,7 +225,7 @@ useEffect(() => {
   const handleCancelarRutina = async () => {
     if (!window.confirm("¿Está seguro de que desea detener el proceso en curso?")) return;
     try {
-        await fetch("http://127.0.0.1:8000/api/admin/cancelar-rutina", {
+        await fetch("http://192.168.5.21:8000/api/admin/cancelar-rutina", {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` }
         });
@@ -406,7 +406,7 @@ useEffect(() => {
                   if(window.confirm("⚠️ ADVERTENCIA: Esta acción eliminará permanentemente los archivos DICOM. ¿Desea continuar?")) {
                     const dias = document.getElementById("dias_retencion").value;
                     try {
-                      const res = await fetch(`http://127.0.0.1:8000/api/purgar-importados?dias_retencion=${dias}`, {
+                      const res = await fetch(`http://192.168.5.21:8000/api/purgar-importados?dias_retencion=${dias}`, {
                         method: 'DELETE',
                         headers: { 'Authorization': `Bearer ${token}` }
                       });

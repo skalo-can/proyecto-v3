@@ -13,7 +13,7 @@ function Estudios() {
     const fetchEstudios = async () => {
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000/api/estudios/paciente/${id}`,
+          `http://192.168.5.21:8000/api/estudios/paciente/${id}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

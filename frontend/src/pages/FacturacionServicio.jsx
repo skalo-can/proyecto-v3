@@ -112,7 +112,7 @@ const FacturacionServicio = () => {
     if (!fechaInicio || !fechaFin) return alert("⚠️ Por favor selecciona la FECHA INICIO y FECHA FIN.");
     setCargando(true);
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/stats-dashboard?inicio=${fechaInicio}&fin=${fechaFin}`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch(`http://192.168.5.21:8000/api/stats-dashboard?inicio=${fechaInicio}&fin=${fechaFin}`, { headers: { Authorization: `Bearer ${token}` } });
       if (response.ok) {
         const data = await response.json();
         
@@ -269,7 +269,7 @@ const handleImprimirYGuardar = async () => {
         neto: finanzas.neto
       };
 
-      const response = await fetch("http://127.0.0.1:8000/api/pdf/facturacion/archivar", {
+      const response = await fetch("http://192.168.5.21:8000/api/pdf/facturacion/archivar", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

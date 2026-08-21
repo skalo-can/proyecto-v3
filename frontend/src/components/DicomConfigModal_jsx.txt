@@ -27,7 +27,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
     setLoading(true);
 
     // 1. Cargar Configuración (Solo se hace una vez al abrir)
-    axios.get("http://127.0.0.1:8000/api/dicom/config", { headers })
+    axios.get("http://192.168.5.21:8000/api/dicom/config", { headers })
       .then((res) => {
         setForm({
           ae_title: res.data.ae_title || "",
@@ -44,7 +44,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
   // Función separada para recargar solo los logs y el estado (sin parpadear los inputs)
   const fetchLiveStatus = (headers) => {
     // 2. Cargar Estado
-    axios.get("http://127.0.0.1:8000/api/dicom/status", { headers })
+    axios.get("http://192.168.5.21:8000/api/dicom/status", { headers })
       .then((res) => {
         setServerStatus(res.data.running ? "LISTENING" : "STOPPED");
         setLastSender(res.data.last_event || null);
@@ -52,7 +52,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
       .catch(() => setServerStatus("DESCONOCIDO"));
 
     // 3. Cargar Logs
-    axios.get("http://127.0.0.1:8000/api/dicom/logs", { headers })
+    axios.get("http://192.168.5.21:8000/api/dicom/logs", { headers })
       .then((res) => {
         setLogs(res.data.logs || []);
       })
@@ -86,7 +86,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
 
   const handleSave = () => {
     setLoading(true);
-    axios.put("http://127.0.0.1:8000/api/dicom/config", form, {
+    axios.put("http://192.168.5.21:8000/api/dicom/config", form, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
     .then(() => {
@@ -99,7 +99,7 @@ export default function DicomConfigModal({ isOpen, onClose }) {
 
   const handleTestConnection = () => {
     setTesting(true);
-    axios.post("http://127.0.0.1:8000/api/dicom/test-connection", form, {
+    axios.post("http://192.168.5.21:8000/api/dicom/test-connection", form, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
     .then((res) => {

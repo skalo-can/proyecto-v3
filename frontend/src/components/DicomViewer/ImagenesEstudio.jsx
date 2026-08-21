@@ -34,7 +34,7 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
     setLoading(true);
     setError(null);
 
-    fetch(`http://127.0.0.1:8000/api/estudios/${estudioId}/imagenes`)
+    fetch(`http://192.168.5.21:8000/api/estudios/${estudioId}/imagenes`)
       .then((res) => res.json())
       .then((data) => {
         console.log("MI_PACS → Respuesta del backend:", data);
@@ -46,8 +46,8 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
           .filter((img) => img.tipo === "dcm" && img.ruta_archivo)
           .map((img) => {
             const ruta = img.ruta_archivo.startsWith("/")
-              ? `http://127.0.0.1:8000${img.ruta_archivo}`
-              : `http://127.0.0.1:8000/${img.ruta_archivo}`;
+              ? `http://192.168.5.21:8000${img.ruta_archivo}`
+              : `http://192.168.5.21:8000/${img.ruta_archivo}`;
             return ruta;
           });
 
@@ -69,7 +69,7 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
     try {
       console.log("MI_PACS → Solicitando estudio previo…");
 
-      const res = await fetch(`http://127.0.0.1:8000/api/estudios/${estudioId}/previo`);
+      const res = await fetch(`http://192.168.5.21:8000/api/estudios/${estudioId}/previo`);
       const data = await res.json();
 
       if (!data || !data.id) {
@@ -78,7 +78,7 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
       }
 
       const resPrevio = await fetch(
-        `http://127.0.0.1:8000/api/estudios/${data.id}/imagenes`
+        `http://192.168.5.21:8000/api/estudios/${data.id}/imagenes`
       );
       const imgsPrevio = await resPrevio.json();
 
@@ -86,8 +86,8 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
         .filter((img) => img.tipo === "dcm" && img.ruta_archivo)
         .map((img) => {
           const ruta = img.ruta_archivo.startsWith("/")
-            ? `http://127.0.0.1:8000${img.ruta_archivo}`
-            : `http://127.0.0.1:8000/${img.ruta_archivo}`;
+            ? `http://192.168.5.21:8000${img.ruta_archivo}`
+            : `http://192.168.5.21:8000/${img.ruta_archivo}`;
           return ruta;
         });
 
@@ -181,11 +181,11 @@ export default function ImagenesEstudio({ estudioId, onVolver, onVolverPacientes
       <div style={{ display: "flex", flexWrap: "wrap", gap: "15px" }}>
         {imagenes.map((img) => {
           const thumb = img.thumbnail
-            ? `http://127.0.0.1:8000/${img.thumbnail}`
+            ? `http://192.168.5.21:8000/${img.thumbnail}`
             : null;
 
           const urlDicom = img.ruta_archivo
-            ? `http://127.0.0.1:8000${img.ruta_archivo}`
+            ? `http://192.168.5.21:8000${img.ruta_archivo}`
             : null;
 
           return (

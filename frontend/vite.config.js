@@ -12,7 +12,7 @@ export default defineConfig({
     proxy: {
       // Todo lo que empiece con /api será redirigido internamente a FastAPI
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://192.168.5.21:8000',
         changeOrigin: true,
       }
     }
