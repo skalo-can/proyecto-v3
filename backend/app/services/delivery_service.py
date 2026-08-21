@@ -21,7 +21,7 @@ def enviar_notificacion_estudio(orden_id: int, tipo_envio: str):
             
         # Simulación de extracción de datos de contacto (Ajustar a tu tabla de Pacientes)
         email_paciente = "paciente_demo@gmail.com" 
-        link_visor = f"http://127.0.0.1:5173/imagenes-estudio/{orden.accession_number}"
+        link_visor = f"http://portal.mipacs.net:5173/imagenes-estudio/{orden.accession_number}"
         
         print(f"📧 [DELIVERY] Preparando despacho para: {orden.apellido} ({tipo_envio})")
         
