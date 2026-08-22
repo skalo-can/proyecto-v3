@@ -16,7 +16,8 @@ export default function SystemConfig({ onOpenDicom }) {
   useEffect(() => {
     setLoading(true);
     axios
-      .get("http://192.168.5.21:8000/status")
+      // ✅ CÓDIGO CORREGIDO 1/5
+      .get(`${window.API_URL}/status`)
       .then((res) => setSystemInfo(res.data))
       .catch(() => setError("No se pudo obtener el estado del sistema."))
       .finally(() => setLoading(false));
@@ -34,28 +35,32 @@ export default function SystemConfig({ onOpenDicom }) {
 
   const limpiarThumbnails = () => {
     axios
-      .post("http://192.168.5.21:8000/api/reset/thumbnails")
+      // ✅ CÓDIGO CORREGIDO 2/5
+      .post(`${window.API_URL}/api/reset/thumbnails`)
       .then(() => setMessage("Thumbnails limpiados correctamente."))
       .catch(() => setError("Error al limpiar thumbnails."));
   };
 
   const limpiarInbox = () => {
     axios
-      .post("http://192.168.5.21:8000/api/reset/inbox")
+      // ✅ CÓDIGO CORREGIDO 3/5
+      .post(`${window.API_URL}/api/reset/inbox`)
       .then(() => setMessage("Inbox DICOM limpiado correctamente."))
       .catch(() => setError("Error al limpiar inbox."));
   };
 
   const reiniciarServicios = () => {
     axios
-      .post("http://192.168.5.21:8000/api/reset/restart-services")
+      // ✅ CÓDIGO CORREGIDO 4/5
+      .post(`${window.API_URL}/api/reset/restart-services`)
       .then(() => setMessage("Servicios reiniciados correctamente."))
       .catch(() => setError("Error al reiniciar servicios."));
   };
 
   const resetDatabase = () => {
     if (!window.confirm("⚠️ ¿Seguro que deseas resetear toda la base de datos?")) return;
-    fetch("http://192.168.5.21:8000/admin/reset-db", { method: "POST" })
+    // ✅ CÓDIGO CORREGIDO 5/5
+    fetch(`${window.API_URL}/admin/reset-db`, { method: "POST" })
       .then(() => alert("Base de datos reseteada correctamente."))
       .catch(() => alert("Error al resetear la base de datos."));
   };
@@ -87,8 +92,9 @@ export default function SystemConfig({ onOpenDicom }) {
         ) : (
           <div>
             <p><strong>Estado:</strong> {systemInfo?.message || "Desconocido"}</p>
-            <p><strong>Backend:</strong> http://192.168.5.21:8000</p>
-            <p><strong>Frontend:</strong> http://127.0.0.1:5173</p>
+            {/* También actualizamos el texto visual para que refleje la variable inteligente */}
+            <p><strong>Backend:</strong> {window.API_URL}</p>
+            <p><strong>Frontend:</strong> {window.location.origin}</p>
             <p><strong>Versión MI_PACS:</strong> 3.0</p>
           </div>
         )}
