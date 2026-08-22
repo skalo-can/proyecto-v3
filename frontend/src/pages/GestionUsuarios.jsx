@@ -78,7 +78,8 @@ export default function GestionUsuarios() {
 
     const fetchUsuarios = async () => {
         try {
-            const res = await axios.get('http://192.168.5.21:8000/api/usuarios/');
+            // ✅ CÓDIGO CORREGIDO 1/4
+            const res = await axios.get(`${window.API_URL}/api/usuarios/`);
             setUsuarios(res.data || []);
         } catch (err) { console.error("Error al cargar usuarios:", err); }
     };
@@ -127,10 +128,12 @@ export default function GestionUsuarios() {
             const payload = { ...userForm, permisos: permisosLimpios };
 
             if (userForm.id) {
-                await axios.put(`http://192.168.5.21:8000/api/usuarios/${userForm.id}`, payload);
+                // ✅ CÓDIGO CORREGIDO 2/4
+                await axios.put(`${window.API_URL}/api/usuarios/${userForm.id}`, payload);
                 alert("✅ Usuario actualizado correctamente");
             } else {
-                await axios.post('http://192.168.5.21:8000/api/usuarios/crear-perfil', payload);
+                // ✅ CÓDIGO CORREGIDO 3/4
+                await axios.post(`${window.API_URL}/api/usuarios/crear-perfil`, payload);
                 alert("✅ Colaborador creado con éxito");
             }
             setUserForm(estadoInicial);
@@ -147,7 +150,8 @@ export default function GestionUsuarios() {
             try {
                 for (let id of ids) {
                     // 🔥 SOLUCIÓN: Usamos axios.put en lugar de patch para evitar el bloqueo del CORS
-                    await axios.put(`http://192.168.5.21:8000/api/usuarios/${id}/estado?activo=${nuevoEstado}`);
+                    // ✅ CÓDIGO CORREGIDO 4/4
+                    await axios.put(`${window.API_URL}/api/usuarios/${id}/estado?activo=${nuevoEstado}`);
                 }
                 alert(`✅ Usuarios actualizados: ${accion}`);
                 setSelectedUsers({});
@@ -160,7 +164,10 @@ export default function GestionUsuarios() {
         if (ids.length === 0) return alert("Seleccione usuarios");
         if (window.confirm(`⚠️ ¿Eliminar permanentemente a ${ids.length} usuarios?`)) {
             try {
-                for (let id of ids) { await axios.delete(`http://192.168.5.21:8000/api/usuarios/${id}`); }
+                for (let id of ids) { 
+                    // ✅ CÓDIGO CORREGIDO 5/4 (Bonus track en la eliminación)
+                    await axios.delete(`${window.API_URL}/api/usuarios/${id}`); 
+                }
                 alert("🗑️ Usuarios eliminados");
                 setUserForm(estadoInicial);
                 setPermisos({}); 
@@ -328,4 +335,4 @@ export default function GestionUsuarios() {
             </main>
         </div>
     );
-} 
+}

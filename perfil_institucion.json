@@ -1,1 +1,1 @@
-{"nombre_clinica": "", "nit_registro": "", "direccion": "", "telefono": "", "email": "", "sitio_web": "", "modalidades_activas": ["CR", "DX", "CT"], "smtp_server": "", "smtp_port": "", "smtp_user": "", "smtp_pass": "", "wa_token": "", "sms_api_key": "", "envio_automatico": false}
+{"nombre_clinica": "", "nit_registro": "", "direccion": "", "telefono": "", "email": "", "sitio_web": "", "modalidades_activas": ["CR", "DX", "CT", "US"], "smtp_server": "", "smtp_port": "", "smtp_user": "", "smtp_pass": "", "wa_token": "", "sms_api_key": "", "envio_automatico": false}
