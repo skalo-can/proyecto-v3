@@ -14,7 +14,7 @@ from app.models.estudio_imagen import EstudioImagen
 from app.core.config import BACKEND_DIR, DICOM_ARCHIVADOS_DIR
 
 # ---------------------------------------------------------
-# 🚀 RUTAS CLÍNICAS UNIFICADAS (👻 FANTASMA ELIMINADO)
+# 🚀 RUTAS CLÍNICAS UNIFICADAS
 # ---------------------------------------------------------
 DICOM_INBOX = str(BACKEND_DIR / "dicom_inbox")
 DICOM_STORAGE_ROOT = str(DICOM_ARCHIVADOS_DIR)
@@ -59,19 +59,18 @@ def process_single_dicom_file(db: Session, file_path: str):
     """
     Procesa un único archivo DICOM (Soporta eFilm sin extensión).
     """
-    # 🚀 NUEVO: Ignorar archivos de índice o metadatos del visor Lite de eFilm
+    # 🚀 Ignorar archivos de índice o metadatos del visor Lite de eFilm
     nombre_archivo = os.path.basename(file_path).upper()
     if nombre_archivo in ["DICOMDIR", "VIEWER.EXE", "AUTORUN.INF", "THUMBNAILS.DB"] or nombre_archivo.endswith((".EXE", ".TXT", ".XML", ".PDF")):
         return
 
     try:
-        # force=True es vital para los archivos crudos renombrados de eFilm
+        # force=True es vital para los archivos crudos de eFilm
         ds = pydicom.dcmread(file_path, force=True)
-    except Exception as e:
-        # Silenciamos errores comunes si intentó leer un binario corrupto o ejecutable
+    except Exception:
         return
 
-    # 1. Extraer metadata clínica
+# 1. Extraer metadata clínica de forma robusta y segura
     patient_id = _safe_get(ds, "PatientID", "SIN_ID")
     patient_name = _safe_get(ds, "PatientName", "PACIENTE^DESCONOCIDO")
     birth_date = _safe_get(ds, "PatientBirthDate", None)
@@ -80,10 +79,27 @@ def process_single_dicom_file(db: Session, file_path: str):
     series_uid = _safe_get(ds, "SeriesInstanceUID", None)
     sop_uid = _safe_get(ds, "SOPInstanceUID", None)
 
+    # 🔥 Extracción mejorada con respaldo por Tag numérico por si el nombre falla
     study_date = _safe_get(ds, "StudyDate", None)
+    if not study_date and hasattr(ds, "00080020"):
+        study_date = str(ds.get((0x0008, 0x0020)).value)
+
+    raw_time = _safe_get(ds, "StudyTime", None)
+    if not raw_time and hasattr(ds, "00080030"):
+        raw_time = str(ds.get((0x0008, 0x0030)).value)
+    study_time = raw_time if raw_time else "000000"
+
+    raw_inst = _safe_get(ds, "InstitutionName", None)
+    if not raw_inst and hasattr(ds, "00080080"):
+        raw_inst = str(ds.get((0x0008, 0x0080)).value)
+    institution_name = raw_inst.strip() if raw_inst else "Desconocida"
+
+    # 🖨️ Chivato en consola: Esto nos dirá exactamente qué leyó Python del archivo
+    print(f"📥 [DICOM PARSER] Archivo: {os.path.basename(file_path)} | Fecha: {study_date} | Hora: {study_time} | Inst: {institution_name}")
+
     modality = _safe_get(ds, "Modality", "OT")
     study_description = _safe_get(ds, "StudyDescription", "Estudio sin descripción")
-    accession_number = _safe_get(ds, "AccessionNumber", study_uid)  # Fallback a StudyUID si no tiene orden RIS
+    accession_number = _safe_get(ds, "AccessionNumber", study_uid)
 
     if not study_uid or not sop_uid:
         return
@@ -106,26 +122,41 @@ def process_single_dicom_file(db: Session, file_path: str):
         db.add(paciente)
         db.flush()
 
-    # 3. Registrar/Actualizar Estudio
-    fecha_estudio = _parse_date(study_date) if study_date else date.today()
-    
-    # 🔍 IMPORTANTE: Buscamos el estudio usando el campo 'uid' que es único en tu modelo
+    # 🔥 NUEVA LÓGICA: ¿Viene por red (inbox) o por disco externo?
+    if DICOM_INBOX in file_path:
+        estado_logico = "Tomado"
+    else:
+        estado_logico = "Importado"
+
+    # 3. Registrar/Actualizar Estudio con Fecha y Hora Exacta
+    try:
+        if study_date:
+            clean_time = (str(study_time).split('.')[0] if study_time else "000000").ljust(6, '0')[:6]
+            fecha_hora_str = f"{study_date}{clean_time}"
+            fecha_estudio_real = datetime.strptime(fecha_hora_str, "%Y%m%d%H%M%S")
+        else:
+            fecha_estudio_real = datetime.now()
+    except Exception as e:
+        print(f"MI_PACS → Error procesando fecha/hora: {e}")
+        fecha_estudio_real = datetime.now()
+
     estudio = db.query(Estudio).filter(Estudio.uid == study_uid).first()
 
     if not estudio:
         estudio = Estudio(
             paciente_id=paciente.id,
-            tipo_estudio=modality,          # 🔥 CORREGIDO: Tu modelo usa 'tipo_estudio'
-            fecha_estudio=fecha_estudio,    # 🔥 CORREGIDO: Tu modelo usa 'fecha_estudio'
-            estado="pendiente",             # O el estado que prefieras
+            tipo_estudio=modality,
+            fecha_estudio=fecha_estudio_real,
+            estado="pendiente",
+            estado_pacs=estado_logico,  # 🔥 AHORA ASIGNA "Tomado" o "Importado" DINÁMICAMENTE
             descripcion=study_description,
-            uid=study_uid,                  # 🔥 OBLIGATORIO: Tu modelo requiere el UID del estudio
+            uid=study_uid,
+            institucion=institution_name,
         )
         db.add(estudio)
-        db.flush()
+        db.flush()  # 🔥 Evita condiciones de carrera en importaciones masivas
 
-    # 4. Construir ruta estructurada basada en AccessionNumber (Sincronizado con Purga)
-    # Ruta: backend/app/dicom_archivados/<accession_number>/<series_uid>/
+    # 4. Construir ruta estructurada
     estudio_folder = os.path.join(DICOM_STORAGE_ROOT, str(accession_number))
     series_folder = os.path.join(estudio_folder, series_uid or "SERIE_DESCONOCIDA")
     os.makedirs(series_folder, exist_ok=True)
@@ -135,7 +166,6 @@ def process_single_dicom_file(db: Session, file_path: str):
 
     # 5. Mover o copiar archivo a su destino
     try:
-        # Si viene de inbox se mueve, si viene de importación externa se copia para no romper tu disco
         if DICOM_INBOX in file_path:
             shutil.move(file_path, final_path)
         else:
@@ -152,12 +182,13 @@ def process_single_dicom_file(db: Session, file_path: str):
         "SeriesInstanceUID": series_uid,
         "SOPInstanceUID": sop_uid,
         "StudyDate": study_date,
+        "StudyTime": study_time,
+        "InstitutionName": institution_name,
         "Modality": modality,
         "StudyDescription": study_description,
         "AccessionNumber": accession_number
     }
 
-    # Verificar si la imagen exacta ya fue mapeada
     imagen_existente = db.query(EstudioImagen).filter(EstudioImagen.ruta_archivo == final_path).first()
     if not imagen_existente:
         imagen = EstudioImagen(
@@ -169,14 +200,11 @@ def process_single_dicom_file(db: Session, file_path: str):
         )
         db.add(imagen)
 
-   # if not estudio.archivo:
-     #   estudio.archivo = final_path
-
     db.commit()
 
 
 # ---------------------------------------------------------
-# 🚀 NUEVO: Procesamiento de carpetas externas (Escaneo Recursivo)
+# 🚀 Procesamiento de carpetas externas (Escaneo Recursivo)
 # ---------------------------------------------------------
 def importar_desde_directorio_externo(ruta_directorio: str):
     """
@@ -185,26 +213,23 @@ def importar_desde_directorio_externo(ruta_directorio: str):
     """
     print(f"MI_PACS → Iniciando importación masiva desde: {ruta_directorio}")
     if not os.path.isdir(ruta_directorio):
-        print(f"❌ Error: La ruta externa no es válida o no está conectada.")
+        print("❌ Error: La ruta externa no es válida o no está conectada.")
         return False
 
     db = SessionLocal()
     conteo_exito = 0
 
     try:
-        # Recorrer todo el árbol de carpetas de eFilm (recursivo)
         for root, dirs, files in os.walk(ruta_directorio):
             for filename in files:
                 file_path = os.path.join(root, filename)
-                
-                # Procesar si no tiene extensión (común en eFilm) o si termina en .dcm
                 if "." not in filename or filename.lower().endswith(".dcm"):
                     try:
                         process_single_dicom_file(db, file_path)
                         conteo_exito += 1
                     except Exception:
                         continue
-        print(f"✅ Importación finalizada. Se procesaron {conteo_exito} archivos de imagen de forma exitosa.")
+        print(f"✅ Importación finalizada. Se procesaron {conteo_exito} archivos exitosamente.")
         return True
     finally:
         db.close()

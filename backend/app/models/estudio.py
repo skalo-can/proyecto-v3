@@ -14,7 +14,6 @@ from datetime import date, datetime
 
 from app.core.database import Base
 from app.schemas.estudio import EstadoEstudio
-
 from app.models.reporte import Reporte
 
 
@@ -51,16 +50,25 @@ class Estudio(Base):
         doc="Tipo de estudio (Modality DICOM)"
     )
 
-    fecha_estudio: Mapped[date] = mapped_column(
-        Date,
+    # 🔥 CORRECCIÓN: Cambiado a DateTime para no perder la hora
+    fecha_estudio: Mapped[datetime] = mapped_column(
+        DateTime,
         nullable=False,
-        doc="Fecha del estudio (StudyDate)"
+        doc="Fecha y hora exacta del estudio (StudyDate + StudyTime)"
     )
 
     descripcion: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
         doc="Descripción clínica del estudio (StudyDescription)"
+    )
+
+    # 🏥 NUEVO: Campo para la institución origen
+    institucion: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True,
+        default="Desconocida",
+        doc="Nombre de la institución de origen (InstitutionName)"
     )
 
     # UID del estudio (StudyInstanceUID)
@@ -79,7 +87,6 @@ class Estudio(Base):
         doc="Estado clínico del estudio (pendiente, procesado, etc.)"
     )
 
-    # 🚀 NUEVO: Campo para persistencia de estado de dictado
     estado_pacs: Mapped[str | None] = mapped_column(
         String(50),
         default="Importado",
@@ -87,7 +94,6 @@ class Estudio(Base):
         doc="Estado persistente del dictado médico (Importado, Dictado, Urgencia, etc.)"
     )
 
-    # 🤖 NUEVO: Campo para Triage de Inteligencia Artificial Local
     prioridad_ia: Mapped[str | None] = mapped_column(
         String(50),
         default="NORMAL",
@@ -139,7 +145,7 @@ class Estudio(Base):
     )
 
     # ---------------------------------------------------------
-    # 🔥 CAMPOS DE AUDITORÍA Y PRODUCTIVIDAD GERENCIAL (AÑADIDOS)
+    # 🔥 CAMPOS DE AUDITORÍA Y PRODUCTIVIDAD GERENCIAL
     # ---------------------------------------------------------
     medico_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("usuarios.id"), nullable=True, doc="ID del Médico que firmó"
@@ -162,7 +168,6 @@ class Estudio(Base):
     tiene_transcripcion: Mapped[bool] = mapped_column(default=False, nullable=False)
     esta_firmado: Mapped[bool] = mapped_column(default=False, nullable=False)
     
-    # Banderas de entrega (Requeridas por tu paciente_api.py)
     entregado: Mapped[bool] = mapped_column(default=False, nullable=False)
     enviado_sms: Mapped[bool] = mapped_column(default=False, nullable=False)
     enviado_email: Mapped[bool] = mapped_column(default=False, nullable=False)
@@ -176,23 +181,19 @@ class Estudio(Base):
         doc="Lista de imágenes asociadas al estudio"
     )
 
-    # ---------------------------------------------------------
-    # RELACIÓN CON LOGS DE IA (CORREGIDA)
-    # ---------------------------------------------------------
+    # Relación con logs de IA
     ia_logs = relationship(
-        "EstudioIALog",   # ← ESTE ERA EL NOMBRE CORRECTO
+        "EstudioIALog",
         back_populates="estudio",
         cascade="all, delete-orphan",
         doc="Logs generados por los módulos de IA asociados al estudio"
     )
     
-    # ---------------------------------------------------------
-    # RELACIÓN CON EL REPORTE PDF OFICIAL (MÓDULO DE ENTREGA)
-    # ---------------------------------------------------------
+    # Relación con reporte
     reporte = relationship(
         "Reporte",
         back_populates="estudio",
-        uselist=False,  # uselist=False le dice a SQLAlchemy que es una relación estricta 1-a-1
+        uselist=False,
         cascade="all, delete-orphan",
         doc="Reporte oficial en PDF asociado a este estudio"
     )

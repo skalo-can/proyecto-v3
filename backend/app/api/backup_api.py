@@ -151,8 +151,10 @@ def disparar_backup_manual(background_tasks: BackgroundTasks):
 def purgar_estudios_importados(dias_retencion: int = 30, db: Session = Depends(get_db)):
     try:
         fecha_limite = datetime.now() - timedelta(days=dias_retencion)
+        
+        # 🔥 Usamos estado_pacs == 'Importado' que es el campo correcto de la base de datos
         estudios_a_purgar = db.query(Estudio).filter(
-            Estudio.origen == 'IMPORTADO',
+            Estudio.estado_pacs == 'Importado',
             Estudio.fecha_estudio < fecha_limite
         ).all()
 
@@ -161,11 +163,11 @@ def purgar_estudios_importados(dias_retencion: int = 30, db: Session = Depends(g
 
         cantidad_borrada = 0
         for estudio in estudios_a_purgar:
-            if estudio.ruta_archivos and os.path.exists(estudio.ruta_archivos):
+            if hasattr(estudio, 'ruta_archivos') and estudio.ruta_archivos and os.path.exists(estudio.ruta_archivos):
                 try:
                     shutil.rmtree(estudio.ruta_archivos)
                 except Exception as e:
-                    print(f"Error borrando: {e}")
+                    print(f"Error borrando archivos físicos: {e}")
             
             db.delete(estudio)
             cantidad_borrada += 1
@@ -178,7 +180,6 @@ def purgar_estudios_importados(dias_retencion: int = 30, db: Session = Depends(g
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error purga: {str(e)}")
-
 # 5. POST /importar-efilm — INGESTA MASIVA DESDE EFILM / SQL SERVER
 @router.post("/importar-efilm")
 def iniciar_migracion_efilm(config: EfilmConfigRequest, background_tasks: BackgroundTasks):

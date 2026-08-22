@@ -199,6 +199,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>SEXO</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("modalidad")}>MOD {renderIconoOrden("modalidad")}</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer', color: '#fbbf24' }} onClick={() => solicitarOrdenamiento("descripcion")}>ESTUDIO {renderIconoOrden("descripcion")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>INSTITUCIÓN</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("departamento")}>DEPTO {renderIconoOrden("departamento")}</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>ADMIN / EDITAR</th>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>VISOR</th>
@@ -207,7 +208,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
 <tbody>
         {(!pacientes || pacientes.length === 0) ? (
           <tr>
-            <td colSpan="17" style={styles.waitingState}>
+            <td colSpan="18" style={styles.waitingState}>
               <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📡</div>
               <p style={{ margin: 0, fontWeight: 'bold' }}>No se localizaron registros coincidentes.</p>
             </td>
@@ -219,8 +220,28 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
             const primerApellido = p.primer_apellido || "Desconocido"; const segundoApellido = p.segundo_apellido || "-";
             const emailReal = p.email || "-"; const telefonoReal = p.telefono || "-";
             const mReal = p.modalidad || p.tipo_estudio || "CR";
-            const fechaReal = p.fecha_estudio || p.fecha || "S/F"; const horaReal = p.hora_estudio || "00:00";
             const descripcionReal = p.descripcion || p.study_description || p.procedimiento || "Sin descripción";
+
+            // 🔥 LOGICA PARA DIVIDIR FECHA Y HORA
+            let fechaReal = p.fecha || "S/F"; 
+            let horaReal = p.hora_estudio || "00:00";
+
+            if (p.fecha_estudio) {
+                if (p.fecha_estudio.includes("T")) {
+                    const partes = p.fecha_estudio.split("T");
+                    fechaReal = partes[0];
+                    horaReal = partes[1].substring(0, 5); 
+                } else if (p.fecha_estudio.includes(" ")) {
+                    const partes = p.fecha_estudio.split(" ");
+                    fechaReal = partes[0];
+                    horaReal = partes[1].substring(0, 5);
+                } else {
+                    fechaReal = p.fecha_estudio; 
+                }
+            }
+
+            // 🔥 CAPTURAR INSTITUCIÓN
+            const institucionReal = p.institucion || "TRAUMASCAN-";
 
             const estaSeleccionado = seleccionados.includes(p.estudio_interno_id);
             const estiloMod = obtenerEstiloModalidad(mReal);
@@ -326,6 +347,11 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                   {esUrgente && estadoActivo && <span title="¡AVISO IA: Posible urgencia!" style={{ marginRight: '6px', fontSize: '1.2rem' }}>⚠️</span>}
                   {esNormal && estadoActivo && yaPasoPorIA && <span title="IA: Estudio sin hallazgos críticos evidentes" style={{ marginRight: '6px', fontSize: '1.2rem' }}>🟢</span>}
                   {descripcionReal}
+                </td>
+
+                {/* 🔥 NUEVA CELDA: Institución */}
+                <td style={{ ...styles.tdStyle, color: '#94a3b8', fontWeight: 'bold' }}>
+                  {institucionReal}
                 </td>
                 
                 <td style={styles.tdStyle}>{p.departamento || "Radiología"}</td>

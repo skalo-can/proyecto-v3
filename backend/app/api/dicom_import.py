@@ -32,6 +32,9 @@ from app.models.estudio_imagen import EstudioImagen
 from app.services.estudio_service import crear_estudio
 from app.schemas.estudio import EstudioCreate
 
+# 🔥 IMPORTAMOS EL MOTOR MAESTRO QUE SÍ LEE HORA E INSTITUCIÓN CORRECTAMENTE
+from app.dicom_utils.dicom_importer import process_single_dicom_file
+
 # 🎯 PREFIJO CORE UNIFICADO: Ajustado para interceptar la ruta exacta del frontend
 router = APIRouter(tags=["Importación DICOM"])
 
@@ -120,7 +123,7 @@ def generar_thumbnail(dicom_path: Path, nombre_base: str, subcarpeta: str) -> st
 
 
 def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | None:
-    """Procesa un único archivo binario con blindaje contra archivos maliciosos."""
+    """Procesa un único archivo binario utilizando el motor maestro unificado de MI_PACS."""
     nombre_archivo = archivo_path.name.upper()
     if nombre_archivo in ["DICOMDIR", "VIEWER.EXE", "AUTORUN.INF", "THUMBNAILS.DB"] or archivo_path.suffix.upper() in [".EXE", ".TXT", ".INF"]:
         return None
@@ -131,108 +134,70 @@ def procesar_un_archivo_dicom_manual(db: Session, archivo_path: Path) -> dict | 
             print(f"⚠️ Bloqueo de seguridad: Archivo {nombre_archivo} excede límite de 250MB.")
             return {"archivo": archivo_path.name, "error": "Archivo excede límite de tamaño seguro."}
 
+        # 🔥 LA CLAVE DE TODO: Delegamos el procesamiento completo al motor maestro unificado
+        # Esto extrae StudyDate, StudyTime real, InstitutionName, deduplica inteligentemente y gestiona el paciente.
+        process_single_dicom_file(db, str(archivo_path))
+
+        # Obtenemos los datos mínimos necesarios del archivo para las miniaturas (thumbnails)
         ds = dcmread(archivo_path, force=True)
         study_uid = getattr(ds, "StudyInstanceUID", None)
         sop_uid = getattr(ds, "SOPInstanceUID", None)
-        if not study_uid or not sop_uid:
-            return None
+        
+        if study_uid and sop_uid and "PixelData" in ds:
+            study_uid_seguro = sanitizar_nombre_ruta(study_uid)
+            estudio = db.query(Estudio).filter_by(uid=study_uid_seguro).first()
+            
+            if estudio:
+                accession_number = sanitizar_nombre_ruta(getattr(ds, "AccessionNumber", study_uid_seguro))
+                series_uid = sanitizar_nombre_ruta(getattr(ds, "SeriesInstanceUID", "SERIE_DESCONOCIDA"))
+                sop_uid_seguro = sanitizar_nombre_ruta(sop_uid)
 
-        # 1. Datos del Paciente (Sanitizados)
-        patient_id = sanitizar_nombre_ruta(getattr(ds, "PatientID", "SIN_ID"))
+                carpeta_destino = ARCHIVO_ROOT / accession_number / series_uid
+                carpeta_destino.mkdir(parents=True, exist_ok=True)
+
+                nombre_final_archivo = f"{sop_uid_seguro}.dcm"
+                destino_final = carpeta_destino / nombre_final_archivo
+
+                shutil.copy2(str(archivo_path), str(destino_final))
+
+                fecha_estudio = estudio.fecha_estudio.date() if hasattr(estudio.fecha_estudio, "date") else estudio.fecha_estudio
+                subcarpeta_fecha = f"{fecha_estudio.year}/{fecha_estudio.month:02d}/{fecha_estudio.day:02d}"
+                
+                thumbnail_url = generar_thumbnail(destino_final, sop_uid_seguro, subcarpeta_fecha)
+                if not thumbnail_url:
+                    thumbnail_url = f"/static/thumbnails/{subcarpeta_fecha}/{sop_uid_seguro}.png"
+
+                metadata = {
+                    "Modality": getattr(ds, "Modality", "DX"),
+                    "SeriesNumber": getattr(ds, "SeriesNumber", None),
+                    "SOPInstanceUID": sop_uid_seguro,
+                    "AccessionNumber": accession_number,
+                    "StudyInstanceUID": study_uid_seguro
+                }
+
+                imagen = db.query(EstudioImagen).filter_by(ruta_archivo=str(destino_final)).first()
+                if not imagen:
+                    imagen = EstudioImagen(
+                        estudio_id=estudio.id,
+                        ruta_archivo=str(destino_final),
+                        dicom_metadata=metadata,
+                        thumbnail=thumbnail_url,
+                        fecha_subida=datetime.utcnow()
+                    )
+                    db.add(imagen)
+                    db.commit()
+
+        # Extraer nombre del paciente para el log visual de éxito
         raw_name = str(getattr(ds, "PatientName", "PACIENTE^DESCONOCIDO"))
         partes = raw_name.split("^")
-
         primer_apellido = partes[0] if len(partes) > 0 else "Desconocido"
         primer_nombre = partes[1] if len(partes) > 1 else "Paciente"
-        fecha_nacimiento = parse_fecha_nacimiento(getattr(ds, "PatientBirthDate", None))
-
-        paciente = db.query(Paciente).filter_by(identificacion=patient_id).first()
-        if not paciente:
-            paciente = Paciente(
-                identificacion=patient_id,
-                primer_nombre=primer_nombre,
-                primer_apellido=primer_apellido,
-                fecha_nacimiento=fecha_nacimiento
-            )
-            db.add(paciente)
-            db.commit()
-            db.refresh(paciente)
-
-        # 2. Datos del Estudio
-        # 🛡️ Sanitizamos el UID antes de buscar en DB
-        study_uid_seguro = sanitizar_nombre_ruta(study_uid)
-        estudio = db.query(Estudio).filter_by(uid=study_uid_seguro).first()
-        
-        if not estudio:
-            study_desc = getattr(ds, "StudyDescription", "Estudio sin descripción")
-            study_date = getattr(ds, "StudyDate", None)
-            modality = getattr(ds, "Modality", "DX")
-            
-            fecha_estudio = date.today()
-            if study_date:
-                try:
-                    fecha_estudio = datetime.strptime(study_date, "%Y%m%d").date()
-                except:
-                    pass
-
-            data = EstudioCreate(
-                paciente_id=paciente.id,
-                tipo_estudio=modality,
-                fecha_estudio=fecha_estudio,
-                descripcion=study_desc,
-                uid=study_uid_seguro
-            )
-            estudio = crear_estudio(db, data)
-        else:
-            fecha_estudio = estudio.fecha_estudio
-
-        # 3. Guardar Estructura en Almacenamiento Unificado (BLINDADO CONTRA PATH TRAVERSAL)
-        accession_number = sanitizar_nombre_ruta(getattr(ds, "AccessionNumber", study_uid_seguro))
-        series_uid = sanitizar_nombre_ruta(getattr(ds, "SeriesInstanceUID", "SERIE_DESCONOCIDA"))
-        sop_uid_seguro = sanitizar_nombre_ruta(sop_uid)
-
-        carpeta_destino = ARCHIVO_ROOT / accession_number / series_uid
-        carpeta_destino.mkdir(parents=True, exist_ok=True)
-
-        nombre_final_archivo = f"{sop_uid_seguro}.dcm"
-        destino_final = carpeta_destino / nombre_final_archivo
-
-        shutil.copy2(str(archivo_path), str(destino_final))
-
-        # Formatear la subcarpeta usando la fecha real del estudio clínico
-        subcarpeta_fecha = f"{fecha_estudio.year}/{fecha_estudio.month:02d}/{fecha_estudio.day:02d}"
-        
-        # Generar thumbnail indexado por la ruta jerárquica
-        thumbnail_url = generar_thumbnail(destino_final, sop_uid_seguro, subcarpeta_fecha)
-        if not thumbnail_url:
-            thumbnail_url = f"/static/thumbnails/{subcarpeta_fecha}/{sop_uid_seguro}.png"
-
-        metadata = {
-            "Modality": getattr(ds, "Modality", "DX"),
-            "SeriesNumber": getattr(ds, "SeriesNumber", None),
-            "SOPInstanceUID": sop_uid_seguro,
-            "AccessionNumber": accession_number,
-            "StudyInstanceUID": study_uid_seguro
-        }
-
-        imagen = db.query(EstudioImagen).filter_by(ruta_archivo=str(destino_final)).first()
-        if not imagen:
-            imagen = EstudioImagen(
-                estudio_id=estudio.id,
-                ruta_archivo=str(destino_final),
-                dicom_metadata=metadata,
-                thumbnail=thumbnail_url,
-                fecha_subida=datetime.utcnow()
-            )
-            db.add(imagen)
-            db.commit()
 
         return {"archivo": archivo_path.name, "paciente": f"{primer_apellido}, {primer_nombre}", "status": "success"}
 
     except Exception as e:
         db.rollback()
         return {"archivo": archivo_path.name, "error": str(e)}
-
 
 def tarea_fondo_importacion_recursiva(ruta_origen: str):
     global ESTADO_IMPORTACION
@@ -451,3 +416,26 @@ def importar_base_datos(usuario=Depends(obtener_usuario_actual)):
         "status": "success", 
         "message": "Protocolo de restauración habilitado. Por seguridad, la base de datos requerirá un reinicio del servicio para aplicar los cambios en caliente."
     }
+
+from sqlalchemy import text
+from app.core.database import engine
+
+@router.post("/admin/mantenimiento-profundo")
+def mantenimiento_profundo(usuario=Depends(obtener_usuario_actual)):
+    """
+    Ejecuta la aspiradora de SQLite (VACUUM) de forma segura fuera de transacciones
+    para compactar la base de datos y optimizar el rendimiento.
+    """
+    try:
+        # SQLite requiere estar fuera de transacciones estándar para ejecutar VACUUM
+        with engine.connect() as connection:
+            conn_autocommit = connection.execution_options(isolation_level="AUTOCOMMIT")
+            conn_autocommit.execute(text("VACUUM;"))
+            
+        return {
+            "status": "success", 
+            "message": "Optimización profunda y aspiradora completadas exitosamente."
+        }
+    except Exception as e:
+        print(f"Error en Mantenimiento Profundo (Vacuum): {e}")
+        raise HTTPException(status_code=500, detail=f"Error en el motor de base de datos: {str(e)}")

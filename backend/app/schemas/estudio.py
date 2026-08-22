@@ -40,12 +40,13 @@ def detectar_html_peligroso(texto: str | None) -> str | None:
 class EstudioCreate(BaseModel):
     paciente_id: int = Field(..., description="ID del paciente")
     tipo_estudio: str = Field(..., description="Tipo de estudio (RX, TAC, RM, ECO, etc.)")
-    fecha_estudio: date = Field(..., description="Fecha del estudio")
+    fecha_estudio: datetime = Field(..., description="Fecha y hora del estudio") # 🔥 MODIFICADO a datetime
     descripcion: str | None = Field(None, description="Descripción clínica opcional")
+    institucion: str | None = Field("Desconocida", description="Institución de origen") # 🔥 NUEVO
     uid: str = Field(..., description="UID único del estudio")
 
     # 🛡️ Aplicamos el filtro de seguridad a los campos de texto
-    @field_validator('descripcion', 'tipo_estudio')
+    @field_validator('descripcion', 'tipo_estudio', 'institucion') # 🔥 Agregada la institución al validador
     @classmethod
     def validar_seguridad_textos(cls, value):
         return detectar_html_peligroso(value)
@@ -56,12 +57,13 @@ class EstudioCreate(BaseModel):
 # ---------------------------------------------------------
 class EstudioUpdate(BaseModel):
     tipo_estudio: str | None = None
-    fecha_estudio: date | None = None
+    fecha_estudio: datetime | None = None # 🔥 MODIFICADO a datetime
     descripcion: str | None = None
+    institucion: str | None = None # 🔥 NUEVO
     estado: EstadoEstudio | None = None
 
     # 🛡️ Aplicamos el filtro de seguridad a los campos de texto
-    @field_validator('descripcion', 'tipo_estudio')
+    @field_validator('descripcion', 'tipo_estudio', 'institucion') # 🔥 Agregada la institución al validador
     @classmethod
     def validar_seguridad_textos_update(cls, value):
         return detectar_html_peligroso(value)
@@ -74,10 +76,11 @@ class EstudioListItem(BaseModel):
     id: int
     paciente_id: int
     tipo_estudio: str
-    fecha_estudio: date
+    fecha_estudio: datetime # 🔥 MODIFICADO a datetime
     estado: EstadoEstudio
     descripcion: str | None
-    prioridad_ia: str | None = "NORMAL" # 🔥 AGREGADO
+    institucion: str | None # 🔥 NUEVO
+    prioridad_ia: str | None = "NORMAL"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -89,12 +92,13 @@ class EstudioResponse(BaseModel):
     id: int
     paciente_id: int
     tipo_estudio: str
-    fecha_estudio: date
+    fecha_estudio: datetime # 🔥 MODIFICADO a datetime
     uid: str
     estado: EstadoEstudio
     descripcion: str | None
+    institucion: str | None # 🔥 NUEVO
     creado_en: datetime
     actualizado_en: datetime
-    prioridad_ia: str | None = "NORMAL" # 🔥 AGREGADO
+    prioridad_ia: str | None = "NORMAL"
 
-    model_config = ConfigDict(from_attributes=True) 
+    model_config = ConfigDict(from_attributes=True)
