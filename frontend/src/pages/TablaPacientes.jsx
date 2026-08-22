@@ -240,8 +240,8 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                 }
             }
 
-            // 🔥 CAPTURAR INSTITUCIÓN
-            const institucionReal = p.institucion || "TRAUMASCAN-";
+            // 🔥 AHORA CAPTURAR INSTITUCIÓN QUE REALMENTE VENGA DEL ARCHIVO
+            const institucionReal = p.institucion || "Desconocida";
 
             const estaSeleccionado = seleccionados.includes(p.estudio_interno_id);
             const estiloMod = obtenerEstiloModalidad(mReal);
