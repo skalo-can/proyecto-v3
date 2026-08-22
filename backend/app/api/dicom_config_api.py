@@ -5,7 +5,8 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.crud.dicom_config_crud import get_config, update_config, get_nodos, create_nodo, update_nodo, delete_nodo
-from app.models.dicom_config import DicomMapeoCampos
+# 🚀 AÑADIMOS DicomConfig A LA IMPORTACIÓN
+from app.models.dicom_config import DicomConfig, DicomMapeoCampos
 from app.schemas.dicom_config import NodoDicomCreate, NodoDicomUpdate, NodoDicomResponse
 
 router = APIRouter(tags=["Configuración DICOM"])
@@ -27,10 +28,13 @@ class MapeoCreate(BaseModel):
 # ENDPOINTS NODO PACS (GLOBAL)
 # ==========================================
 @router.get("/status")
-def get_pacs_status():
+def get_pacs_status(db: Session = Depends(get_db)):
+    # 🚀 CURA DE HARDCODE: Ahora lee la verdad desde la base de datos
+    config = db.query(DicomConfig).first()
     return {
         "running": True, "status": "LISTENING", "last_event": "Servidor DICOM en línea",
-        "ae_title": "MIPACS", "port": 11112
+        "ae_title": config.ae_title if config else "MIPACS", 
+        "port": config.port if config else 11112
     }
 
 @router.get("/config")
@@ -45,12 +49,35 @@ def actualizar_configuracion_pacs(data: ConfigUpdate, db: Session = Depends(get_
     try:
         if data.ip and not data.ip_address: data.ip_address = data.ip
         if not data.client_ae: data.client_ae = data.weasis_ae_title
-        update_config(db, data)
+        
+        # 🚀 CURA DE AMNESIA: Escritura forzada y directa a SQLite
+        config = db.query(DicomConfig).first()
+        if not config:
+            config = DicomConfig()
+            db.add(config)
+            
+        config.ae_title = data.ae_title
+        config.port = data.port
+        
+        if hasattr(config, 'ip_address'):
+            config.ip_address = data.ip_address
+        if hasattr(config, 'ip'):
+            config.ip = data.ip_address
+            
+        if hasattr(config, 'client_ae'):
+            config.client_ae = data.client_ae
+            
+        # 🔥 EL COMANDO MÁGICO QUE FALTABA
+        db.commit()
+        db.refresh(config)
+        
         # Importación diferida para evitar ciclos
         from app.services.dicom_service import reiniciar_servidor_dicom
-        reiniciar_servidor_dicom(data.ae_title, data.port)
-        return {"success": True, "message": "Guardado correctamente"}
+        reiniciar_servidor_dicom(config.ae_title, config.port)
+        
+        return {"success": True, "message": "Guardado permanentemente"}
     except Exception as e:
+        db.rollback()
         return {"success": False, "message": str(e)}
 
 @router.post("/test-connection")

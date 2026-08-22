@@ -125,7 +125,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       });
     }
 
-    const fetchImagenes = async () => {
+const fetchImagenes = async () => {
       if (!currentId) {
         setLoading(false);
         return;
@@ -133,7 +133,11 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
 
       try {
         let urlFetch = `${API_BASE}/api/estudios/${currentId}/imagenes`;
-        let headersFetch = { Authorization: `Bearer ${activeToken}` };
+        
+        // 🔥 CORRECCIÓN: Leemos el token directamente de localStorage para asegurar que exista
+        const tokenSeguro = localStorage.getItem("token") || activeToken; 
+        
+        let headersFetch = { Authorization: `Bearer ${tokenSeguro}` };
 
         if (isGuest) {
           urlFetch = `${API_BASE}/api/secure-links/imagenes/${activeToken}`;
@@ -142,6 +146,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
 
         const response = await fetch(urlFetch, { headers: headersFetch });
         
+        // ... (El resto de tu código queda exactamente igual hacia abajo)
         if (!response.ok) throw new Error("Error en la autenticación o servidor.");
         
         const data = await response.json();
@@ -153,7 +158,9 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
             if (isGuest) {
               return `wadouri:${API_BASE}/api/secure-links/stream/${imgId}?token=${activeToken}`;
             } else {
-              return `wadouri:${API_BASE}/api/dicom/stream/${imgId}`;
+              // 🔥 CORRECCIÓN 2: Asegúrate de que el backend también reciba el token al pedir el binario
+              // (Si FastAPI requiere auth para el stream de la imagen, debes pasarlo por header o query params)
+              return `wadouri:${API_BASE}/api/dicom/stream/${imgId}?token=${tokenSeguro}`;
             }
           };
 
@@ -176,7 +183,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
         setLoading(false);
       }
     };
-    
+        
     fetchImagenes();
   }, [currentId, activeToken, isGuest, cleanLocalToken]);
 

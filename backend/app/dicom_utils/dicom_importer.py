@@ -108,16 +108,18 @@ def process_single_dicom_file(db: Session, file_path: str):
 
     # 3. Registrar/Actualizar Estudio
     fecha_estudio = _parse_date(study_date) if study_date else date.today()
-    estudio = db.query(Estudio).filter(Estudio.paciente_id == paciente.id, Estudio.descripcion == study_description).first()
+    
+    # 🔍 IMPORTANTE: Buscamos el estudio usando el campo 'uid' que es único en tu modelo
+    estudio = db.query(Estudio).filter(Estudio.uid == study_uid).first()
 
     if not estudio:
         estudio = Estudio(
             paciente_id=paciente.id,
-            tipo=modality,
-            fecha=fecha_estudio,
-            estado="pendiente",
+            tipo_estudio=modality,          # 🔥 CORREGIDO: Tu modelo usa 'tipo_estudio'
+            fecha_estudio=fecha_estudio,    # 🔥 CORREGIDO: Tu modelo usa 'fecha_estudio'
+            estado="pendiente",             # O el estado que prefieras
             descripcion=study_description,
-            archivo=None,
+            uid=study_uid,                  # 🔥 OBLIGATORIO: Tu modelo requiere el UID del estudio
         )
         db.add(estudio)
         db.flush()
@@ -167,8 +169,8 @@ def process_single_dicom_file(db: Session, file_path: str):
         )
         db.add(imagen)
 
-    if not estudio.archivo:
-        estudio.archivo = final_path
+   # if not estudio.archivo:
+     #   estudio.archivo = final_path
 
     db.commit()
 
@@ -226,4 +228,4 @@ def process_inbox():
 
 
 if __name__ == "__main__":
-    process_inbox() 
+    process_inbox()

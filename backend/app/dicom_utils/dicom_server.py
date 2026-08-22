@@ -1,3 +1,9 @@
+from pynetdicom import _config
+_config.ENFORCE_VALID_VALUES = False
+
+from pynetdicom import debug_logger
+# debug_logger()
+
 from pathlib import Path
 from pynetdicom import AE, evt, AllStoragePresentationContexts
 from pynetdicom.sop_class import (
@@ -16,8 +22,29 @@ from app.models.ris_orden import RISOrden
 
 from pydicom.uid import generate_uid  # 🔥 AGREGAR ESTA LÍNEA AL INICIO DEL ARCHIVO
 
+from app.core.database import SessionLocal
+
 # 🔥 INYECTAMOS EL ANCLA ABSOLUTA (FANTASMA ELIMINADO)
 from app.core.config import BACKEND_DIR
+
+import pynetdicom.pdu
+
+# 1. Guardamos la función original de validación estricta
+_original_set_ae = pynetdicom.pdu.set_ae
+
+# 2. Creamos un filtro que limpia la "basura" invisible que manda eFilm
+def interceptor_ae_title(value, name="", allow_empty=False, allow_empty_string=False):
+    if isinstance(value, bytes):
+        # Reemplazamos bytes nulos y saltos de línea por espacios en blanco legales
+        value = value.replace(b'\x00', b' ').replace(b'\r', b'').replace(b'\n', b'')
+    elif isinstance(value, str):
+        value = value.replace('\x00', ' ').replace('\r', '').replace('\n', '')
+        
+    # 3. Le pasamos el nombre ya bañado y limpio al motor original
+    return _original_set_ae(value, name, allow_empty, allow_empty_string)
+
+# 4. Sobreescribimos la regla estricta de la librería con nuestro interceptor
+pynetdicom.pdu.set_ae = interceptor_ae_title
 
 # Instancia global y configuración
 dicom_server_instance = None
@@ -141,11 +168,35 @@ def handle_store(event):
         ds = event.dataset
         ds.file_meta = event.file_meta
         INBOX_PATH.mkdir(parents=True, exist_ok=True)
+        
+        # 1. Guardar el archivo físicamente
         filename = INBOX_PATH / f"{ds.SOPInstanceUID}.dcm"
-        ds.save_as(str(filename), write_like_original=False)
-        _log(f"💾 Imagen recibida: {ds.SOPInstanceUID[-8:]}.dcm")
+        ruta_archivo_str = str(filename)
+        ds.save_as(ruta_archivo_str, write_like_original=False)
+        _log(f"💾 Imagen recibida en disco: {ds.SOPInstanceUID[-8:]}.dcm")
+        
+        # 2. Procesar en Base de Datos
+        db = SessionLocal()
+        try:
+            # 🔥 CORRECCIÓN: Le decimos a Python que el archivo está en dicom_utils
+            from app.dicom_utils.dicom_importer import process_single_dicom_file
+            
+            process_single_dicom_file(db, ruta_archivo_str)
+        except Exception as db_error:
+            _log(f"⚠️ Error al procesar en BD: {db_error}")
+        finally:
+            db.close()
+            
         return 0x0000
-    except: return 0xC000
+    except Exception as e:
+        _log(f"❌ Error crítico en C-STORE: {e}")
+        return 0xC000
+                    
+# ---------------------------------------------------------
+# HANDLER DE RECHAZO (Para ver por qué eFilm se desconecta)
+# ---------------------------------------------------------
+def handle_rejected(event):
+    _log(f"❌ ASOCIACIÓN RECHAZADA: Razones de AE Title o presentación. Revisa si el AE Title de eFilm coincide.")
 
 # ---------------------------------------------------------
 # INICIO DEL SERVIDOR
@@ -153,12 +204,19 @@ def handle_store(event):
 
 def iniciar_dicom_server(ae_title: str, port: int):
     global dicom_server_instance, server_state
-    ae = AE(ae_title=ae_title)
+    
+    ae_limpio = str(ae_title).strip()
+    ae = AE(ae_title=ae_limpio)
+    
+    # 1. Servicios de Búsqueda y Verificación
     ae.add_supported_context(Verification)
     ae.add_supported_context(ModalityWorklistInformationFind)
     ae.add_supported_context(StudyRootQueryRetrieveInformationModelFind)
     ae.add_supported_context(PatientRootQueryRetrieveInformationModelFind)
-    ae.supported_contexts.extend(AllStoragePresentationContexts)
+    
+    # 2. 🚀 SOLUCIÓN DEFINITIVA: Registrar TODOS los formatos de imagen correctamente (CT, MR, CR, etc.)
+    for contexto in AllStoragePresentationContexts:
+        ae.add_supported_context(contexto.abstract_syntax)
 
     handlers = [
         (evt.EVT_C_STORE, handle_store),
@@ -168,9 +226,9 @@ def iniciar_dicom_server(ae_title: str, port: int):
     ]
 
     try:
-        dicom_server_instance = ae.start_server(("", port), block=False, evt_handlers=handlers)
-        server_state.update({"running": True, "ae_title": ae_title, "port": port})
-        _log(f"🚀 Servidor DICOM Universal iniciado (Puerto {port})")
+        dicom_server_instance = ae.start_server(("0.0.0.0", port), block=False, evt_handlers=handlers)
+        server_state.update({"running": True, "ae_title": ae_limpio, "port": port})
+        _log(f"🚀 Servidor DICOM Universal iniciado en 0.0.0.0 (Puerto {port}) [AE={ae_limpio}]")
     except Exception as e:
         server_state["running"] = False
         _log(f"❌ Error al iniciar: {e}")
