@@ -384,4 +384,4 @@ def abrir_ubicacion(datos: RutaRequest):
         else:
             raise HTTPException(status_code=404, detail="La ruta ya no existe en el disco.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo abrir la carpeta: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"No se pudo abrir la carpeta: {str(e)}") 
