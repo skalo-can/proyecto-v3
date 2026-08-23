@@ -189,3 +189,59 @@ def obtener_imagenes_de_estudio(
         series_dict[nombre_serie].append({"id": img.id, "ruta_archivo": img.ruta_archivo})
         
     return [{"serie": str(k).upper(), "imagenes": v} for k, v in series_dict.items()]
+
+from app.models.paciente import Paciente  # Asegúrate de que esto esté arriba con tus importaciones
+
+# =====================================================================
+# ✅ ENDPOINT: OBTENER HISTORIAL DE ESTUDIOS PREVIOS DEL PACIENTE
+# =====================================================================
+@router.get("/{id}/previo")
+def obtener_estudios_previos(id: int, db: Session = Depends(get_db)):
+    """
+    Busca el historial cruzando el número de documento real del paciente.
+    """
+    # 1. Buscamos el estudio base
+    estudio_actual = db.query(Estudio).filter(Estudio.id == id).first()
+    
+    if not estudio_actual:
+        raise HTTPException(status_code=404, detail="Estudio base no encontrado.")
+
+    # 2. Rescatamos el documento real del paciente
+    paciente = db.query(Paciente).filter(Paciente.id == estudio_actual.paciente_id).first()
+    
+    if not paciente:
+        print(f"⚠️ [HISTORIAL] El estudio {id} no tiene un paciente válido asociado en la DB.")
+        return []
+
+    doc_real = paciente.identificacion
+    print(f"🔍 [HISTORIAL] Buscando previos para Cédula/ID: {doc_real} (Excluyendo estudio {id})")
+
+    # 3. Buscamos TODOS los estudios vinculados a cualquier paciente que tenga esa misma cédula
+    estudios_previos = (
+        db.query(Estudio)
+        .join(Paciente, Estudio.paciente_id == Paciente.id)
+        .filter(
+            Paciente.identificacion == doc_real,
+            Estudio.id != id
+        )
+        .order_by(Estudio.fecha_estudio.desc())
+        .all()
+    )
+
+    print(f"✅ [HISTORIAL] Encontrados {len(estudios_previos)} estudios previos para {doc_real}.")
+
+    # 4. Enviamos la data empaquetada tal como la tabla de React la necesita
+    resultados = []
+    for est in estudios_previos:
+        # Aseguramos que la fecha vaya como texto para evitar errores de parseo en JSON
+        fecha_str = est.fecha_estudio.strftime("%Y-%m-%d") if est.fecha_estudio else "Sin fecha"
+        
+        resultados.append({
+            "id": est.id,
+            "fecha": fecha_str,
+            "modalidad": getattr(est, "modalidad", getattr(est, "tipo_estudio", "DX")),
+            "descripcion": getattr(est, "descripcion", "Estudio de Imagen"),
+            "estado": getattr(est, "estado", "N/A")
+        })
+
+    return resultados

@@ -363,7 +363,7 @@ const fetchImagenes = async () => {
     }
   };
 
-  // 📂 LÓGICA INCORPORADA PARA BUSCAR EL HISTORIAL DIRECTAMENTE
+// 📂 LÓGICA INCORPORADA PARA BUSCAR EL HISTORIAL DIRECTAMENTE
   const abrirHistorialComparativo = async () => {
     try {
       console.log("MI_PACS → Solicitando estudio previo...");
@@ -372,46 +372,73 @@ const fetchImagenes = async () => {
       });
       const data = await res.json();
 
-      if (!data || !data.id) {
+      if (!data || data.length === 0) {
         alert("Este paciente no tiene estudios previos para comparar.");
         return;
       }
 
-      const resPrevio = await fetch(`${API_BASE}/api/estudios/${data.id}/imagenes`, {
+      const idEstudioPrevio = data[0].id;
+      console.log(`MI_PACS → Cargando imágenes del estudio previo con ID: ${idEstudioPrevio}`);
+
+      const resPrevio = await fetch(`${API_BASE}/api/estudios/${idEstudioPrevio}/imagenes`, {
         headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
       });
-      const imgsPrevio = await resPrevio.json();
+      const imgsPrevio = await resPrevio.json(); 
 
-      // Formatear las URLs para el CompareViewer (no llevan wadouri: aquí)
-      const urlsPrevioRaw = imgsPrevio.map(img => {
-        if (isGuest) return `${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
-        return `${API_BASE}/api/dicom/stream/${img.id}`;
+      if (!imgsPrevio || imgsPrevio.length === 0 || !imgsPrevio[0].imagenes) {
+        alert("El estudio previo no tiene imágenes legibles.");
+        return;
+      }
+      
+      const listaImagenesPrevio = imgsPrevio[0].imagenes;
+      const tokenSeguro = localStorage.getItem("token") || activeToken;
+
+      // 🔥 Mantenemos el formato original que cornerstone espera
+      const urlsPrevioRaw = listaImagenesPrevio.map(img => {
+        if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
+        return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
       });
 
-      const urlsActualesRaw = imagenesActuales.map(u => u.replace("wadouri:", ""));
+      // Aseguramos que las actuales también mantengan su formato
+      const urlsActualesRaw = imagenesActuales.map(u => u.includes("wadouri:") ? u : `wadouri:${u}`);
 
-      // 🔄 Cambiar la vista a comparación
-      setMostrarComparacion({ actual: urlsActualesRaw, previo: urlsPrevioRaw });
+      if (urlsActualesRaw.length > 0 && urlsPrevioRaw.length > 0) {
+        console.log("MI_PACS → Partiendo pantalla en dos...");
+        
+        // 🔥 CORRECCIÓN: Envolvemos las imágenes en el formato de "Series" que el visor espera
+        const serieActualFormateada = [{ nombre: "Estudio Actual", urls: urlsActualesRaw }];
+        const seriePreviaFormateada = [{ nombre: "Estudio Previo", urls: urlsPrevioRaw }];
+
+        setMostrarComparacion({ 
+            actual: serieActualFormateada, 
+            previo: seriePreviaFormateada 
+        });
+      }
 
     } catch (err) {
-      console.error("Error cargando historial:", err);
-      alert("No se pudo cargar el historial del paciente.");
+      console.error("Error crítico cargando historial:", err);
+      alert("Ocurrió un error al intentar cargar el historial.");
     }
   };
 
-// 🎭 RENDERIZADO CONDICIONAL: SI HAY COMPARACIÓN, MUESTRA EL SPLIT SCREEN
+  // =======================================================================
+  // 🎭 RENDERIZADO CONDICIONAL: SI HAY COMPARACIÓN, MUESTRA EL SPLIT SCREEN
+  // =======================================================================
   if (mostrarComparacion) {
     return (
       <div style={{ width: "100%", height: "100vh", backgroundColor: "#000" }}>
         <CompareViewer
-          seriesA={mostrarComparacion.actual}  // ← Cambiamos urlsA por seriesA
-          seriesB={mostrarComparacion.previo}  // ← Cambiamos urlsB por seriesB
+          seriesA={mostrarComparacion.actual}
+          seriesB={mostrarComparacion.previo}
           onVolver={() => setMostrarComparacion(null)}
         />
       </div>
     );
   }
-  
+
+  // =======================================================================
+  // RENDERIZADO NORMAL DEL VISOR (Una sola pantalla)
+  // =======================================================================
   return (
     <div style={styles.visorContainer}>
       
