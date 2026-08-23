@@ -22,7 +22,7 @@ def listar(
     db: Session = Depends(get_db),
     usuario = Depends(obtener_usuario_actual)
 ):
-    requiere_rol(usuario, ["admin", "medico", "recepcion"])
+    requiere_rol(usuario, ["admin", "recepcion", "superadmin"])
     
     resultados = email_log_crud.listar(db, limit=limit)
     output = []
