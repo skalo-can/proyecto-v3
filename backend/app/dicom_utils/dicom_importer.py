@@ -25,21 +25,64 @@ def _safe_get(ds, tag, default=None):
     return getattr(ds, tag, default)
 
 
+import re
+
 def _parse_patient_name(patient_name):
-    """Convierte PatientName DICOM (ej. 'GARCIA^JUAN^CARLOS') en fragmentos limpios."""
-    if not patient_name:
-        return "DESCONOCIDO", None, "PACIENTE", None
+    """
+    Convierte PatientName DICOM en fragmentos limpios.
+    Limpia basura técnica (ej. '^^^SDA IL', '*') y asocia los nombres al estándar latino:
+    1er Apellido, 2do Apellido, 1er Nombre, 2do Nombre.
+    """
+    if not patient_name or str(patient_name).strip() == "":
+        return "DESCONOCIDO", "", "PACIENTE", ""
 
-    parts = str(patient_name).replace("^", " ").split()
+    # 1. Convertimos a string y limpiamos caracteres extraños que inyectan los equipos
+    nombre_crudo = str(patient_name).upper()
+    nombre_crudo = re.sub(r'[\*\+\#\~\!\?]', '', nombre_crudo) # Quita basura como * o +
+    
+    # Algunos equipos meten "SDA IL" (Sin Datos Adicionales / Ilegible) o similar. Lo limpiamos.
+    nombre_crudo = nombre_crudo.replace("SDA IL", "").replace("SDA", "").strip()
 
-    if len(parts) == 1:
-        return parts[0], None, "PACIENTE", None
-    if len(parts) == 2:
-        return parts[1], None, parts[0], None
-    if len(parts) == 3:
-        return parts[1], parts[2], parts[0], None
+    # 2. Reemplazamos los '^^^' múltiples por un solo separador, y luego lo pasamos a espacios
+    nombre_crudo = re.sub(r'\^+', '^', nombre_crudo)
+    partes = nombre_crudo.replace('^', ' ').split()
+    
+    # 3. Limpiamos espacios vacíos que hayan quedado
+    partes = [p.strip() for p in partes if p.strip()]
 
-    return parts[1], parts[2], parts[0], " ".join(parts[3:])
+    # Si después de limpiar no quedó nada
+    if not partes:
+         return "DESCONOCIDO", "", "PACIENTE", ""
+
+    # 4. Asignación Lógica (Asumiendo formato predominante: Apellido1 Apellido2 Nombre1 Nombre2)
+    primer_apellido = ""
+    segundo_apellido = ""
+    primer_nombre = ""
+    segundo_nombre = ""
+
+    cantidad = len(partes)
+
+    if cantidad == 1:
+        # Solo tiene un nombre (Ej: "LOAIZA")
+        primer_apellido = partes[0]
+        primer_nombre = "NO_REGISTRADO"
+    elif cantidad == 2:
+        # Ej: "LOAIZA JOSE" -> Asumimos 1 Apellido, 1 Nombre
+        primer_apellido = partes[0]
+        primer_nombre = partes[1]
+    elif cantidad == 3:
+        # Ej: "LOAIZA LISCANO JOSE" -> 2 Apellidos, 1 Nombre
+        primer_apellido = partes[0]
+        segundo_apellido = partes[1]
+        primer_nombre = partes[2]
+    else:
+        # Ej: "LOAIZA LISCANO JOSE EDILSON" (4 o más palabras) -> 2 Apellidos, resto a Nombres
+        primer_apellido = partes[0]
+        segundo_apellido = partes[1]
+        primer_nombre = partes[2]
+        segundo_nombre = " ".join(partes[3:]) # Junta cualquier palabra extra en el 2do nombre
+
+    return primer_nombre, segundo_nombre, primer_apellido, segundo_apellido
 
 
 def _parse_date(dicom_date):
@@ -89,10 +132,22 @@ def process_single_dicom_file(db: Session, file_path: str):
         raw_time = str(ds.get((0x0008, 0x0030)).value)
     study_time = raw_time if raw_time else "000000"
 
-    raw_inst = _safe_get(ds, "InstitutionName", None)
-    if not raw_inst and hasattr(ds, "00080080"):
-        raw_inst = str(ds.get((0x0008, 0x0080)).value)
-    institution_name = raw_inst.strip() if raw_inst else "Desconocida"
+    # 🔥 Captura de Institución Blindada
+    raw_inst = None
+    if "InstitutionName" in ds:
+        raw_inst = ds.InstitutionName
+    elif (0x0008, 0x0080) in ds:
+        raw_inst = ds[0x0008, 0x0080].value
+
+    # Limpiamos el valor extraído (a veces viene como un bloque de bytes o lista)
+    if isinstance(raw_inst, bytes):
+        raw_inst = raw_inst.decode('utf-8', errors='ignore')
+    elif isinstance(raw_inst, pydicom.multival.MultiValue):
+        raw_inst = " ".join([str(v) for v in raw_inst])
+        
+    institution_name = str(raw_inst).strip() if raw_inst else "Desconocida"
+    # Si viene con comillas o corchetes raros, los limpiamos
+    institution_name = institution_name.strip("[]'\"")
 
     # 🖨️ Chivato en consola: Esto nos dirá exactamente qué leyó Python del archivo
     print(f"📥 [DICOM PARSER] Archivo: {os.path.basename(file_path)} | Fecha: {study_date} | Hora: {study_time} | Inst: {institution_name}")
@@ -253,4 +308,4 @@ def process_inbox():
 
 
 if __name__ == "__main__":
-    process_inbox()
+    process_inbox() 
