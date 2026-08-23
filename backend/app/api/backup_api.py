@@ -73,7 +73,7 @@ def leer_config_json():
             pass
             
     # 🛡️ Blindaje crítico: Forzamos la ruta fija al disco H externo independientemente del JSON viejo
-   # config["nas_ruta"] = "H:\\MI_PACS_NAS_EXTERNAL"
+    # config["nas_ruta"] = "H:\\MI_PACS_NAS_EXTERNAL"
     return config
 
 # ==========================================
@@ -180,6 +180,7 @@ def purgar_estudios_importados(dias_retencion: int = 30, db: Session = Depends(g
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error purga: {str(e)}")
+
 # 5. POST /importar-efilm — INGESTA MASIVA DESDE EFILM / SQL SERVER
 @router.post("/importar-efilm")
 def iniciar_migracion_efilm(config: EfilmConfigRequest, background_tasks: BackgroundTasks):
@@ -194,7 +195,58 @@ def iniciar_migracion_efilm(config: EfilmConfigRequest, background_tasks: Backgr
     except Exception as e:
         db.close()
         raise HTTPException(status_code=500, detail=f"Error al iniciar migración: {str(e)}") 
-    
+
+# ==========================================
+# 📡 ENDPOINTS DE NODOS DICOM (C-STORE)
+# ==========================================
+@router.get("/nodos")
+def obtener_nodos_dicom():
+    """
+    Devuelve la lista de estaciones DICOM configuradas en la infraestructura
+    para el envío manual y automático de estudios.
+    """
+    # Simulando tu estación TACSKL real para la conexión inmediata
+    return [
+        {
+            "id": 1,
+            "nombre": "tomografia",
+            "ae_title": "TACSKL",
+            "ip": "192.168.5.23",
+            "puerto": 4006,
+            "modalidades": ["CT", "CR", "DX"] 
+        }
+    ]
+
+# Importación crítica para que el candado funcione
+from app.core.auth import obtener_usuario_actual
+
+# Esquema para recibir la orden del frontend
+class EnvioDicomRequest(BaseModel):
+    destino_aet: str
+    estudios_ids: List[int]
+
+# El endpoint oficial que recibe la orden
+@router.post("/dicom/send")
+def procesar_envio_dicom(
+    datos: EnvioDicomRequest, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
+):
+    try:
+        print(f"🚀 [C-STORE] Orden recibida autorizada para enviar a {datos.destino_aet}")
+        print(f"📁 IDs de estudios a enviar: {datos.estudios_ids}")
+
+        # 👇 Asegúrate de que esta línea esté alineada exactamente igual que los 'print' de arriba
+        background_tasks.add_task(enviar_estudios_a_nodo, datos.destino_aet, datos.estudios_ids)
+
+        return {
+            "status": "success", 
+            "message": f"Orden de transferencia hacia {datos.destino_aet} autorizada e iniciada."
+        }
+    except Exception as e:
+        print(f"❌ Error al iniciar envío: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 # ==========================================
 # 🏥 ENDPOINTS DE PERFIL INSTITUCIONAL
 # ==========================================

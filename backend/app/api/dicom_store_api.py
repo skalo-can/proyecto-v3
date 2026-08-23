@@ -51,7 +51,7 @@ class StoreRequest(BaseModel):
 # ---------------------------------------------------------
 # Enviar archivo DICOM usando configuración del sistema
 # ---------------------------------------------------------
-@router.post("/send")
+@router.post("/send-file")
 def send_dicom_endpoint(
     payload: StoreRequest,
     usuario=Depends(obtener_usuario_actual),
