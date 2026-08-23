@@ -14,6 +14,7 @@ from app.models.estudio import Estudio
 # Motores de servicios oficiales
 from app.services.scheduler_service import ejecutar_rutina_backup_diario
 from app.services.efilm_migration_service import ejecutar_migracion_efilm
+from app.services.dicom_service import enviar_estudios_a_nodo
 
 router = APIRouter()
 
