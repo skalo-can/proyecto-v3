@@ -229,7 +229,7 @@ const fetchImagenes = async () => {
     cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 1 });
 
     return () => cornerstone.disable(element);
-  }, [imagenesActuales.length, isRadiologo, serieActiva]);
+  }, [imagenesActuales.length, isRadiologo, serieActiva, mostrarComparacion]);
 
   useEffect(() => {
     if (!dicomElementRef.current || imagenesActuales.length === 0) return;
@@ -249,7 +249,7 @@ const fetchImagenes = async () => {
         });
       }
     }).catch(err => console.error("Error renderizando DICOM:", err));
-  }, [indiceActual, imagenesActuales]);
+  }, [indiceActual, imagenesActuales, mostrarComparacion]);
 
   useEffect(() => {
     let interval;
@@ -370,17 +370,18 @@ const fetchImagenes = async () => {
       const res = await fetch(`${API_BASE}/api/estudios/${currentId}/previo`, {
         headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
       });
-      const data = await res.json();
+      const data = await res.json(); // ¡Aquí vienen los 8 estudios!
 
       if (!data || data.length === 0) {
         alert("Este paciente no tiene estudios previos para comparar.");
         return;
       }
 
-      const idEstudioPrevio = data[0].id;
-      console.log(`MI_PACS → Cargando imágenes del estudio previo con ID: ${idEstudioPrevio}`);
-
-      const resPrevio = await fetch(`${API_BASE}/api/estudios/${idEstudioPrevio}/imagenes`, {
+      // 🔥 IMPORTANTE: Ahora le pasaremos el arreglo COMPLETO de estudios al estado
+      // pero cargaremos las imágenes del primero para que no arranque en negro.
+      const idEstudioPrevioInicial = data[0].id;
+      
+      const resPrevio = await fetch(`${API_BASE}/api/estudios/${idEstudioPrevioInicial}/imagenes`, {
         headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
       });
       const imgsPrevio = await resPrevio.json(); 
@@ -393,25 +394,25 @@ const fetchImagenes = async () => {
       const listaImagenesPrevio = imgsPrevio[0].imagenes;
       const tokenSeguro = localStorage.getItem("token") || activeToken;
 
-      // 🔥 Mantenemos el formato original que cornerstone espera
       const urlsPrevioRaw = listaImagenesPrevio.map(img => {
         if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
         return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
       });
 
-      // Aseguramos que las actuales también mantengan su formato
       const urlsActualesRaw = imagenesActuales.map(u => u.includes("wadouri:") ? u : `wadouri:${u}`);
 
       if (urlsActualesRaw.length > 0 && urlsPrevioRaw.length > 0) {
         console.log("MI_PACS → Partiendo pantalla en dos...");
         
-        // 🔥 CORRECCIÓN: Envolvemos las imágenes en el formato de "Series" que el visor espera
         const serieActualFormateada = [{ nombre: "Estudio Actual", urls: urlsActualesRaw }];
         const seriePreviaFormateada = [{ nombre: "Estudio Previo", urls: urlsPrevioRaw }];
 
+        // 🚀 NUEVO: Enviamos `listaHistorial` con los 8 estudios y un flag para saber cuál es el actual
         setMostrarComparacion({ 
             actual: serieActualFormateada, 
-            previo: seriePreviaFormateada 
+            previo: seriePreviaFormateada,
+            listaHistorial: data,
+            estudioSeleccionadoId: idEstudioPrevioInicial
         });
       }
 
@@ -424,13 +425,19 @@ const fetchImagenes = async () => {
   // =======================================================================
   // 🎭 RENDERIZADO CONDICIONAL: SI HAY COMPARACIÓN, MUESTRA EL SPLIT SCREEN
   // =======================================================================
-  if (mostrarComparacion) {
+if (mostrarComparacion) {
     return (
       <div style={{ width: "100%", height: "100vh", backgroundColor: "#000" }}>
         <CompareViewer
           seriesA={mostrarComparacion.actual}
           seriesB={mostrarComparacion.previo}
+          listaHistorial={mostrarComparacion.listaHistorial} // 👈 ¡NUEVO!
+          estudioSeleccionadoId={mostrarComparacion.estudioSeleccionadoId} // 👈 ¡NUEVO!
           onVolver={() => setMostrarComparacion(null)}
+          // IMPORTANTE: Le pasamos el token y el API_BASE para que CompareViewer pueda buscar otras fechas
+          activeToken={activeToken} 
+          API_BASE={API_BASE}
+          isGuest={isGuest}
         />
       </div>
     );

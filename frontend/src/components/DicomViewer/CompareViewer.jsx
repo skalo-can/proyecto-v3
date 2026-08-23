@@ -2,16 +2,16 @@
  * CompareViewer.jsx — MI_PACS
  * ---------------------------------------------------------
  * Comparación clínica lado a lado (Estilo eFilm) en Cornerstone V4.
- * ✔ Herramientas Premium, Galerías, Sincronización y CINE.
- * ✔ Solución de salto doble aplicada.
- * ✔ Control total por teclado (Flechas) inteligente por Hover.
+ * ✔ Panel de Fechas (Historial).
+ * ✔ Etiquetas estáticas de fechas en los lienzos.
+ * ✔ Extracción de Nombre y Documento nativo del DICOM.
+ * ✔ Barra de herramientas auto-ajustable (Wrap).
  */
 
 import React, { useEffect, useState, useRef } from "react";
 import cornerstone from "cornerstone-core";
 import cornerstoneTools from "cornerstone-tools";
 
-// --- Subcomponente para renderizar la Miniatura (Thumbnail) ---
 const Thumb = ({ url, onClick, activo, count }) => {
   const ref = useRef(null);
   useEffect(() => {
@@ -31,36 +31,53 @@ const Thumb = ({ url, onClick, activo, count }) => {
   );
 };
 
-export default function CompareViewer({ seriesA, seriesB, onVolver }) {
+export default function CompareViewer({ 
+    seriesA, 
+    seriesB, 
+    onVolver, 
+    listaHistorial = [], 
+    estudioSeleccionadoId, 
+    activeToken,
+    API_BASE,
+    isGuest
+}) {
   const dicomLeftRef = useRef(null);
   const dicomRightRef = useRef(null);
 
-  // Estados de Series e Índices
   const [serieLeft, setSerieLeft] = useState(0);
   const [serieRight, setSerieRight] = useState(0);
   const [indexLeft, setIndexLeft] = useState(0);
   const [indexRight, setIndexRight] = useState(0);
 
-  // Estados de Herramientas y Visor
+  const [seriesDinamicasB, setSeriesDinamicasB] = useState(seriesB);
+  const [idPrevioActivo, setIdPrevioActivo] = useState(estudioSeleccionadoId);
+  const [fechaEstudioPrevio, setFechaEstudioPrevio] = useState("");
+
   const [syncScroll, setSyncScroll] = useState(true);
   const [herramientaActiva, setHerramientaActiva] = useState("Wwwc");
-  
   const [infoLeft, setInfoLeft] = useState(false);
   const [infoRight, setInfoRight] = useState(false);
   
+  // 🚀 NUEVO: Estados para guardar la información vital del paciente del DICOM
+  const [tagsLeft, setTagsLeft] = useState(null);
+  const [tagsRight, setTagsRight] = useState(null);
+
   const [cineLeft, setCineLeft] = useState(false);
   const [cineRight, setCineRight] = useState(false);
   const [cineSpeed, setCineSpeed] = useState(15);
+  const [cargandoPrevio, setCargandoPrevio] = useState(false);
 
-  // Variables para arrastre 3D y Teclado Inteligente
   const drag3D = useRef({ activeL: false, activeR: false, lastX: 0 });
-  const panelHover = useRef('L'); // Sabe dónde está el mouse para el teclado
+  const panelHover = useRef('L'); 
 
-  // URLs activas según la serie seleccionada
   const urlsA = seriesA?.[serieLeft]?.urls || [];
-  const urlsB = seriesB?.[serieRight]?.urls || [];
+  const urlsB = seriesDinamicasB?.[serieRight]?.urls || [];
 
-  // Inicializar Cornerstone
+  useEffect(() => {
+      const estudio = listaHistorial.find(e => e.id === idPrevioActivo);
+      if (estudio) setFechaEstudioPrevio(estudio.fecha);
+  }, [idPrevioActivo, listaHistorial]);
+
   useEffect(() => {
     const elLeft = dicomLeftRef.current;
     const elRight = dicomRightRef.current;
@@ -77,71 +94,72 @@ export default function CompareViewer({ seriesA, seriesB, onVolver }) {
     };
   }, []);
 
-  // Cargar Imagen Izquierda
+  // 🚀 LADO IZQUIERDO: CARGAR IMAGEN Y EXTRAER METADATOS
   useEffect(() => {
     if (urlsA.length === 0 || !dicomLeftRef.current) return;
     let url = urlsA[indexLeft];
     if (!url) return;
     if (!url.startsWith("wadouri:")) url = `wadouri:${url}`;
-    cornerstone.loadAndCacheImage(url).then(img => cornerstone.displayImage(dicomLeftRef.current, img)).catch(e=>{});
+    
+    cornerstone.loadAndCacheImage(url).then(img => {
+      cornerstone.displayImage(dicomLeftRef.current, img);
+      // Extraemos la información si es la primera imagen de la serie
+      if (img.data && indexLeft === 0) {
+        setTagsLeft({
+          paciente: img.data.string('x00100010') || 'N/A',
+          documento: img.data.string('x00100020') || 'N/A'
+        });
+      }
+    }).catch(e=>{});
   }, [indexLeft, urlsA]);
 
-  // Cargar Imagen Derecha
+  // 🚀 LADO DERECHO: CARGAR IMAGEN Y EXTRAER METADATOS
   useEffect(() => {
     if (urlsB.length === 0 || !dicomRightRef.current) return;
     let url = urlsB[indexRight];
     if (!url) return;
     if (!url.startsWith("wadouri:")) url = `wadouri:${url}`;
-    cornerstone.loadAndCacheImage(url).then(img => cornerstone.displayImage(dicomRightRef.current, img)).catch(e=>{});
+    
+    cornerstone.loadAndCacheImage(url).then(img => {
+      cornerstone.displayImage(dicomRightRef.current, img);
+      if (img.data && indexRight === 0) {
+        setTagsRight({
+          paciente: img.data.string('x00100010') || 'N/A',
+          documento: img.data.string('x00100020') || 'N/A'
+        });
+      }
+    }).catch(e=>{});
   }, [indexRight, urlsB]);
 
-  // Lógica de Movimiento Corregida (Sin saltos dobles)
   const moverIzquierda = (delta) => {
     const maxL = Math.max(0, urlsA.length - 1);
     const maxR = Math.max(0, urlsB.length - 1);
-    
     setIndexLeft(prev => Math.min(Math.max(prev + delta, 0), maxL));
-    if (syncScroll) {
-      setIndexRight(prev => Math.min(Math.max(prev + delta, 0), maxR));
-    }
+    if (syncScroll) { setIndexRight(prev => Math.min(Math.max(prev + delta, 0), maxR)); }
   };
 
   const moverDerecha = (delta) => {
     const maxL = Math.max(0, urlsA.length - 1);
     const maxR = Math.max(0, urlsB.length - 1);
-
     setIndexRight(prev => Math.min(Math.max(prev + delta, 0), maxR));
-    if (syncScroll) {
-      setIndexLeft(prev => Math.min(Math.max(prev + delta, 0), maxL));
-    }
+    if (syncScroll) { setIndexLeft(prev => Math.min(Math.max(prev + delta, 0), maxL)); }
   };
 
-  // ⌨️ EVENTOS DE TECLADO (Flechas de navegación)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-        e.preventDefault(); // Evita que la página web entera haga scroll
-        
-        // Pausar el cine si el médico toca el teclado manualmente
+        e.preventDefault(); 
         setCineLeft(false);
         setCineRight(false);
-        
         const delta = (e.key === "ArrowDown" || e.key === "ArrowRight") ? 1 : -1;
-        
-        // Mover el panel donde el mouse esté flotando actualmente
-        if (panelHover.current === 'L') {
-          moverIzquierda(delta);
-        } else {
-          moverDerecha(delta);
-        }
+        if (panelHover.current === 'L') { moverIzquierda(delta); } 
+        else { moverDerecha(delta); }
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [urlsA.length, urlsB.length, syncScroll]);
 
-  // Motor de Cine
   useEffect(() => {
     let intervalo;
     if (cineLeft || cineRight) {
@@ -154,7 +172,6 @@ export default function CompareViewer({ seriesA, seriesB, onVolver }) {
     return () => clearInterval(intervalo);
   }, [cineLeft, cineRight, syncScroll, cineSpeed, urlsA.length, urlsB.length]);
 
-  // Eventos de Mouse (Giro 3D)
   const handleMouse = (lado, tipo, e) => {
     if (herramientaActiva !== "Spin3D") return;
     if (tipo === 'down' && e.button === 0) {
@@ -175,33 +192,61 @@ export default function CompareViewer({ seriesA, seriesB, onVolver }) {
     }
   };
 
-  // Acciones de Herramientas
   const activarHerramienta = (nombre) => {
     setHerramientaActiva(nombre);
-    if (nombre === "Spin3D") {
-      cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 0 }); 
-    } else {
-      cornerstoneTools.setToolActive(nombre, { mouseButtonMask: 1 });
-    }
+    if (nombre === "Spin3D") { cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 0 }); } 
+    else { cornerstoneTools.setToolActive(nombre, { mouseButtonMask: 1 }); }
   };
 
   const aplicarAccion = (lado, accion) => {
     const el = lado === 'L' ? dicomLeftRef.current : dicomRightRef.current;
     if (!el) return;
     if (accion === 'ajustar') { cornerstone.reset(el); cornerstone.resize(el, true); return; }
-    
     const vp = cornerstone.getViewport(el);
     if (!vp) return;
     if (accion === 'invert') vp.invert = !vp.invert;
     if (accion === 'flipH') vp.hflip = !vp.hflip;
     if (accion === 'flipV') vp.vflip = !vp.vflip;
     if (accion === 'clear') { cornerstoneTools.clearToolState(el, "Length"); cornerstoneTools.clearToolState(el, "Angle"); cornerstoneTools.clearToolState(el, "EllipticalRoi"); }
-    
     cornerstone.setViewport(el, vp);
     if (accion === 'clear') cornerstone.updateImage(el);
   };
 
-  // ESTILOS DE INTERFAZ
+  const cargarEstudioPrevio = async (id, fecha) => {
+      setCargandoPrevio(true);
+      try {
+        const resPrevio = await fetch(`${API_BASE}/api/estudios/${id}/imagenes`, {
+          headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
+        });
+        const imgsPrevio = await resPrevio.json(); 
+
+        if (!imgsPrevio || imgsPrevio.length === 0 || !imgsPrevio[0].imagenes) {
+            alert("Este estudio no tiene imágenes.");
+            setCargandoPrevio(false);
+            return;
+        }
+        
+        const listaImagenesPrevio = imgsPrevio[0].imagenes;
+        const tokenSeguro = localStorage.getItem("token") || activeToken;
+
+        const urlsNuevas = listaImagenesPrevio.map(img => {
+            if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
+            return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
+        });
+
+        setSeriesDinamicasB([{ nombre: "Estudio Previo", urls: urlsNuevas }]);
+        setIdPrevioActivo(id);
+        setFechaEstudioPrevio(fecha);
+        setIndexRight(0); 
+        
+      } catch (err) {
+          console.error(err);
+          alert("Error cargando este estudio.");
+      } finally {
+          setCargandoPrevio(false);
+      }
+  };
+
   const styles = {
     btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", fontSize: "11px", whiteSpace: "nowrap", flexShrink: 0 },
     btnToolActivo: { backgroundColor: "#3b82f6", color: "#fff", border: "1px solid #2563eb", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", fontSize: "11px", whiteSpace: "nowrap", flexShrink: 0 },
@@ -217,13 +262,20 @@ export default function CompareViewer({ seriesA, seriesB, onVolver }) {
     divisor: { width: "1px", backgroundColor: "#475569", margin: "0 5px", height: "20px", flexShrink: 0 },
     dicomBox: { width: "100%", height: "55vh", position: "relative", backgroundColor: "#000", border: "1px solid #334155", borderRadius: "4px", overflow: "hidden" },
     overlayText: { position: "absolute", top: "10px", left: "10px", color: "#fbbf24", fontWeight: "bold", zIndex: 10, pointerEvents: "none", fontSize: "14px" },
-    overlayInfo: { position: "absolute", bottom: "10px", right: "10px", color: "#fff", backgroundColor: "rgba(0,0,0,0.7)", padding: "10px", borderRadius: "4px", zIndex: 10, pointerEvents: "none", fontSize: "12px", border: "1px solid #fbbf24" }
+    overlayFecha: { position: "absolute", top: "10px", right: "10px", color: "#10b981", backgroundColor: "rgba(0,0,0,0.6)", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", zIndex: 10, pointerEvents: "none", fontSize: "14px", border: "1px solid #10b981" },
+    // 🚀 ESTILO MEJORADO DEL PANEL DE INFO
+    overlayInfo: { position: "absolute", bottom: "10px", right: "10px", color: "#fff", backgroundColor: "rgba(15,23,42,0.9)", padding: "12px", borderRadius: "6px", zIndex: 10, pointerEvents: "none", fontSize: "12px", border: "1px solid #38bdf8", boxShadow: "0 0 10px rgba(0,0,0,0.5)", minWidth: "200px" },
+    panelHistorial: { width: "200px", backgroundColor: "#0f172a", borderLeft: "1px solid #334155", padding: "10px", display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto" },
+    tarjetaFecha: { backgroundColor: "#1e293b", border: "1px solid #334155", padding: "8px", borderRadius: "4px", cursor: "pointer", transition: "0.2s" },
+    tarjetaActiva: { backgroundColor: "#047857", border: "1px solid #10b981", padding: "8px", borderRadius: "4px", cursor: "pointer", boxShadow: "0 0 8px rgba(16, 185, 129, 0.4)" }
   };
 
   const renderToolbar = (lado) => {
     const isL = lado === 'L';
     return (
-      <div style={{ display: "flex", gap: "6px", alignItems: "center", overflowX: "auto", paddingBottom: "5px", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+      // 🚀 SOLUCIÓN AL CORTE DE BOTONES: flexWrap: "wrap" permite que si la pantalla es angosta, 
+      // los botones caigan organizadamente a una segunda línea en lugar de esconderse.
+      <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", paddingBottom: "5px" }}>
         <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>🌓 Contraste</button>
         <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 Zoom</button>
         <button style={herramientaActiva === "Pan" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Pan")}>🖐️ Mover</button>
@@ -265,11 +317,12 @@ export default function CompareViewer({ seriesA, seriesB, onVolver }) {
     <div style={{ padding: "20px", backgroundColor: "#000", minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "15px", flexShrink: 0 }}>
         <button onClick={onVolver} style={{ padding: "8px 16px", backgroundColor: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>← Cerrar Comparación</button>
-        <h2 style={{ color: "#e2e8f0", margin: 0 }}>Comparación (Historial eFilm)</h2>
+        <h2 style={{ color: "#e2e8f0", margin: 0 }}>Comparación Histórica</h2>
         <label style={{ color: "#fbbf24", fontWeight: "bold", cursor: "pointer", marginLeft: "20px" }}><input type="checkbox" checked={syncScroll} onChange={() => setSyncScroll(!syncScroll)} style={{ marginRight: "8px" }} />🔗 Sincronizar Scroll</label>
       </div>
 
       <div style={{ display: "flex", gap: "15px", flex: 1, minHeight: 0 }}>
+        
         {/* PANEL IZQUIERDO */}
         <div 
           style={{ flex: 1, backgroundColor: "#0f172a", padding: "10px", borderRadius: "8px", display: "flex", flexDirection: "column", minWidth: 0 }}
@@ -282,10 +335,23 @@ export default function CompareViewer({ seriesA, seriesB, onVolver }) {
              <button style={styles.btnTool} onClick={() => moverIzquierda(1)}>►</button>
           </div>
           <div ref={dicomLeftRef} style={styles.dicomBox} onContextMenu={e => e.preventDefault()} onWheel={e => moverIzquierda(e.deltaY > 0 ? 1 : -1)} onMouseDown={e => handleMouse('L', 'down', e)} onMouseMove={e => handleMouse('L', 'move', e)} onMouseUp={e => handleMouse('L', 'up', e)} onMouseLeave={e => handleMouse('L', 'up', e)}>
+            
             <div style={styles.overlayText}>Corte {indexLeft + 1} / {urlsA?.length || 0}</div>
-            {infoLeft && <div style={styles.overlayInfo}>Serie: {seriesA?.[serieLeft]?.nombre || 'N/A'}<br/>Imágenes: {urlsA?.length || 0}</div>}
+            <div style={{...styles.overlayFecha, color: "#38bdf8", borderColor: "#38bdf8"}}>ESTUDIO ACTUAL (HOY)</div>
+            
+            {/* 🚀 PANEL DE INFO CLÍNICA MEJORADO (IZQUIERDA) */}
+            {infoLeft && (
+              <div style={styles.overlayInfo}>
+                <div style={{ color: "#38bdf8", borderBottom: "1px solid #38bdf8", paddingBottom: "4px", marginBottom: "6px", fontWeight: "bold" }}>DATOS NATIVOS</div>
+                <strong>Paciente:</strong> {tagsLeft?.paciente || "Cargando..."}<br/>
+                <strong>Documento:</strong> {tagsLeft?.documento || "Cargando..."}<br/>
+                <div style={{ marginTop: "6px", color: "#94a3b8" }}>
+                  Serie: {seriesA?.[serieLeft]?.nombre || 'N/A'}<br/>
+                  Total Imágenes: {urlsA?.length || 0}
+                </div>
+              </div>
+            )}
           </div>
-          {/* MINIATURAS IZQUIERDAS */}
           <div style={{ display: "flex", gap: "10px", overflowX: "auto", marginTop: "10px", paddingBottom: "5px", scrollbarWidth: "thin" }}>
              {seriesA?.map((s, idx) => (
                 <Thumb key={`L-${idx}`} url={s.urls[0]} count={s.urls.length} activo={serieLeft === idx} onClick={() => { setSerieLeft(idx); setIndexLeft(0); }} />
@@ -295,7 +361,7 @@ export default function CompareViewer({ seriesA, seriesB, onVolver }) {
 
         {/* PANEL DERECHO */}
         <div 
-          style={{ flex: 1, backgroundColor: "#0f172a", padding: "10px", borderRadius: "8px", display: "flex", flexDirection: "column", minWidth: 0 }}
+          style={{ flex: 1, backgroundColor: "#0f172a", padding: "10px", borderRadius: "8px", display: "flex", flexDirection: "column", minWidth: 0, opacity: cargandoPrevio ? 0.5 : 1 }}
           onMouseEnter={() => panelHover.current = 'R'}
         >
           {renderToolbar('R')}
@@ -305,15 +371,50 @@ export default function CompareViewer({ seriesA, seriesB, onVolver }) {
              <button style={styles.btnTool} onClick={() => moverDerecha(1)}>►</button>
           </div>
           <div ref={dicomRightRef} style={styles.dicomBox} onContextMenu={e => e.preventDefault()} onWheel={e => moverDerecha(e.deltaY > 0 ? 1 : -1)} onMouseDown={e => handleMouse('R', 'down', e)} onMouseMove={e => handleMouse('R', 'move', e)} onMouseUp={e => handleMouse('R', 'up', e)} onMouseLeave={e => handleMouse('R', 'up', e)}>
+            
             <div style={styles.overlayText}>Corte {indexRight + 1} / {urlsB?.length || 0}</div>
-            {infoRight && <div style={styles.overlayInfo}>Serie: {seriesB?.[serieRight]?.nombre || 'N/A'}<br/>Imágenes: {urlsB?.length || 0}</div>}
+            <div style={styles.overlayFecha}>{fechaEstudioPrevio ? `PREVIO: ${fechaEstudioPrevio}` : "PREVIO"}</div>
+
+            {/* 🚀 PANEL DE INFO CLÍNICA MEJORADO (DERECHA) */}
+            {infoRight && (
+              <div style={styles.overlayInfo}>
+                <div style={{ color: "#10b981", borderBottom: "1px solid #10b981", paddingBottom: "4px", marginBottom: "6px", fontWeight: "bold" }}>DATOS NATIVOS</div>
+                <strong>Paciente:</strong> {tagsRight?.paciente || "Cargando..."}<br/>
+                <strong>Documento:</strong> {tagsRight?.documento || "Cargando..."}<br/>
+                <div style={{ marginTop: "6px", color: "#94a3b8" }}>
+                  Serie: {seriesDinamicasB?.[serieRight]?.nombre || 'N/A'}<br/>
+                  Total Imágenes: {urlsB?.length || 0}
+                </div>
+              </div>
+            )}
           </div>
-          {/* MINIATURAS DERECHAS */}
           <div style={{ display: "flex", gap: "10px", overflowX: "auto", marginTop: "10px", paddingBottom: "5px", scrollbarWidth: "thin" }}>
-             {seriesB?.map((s, idx) => (
+             {seriesDinamicasB?.map((s, idx) => (
                 <Thumb key={`R-${idx}`} url={s.urls[0]} count={s.urls.length} activo={serieRight === idx} onClick={() => { setSerieRight(idx); setIndexRight(0); }} />
              ))}
           </div>
+        </div>
+
+        {/* BARRA LATERAL */}
+        <div style={styles.panelHistorial}>
+            <div style={{ color: "#94a3b8", fontSize: "12px", fontWeight: "bold", textAlign: "center", borderBottom: "1px solid #334155", paddingBottom: "8px", marginBottom: "5px" }}>
+                HISTORIAL DISPONIBLE
+            </div>
+            
+            {listaHistorial.map((est) => (
+                <div 
+                    key={est.id} 
+                    style={idPrevioActivo === est.id ? styles.tarjetaActiva : styles.tarjetaFecha}
+                    onClick={() => cargarEstudioPrevio(est.id, est.fecha)}
+                >
+                    <div style={{ color: idPrevioActivo === est.id ? "#fff" : "#cbd5e1", fontSize: "13px", fontWeight: "bold" }}>
+                        📅 {est.fecha}
+                    </div>
+                    <div style={{ color: idPrevioActivo === est.id ? "#d1fae5" : "#94a3b8", fontSize: "11px", marginTop: "4px" }}>
+                        {est.modalidad} - {est.descripcion}
+                    </div>
+                </div>
+            ))}
         </div>
 
       </div>
