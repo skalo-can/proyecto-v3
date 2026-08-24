@@ -1,5 +1,5 @@
 /**
- * Login.jsx — MI_PACS (Versión Definitiva: 3D Intenso, Doble Aro Orbital y Pulso EKG)
+ * Login.jsx — MI_PACS (Versión Definitiva: 3D Intenso, Aros Orbitales, Pulso EKG y Marco Dorado Potenciado)
  */
 
 import React, { useState } from "react"; 
@@ -58,8 +58,8 @@ function Login() {
     }
   };
 
-  return (
-    <div style={{
+    return (
+    < div style={{
       position: "relative",
       width: "100vw",
       height: "100vh",
@@ -70,8 +70,12 @@ function Login() {
       padding: "20px",
       boxSizing: "border-box",
       overflow: "hidden",
-      fontFamily: "'Inter', sans-serif"
-    }}>
+      fontFamily: "'Inter', sans-serif",
+      
+      /* 🌟 MARCO REFINADO Y ELEGANTE: Mucho más sutil y corporativo */
+      border: "1px solid rgba(251, 191, 36, 0.15)",
+      boxShadow: "inset 0 0 100px rgba(251, 191, 36, 0.1), inset 0 0 20px rgba(251, 191, 36, 0.2)"
+    }}> 
       
       {/* 🌟 Bloque de estilos incrustado para garantizar animaciones fluidas */}
       <style>{`
@@ -153,9 +157,9 @@ function Login() {
         WebkitBackdropFilter: "blur(16px)",
         padding: "38px 32px",
         borderRadius: "16px",
-        border: "3px solid rgba(251, 191, 36, 0.9)", // 🌟 Borde dorado sólido
-        boxShadow: "0 40px 80px rgba(0, 0, 0, 1), 0 0 65px rgba(251, 191, 36, 0.45), inset 0 2px 6px rgba(251, 191, 36, 0.6)", // 🌟 Resplandor 3D potente
-        transform: "translateY(-6px)", // 🌟 Mayor elevación
+        border: "3px solid rgba(251, 191, 36, 0.9)", 
+        boxShadow: "0 40px 80px rgba(0, 0, 0, 1), 0 0 65px rgba(251, 191, 36, 0.45), inset 0 2px 6px rgba(251, 191, 36, 0.6)", 
+        transform: "translateY(-6px)", 
         display: "flex",
         flexDirection: "column",
         gap: "20px",
@@ -269,9 +273,9 @@ function Login() {
         background: "rgba(17, 20, 24, 0.85)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        border: "2px solid rgba(251, 191, 36, 0.8)", // 🌟 Borde intenso
+        border: "2px solid rgba(251, 191, 36, 0.8)", 
         borderRadius: "8px",
-        boxShadow: "0 20px 45px rgba(0, 0, 0, 1), 0 0 35px rgba(251, 191, 36, 0.4)", // 🌟 Sombra profunda y resplandor
+        boxShadow: "0 20px 45px rgba(0, 0, 0, 1), 0 0 35px rgba(251, 191, 36, 0.4)", 
       }}>
         <p style={{ color: "#d97706", fontSize: "0.7rem", letterSpacing: "1px", margin: "0 0 3px 0", textTransform: "uppercase", fontWeight: "600" }}>
           Seguridad de Grado Hospitalario • Sault Ste. Marie, Ontario
