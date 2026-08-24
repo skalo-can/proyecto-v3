@@ -11,7 +11,9 @@ body {
   background-color: #07080a;
 }
 
-/* Pantalla completa con fondo oscuro sofisticado */
+/* =====================================================================
+   🖥️ CONTENEDOR PRINCIPAL
+   ===================================================================== */
 .login-page {
   position: relative;
   width: 100vw;
@@ -26,9 +28,8 @@ body {
 }
 
 /* =====================================================================
-   ✨ ANIMACIONES DE LÍNEAS VIVAS EN MOVIMIENTO
+   ✨ ANIMACIONES GLOBALES
    ===================================================================== */
-
 @keyframes pulseGlow {
   0% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
   50% { transform: scale(1.06); opacity: 0.9; filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6)); } 
@@ -40,20 +41,28 @@ body {
   100% { transform: rotate(360deg); }
 }
 
-/* 🌟 Anillo Superior Derecho (SÓLIDO e idéntico al inferior) */
+@keyframes sweepPulse {
+  0% { left: -60%; opacity: 0; }
+  25% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { left: 110%; opacity: 0; }
+}
+
+/* =====================================================================
+   🪐 SISTEMA DE AROS ORBITALES (Legacy classes por si se requieren)
+   ===================================================================== */
 .animated-ring-1 {
   position: absolute;
   top: -150px;
   right: -150px;
   width: 650px;
   height: 650px;
-  border: 2px solid rgba(217, 119, 6, 0.7); /* Ahora es solid y con el mismo tono elegante */
+  border: 2px solid rgba(217, 119, 6, 0.7); 
   border-radius: 50%;
   pointer-events: none;
   animation: pulseGlow 3.5s ease-in-out infinite, rotateLines 20s linear infinite;
 }
 
-/* 🌟 Anillo Inferior Izquierdo */
 .animated-ring-2 {
   position: absolute;
   bottom: -200px;
@@ -67,7 +76,7 @@ body {
 }
 
 /* =====================================================================
-   📦 CAJA DE LOGIN EN 3D FLOTANTE CON RESPLANDOR DORADO INTENSO
+   📦 CAJA DE LOGIN CENTRAL (Efecto 3D y Resplandor)
    ===================================================================== */
 .login-box {
   position: relative;
@@ -79,16 +88,11 @@ body {
   -webkit-backdrop-filter: blur(16px);
   padding: 38px 32px;
   border-radius: 16px;
-  
-  /* 🌟 Borde dorado mucho más sólido y brillante */
   border: 8px solid rgba(251, 191, 36, 0.9);
-  
-  /* 🌟 Sombra negra extrema para separación 3D + Resplandor exterior poderoso */
   box-shadow: 
-    0 40px 80px rgba(0, 0, 0, 1),              /* Sombra oscura profunda */
-    0 0 65px rgba(251, 191, 36, 0.45),         /* Halo dorado exterior potente */
-    inset 0 2px 6px rgba(251, 191, 36, 0.6);   /* Brillo interior para volumen */
-  
+    0 40px 80px rgba(0, 0, 0, 1),              
+    0 0 65px rgba(251, 191, 36, 0.45),         
+    inset 0 2px 6px rgba(251, 191, 36, 0.6);   
   transform: translateY(-6px);
   display: flex;
   flex-direction: column;
@@ -96,28 +100,6 @@ body {
   box-sizing: border-box;
 }
 
-/* =====================================================================
-   🌟 SELLO INFERIOR FLOTANTE EN 3D CON HALO POTENTE
-   ===================================================================== */
-.login-footer-seal {
-  position: absolute;
-  bottom: 20px;
-  z-index: 10;
-  text-align: center;
-  padding: 10px 18px;
-  background: rgba(17, 20, 24, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  
-  /* 🌟 Borde y resplandor aumentados */
-  border: 5px solid rgba(251, 191, 36, 0.8);
-  border-radius: 16px;
-  box-shadow: 
-    0 20px 45px rgba(0, 0, 0, 1), 
-    0 0 35px rgba(251, 191, 36, 0.4);
-}
-
-/* Título con destello dorado corporativo */
 .login-title {
   text-align: center;
   font-size: 40px;
@@ -130,14 +112,15 @@ body {
   text-transform: uppercase;
 }
 
-/* Formulario */
+/* =====================================================================
+   📋 ELEMENTOS DEL FORMULARIO
+   ===================================================================== */
 .login-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-/* Inputs */
 .login-input {
   padding: 14px;
   background-color: #0f172a;
@@ -161,7 +144,6 @@ body {
   background-color: #0a0f1d;
 }
 
-/* Botón */
 .login-button {
   padding: 14px;
   background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
@@ -189,7 +171,6 @@ body {
   transform: translateY(0);
 }
 
-/* Mensaje de error */
 .login-error {
   color: #f87171;
   background-color: rgba(239, 68, 68, 0.1);
@@ -202,7 +183,7 @@ body {
 }
 
 /* =====================================================================
-   💓 ONDA DE PULSO VIVO / EKG CLÍNICO — MI_PACS
+   💓 ONDA DE PULSO VIVO / EKG CLÍNICO
    ===================================================================== */
 .ecg-container {
   width: 100%;
@@ -234,9 +215,21 @@ body {
   animation: sweepPulse 2.5s ease-in-out infinite;
 }
 
-@keyframes sweepPulse {
-  0% { left: -60%; opacity: 0; }
-  25% { opacity: 1; }
-  75% { opacity: 1; }
-  100% { left: 110%; opacity: 0; }
+/* =====================================================================
+   🏷️ SELLO INFERIOR FLOTANTE EN 3D
+   ===================================================================== */
+.login-footer-seal {
+  position: absolute;
+  bottom: 20px;
+  z-index: 10;
+  text-align: center;
+  padding: 10px 18px;
+  background: rgba(17, 20, 24, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 5px solid rgba(251, 191, 36, 0.8);
+  border-radius: 16px;
+  box-shadow: 
+    0 20px 45px rgba(0, 0, 0, 1), 
+    0 0 35px rgba(251, 191, 36, 0.4);
 }
