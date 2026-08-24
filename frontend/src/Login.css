@@ -1,5 +1,5 @@
 /* =====================================================================
-   🎨 ESTILOS DE LUJO — LOGIN MI_PACS (Tono Oscuro y Detalles Dorados)
+   🎨 ESTILOS DE LUJO — LOGIN MI_PACS (3D, Anillos Sólidos y Pulso)
    ===================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -25,59 +25,105 @@ body {
   overflow: hidden;
 }
 
-/* Líneas geométricas doradas de fondo para dar sensación de alta gama */
-.login-page::before,
-.login-page::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-  opacity: 0.12;
-  border-radius: 50%;
-  border: 1px solid #fbbf24;
+/* =====================================================================
+   ✨ ANIMACIONES DE LÍNEAS VIVAS EN MOVIMIENTO
+   ===================================================================== */
+
+@keyframes pulseGlow {
+  0% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
+  50% { transform: scale(1.06); opacity: 0.9; filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6)); } 
+  100% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
 }
 
-.login-page::before {
+@keyframes rotateLines {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 🌟 Anillo Superior Derecho (SÓLIDO e idéntico al inferior) */
+.animated-ring-1 {
+  position: absolute;
   top: -150px;
   right: -150px;
-  width: 600px;
-  height: 600px;
+  width: 650px;
+  height: 650px;
+  border: 2px solid rgba(217, 119, 6, 0.7); /* Ahora es solid y con el mismo tono elegante */
+  border-radius: 50%;
+  pointer-events: none;
+  animation: pulseGlow 3.5s ease-in-out infinite, rotateLines 20s linear infinite;
 }
 
-.login-page::after {
+/* 🌟 Anillo Inferior Izquierdo */
+.animated-ring-2 {
+  position: absolute;
   bottom: -200px;
   left: -200px;
-  width: 800px;
-  height: 800px;
-  border-color: #d97706;
+  width: 850px;
+  height: 850px;
+  border: 2px solid rgba(217, 119, 6, 0.7);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: pulseGlow 3.5s ease-in-out infinite reverse, rotateLines 20s linear infinite reverse; 
 }
 
-/* Caja del formulario con efecto Glassmorphism y sutil marco dorado */
+/* =====================================================================
+   📦 CAJA DE LOGIN EN 3D FLOTANTE CON RESPLANDOR DORADO INTENSO
+   ===================================================================== */
 .login-box {
   position: relative;
   z-index: 10;
   width: 100%;
   max-width: 400px;
-  background: rgba(17, 20, 24, 0.9);
+  background: rgba(17, 20, 24, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   padding: 38px 32px;
-  border-radius: 14px;
-  border: 3px solid rgba(251, 191, 36, 0.25);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), 
-              0 0 25px rgba(251, 191, 36, 0.05);
+  border-radius: 16px;
+  
+  /* 🌟 Borde dorado mucho más sólido y brillante */
+  border: 8px solid rgba(251, 191, 36, 0.9);
+  
+  /* 🌟 Sombra negra extrema para separación 3D + Resplandor exterior poderoso */
+  box-shadow: 
+    0 40px 80px rgba(0, 0, 0, 1),              /* Sombra oscura profunda */
+    0 0 65px rgba(251, 191, 36, 0.45),         /* Halo dorado exterior potente */
+    inset 0 2px 6px rgba(251, 191, 36, 0.6);   /* Brillo interior para volumen */
+  
+  transform: translateY(-6px);
   display: flex;
   flex-direction: column;
   gap: 20px;
   box-sizing: border-box;
 }
 
-/* Título con un sutil destello dorado corporativo */
+/* =====================================================================
+   🌟 SELLO INFERIOR FLOTANTE EN 3D CON HALO POTENTE
+   ===================================================================== */
+.login-footer-seal {
+  position: absolute;
+  bottom: 20px;
+  z-index: 10;
+  text-align: center;
+  padding: 10px 18px;
+  background: rgba(17, 20, 24, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  
+  /* 🌟 Borde y resplandor aumentados */
+  border: 5px solid rgba(251, 191, 36, 0.8);
+  border-radius: 16px;
+  box-shadow: 
+    0 20px 45px rgba(0, 0, 0, 1), 
+    0 0 35px rgba(251, 191, 36, 0.4);
+}
+
+/* Título con destello dorado corporativo */
 .login-title {
   text-align: center;
-  font-size: 26px;
+  font-size: 40px;
   font-weight: 700;
   letter-spacing: 1px;
-  margin: 0;
+  margin: 0 0 6px 0;
   background: linear-gradient(135deg, #ffffff 30%, #fbbf24 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -91,7 +137,7 @@ body {
   gap: 16px;
 }
 
-/* Inputs adaptados al esquema oscuro y bordes dorados al foco */
+/* Inputs */
 .login-input {
   padding: 14px;
   background-color: #0f172a;
@@ -115,7 +161,7 @@ body {
   background-color: #0a0f1d;
 }
 
-/* Botón con degradado dorado corporativo */
+/* Botón */
 .login-button {
   padding: 14px;
   background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
@@ -130,6 +176,7 @@ body {
   box-shadow: 0 4px 14px rgba(217, 119, 6, 0.3);
   text-transform: uppercase;
   letter-spacing: 1px;
+  margin-top: 4px;
 }
 
 .login-button:hover {
@@ -142,7 +189,7 @@ body {
   transform: translateY(0);
 }
 
-/* Mensaje de error ajustado para destacar sin romper la estética */
+/* Mensaje de error */
 .login-error {
   color: #f87171;
   background-color: rgba(239, 68, 68, 0.1);
@@ -154,93 +201,17 @@ body {
   margin: 0;
 }
 
-@keyframes pulseGlow {
-  0% { transform: scale(1); opacity: 0.15; }
-  50% { transform: scale(1.08); opacity: 0.35; }
-  100% { transform: scale(1); opacity: 0.15; }
-}
-
-@keyframes rotateLines {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.animated-ring-1 {
-  animation: pulseGlow 8s ease-in-out infinite, rotateLines 40s linear infinite;
-  position: absolute;
-  top: -200px;
-  right: -200px;
-  width: 700px;
-  height: 700px;
-  border: 1px dashed rgba(251, 191, 36, 0.35);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.animated-ring-2 {
-  animation: pulseGlow 12s ease-in-out infinite reverse, rotateLines 50s linear infinite reverse;
-  position: absolute;
-  bottom: -250px;
-  left: -250px;
-  width: 900px;
-  height: 900px;
-  border: 1px solid rgba(217, 119, 6, 0.25);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-/* =====================================================================
-   ✨ ANIMACIONES DE LÍNEAS VIVAS EN MOVIMIENTO — LOGIN MI_PACS
-   ===================================================================== */
-
-@keyframes pulseGlow {
-  0% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
-  50% { transform: scale(1.06); opacity: 0.9; filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6)); } /* 🌟 Se iluminan con fuerza e intensidad */
-  100% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
-}
-
-@keyframes rotateLines {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.animated-ring-1 {
-  position: absolute;
-  top: -150px;
-  right: -150px;
-  width: 650px;
-  height: 650px;
-  border: 2px dashed rgba(251, 191, 36, 0.8);
-  border-radius: 50%;
-  pointer-events: none;
-  animation: pulseGlow 2.5s ease-in-out infinite, rotateLines 15s linear infinite; /* 🌟 Ciclo rápido de 2.5s y giro más ágil de 15s */
-}
-
-.animated-ring-2 {
-  position: absolute;
-  bottom: -200px;
-  left: -200px;
-  width: 850px;
-  height: 850px;
-  border: 2px solid rgba(217, 119, 6, 0.7);
-  border-radius: 50%;
-  pointer-events: none;
-  animation: pulseGlow 3.5s ease-in-out infinite reverse, rotateLines 20s linear infinite reverse; /* 🌟 Ciclo rápido de 3.5s en sentido inverso */
-}
-
 /* =====================================================================
    💓 ONDA DE PULSO VIVO / EKG CLÍNICO — MI_PACS
    ===================================================================== */
-
 .ecg-container {
   width: 100%;
-  max-width: 400px;
   margin-top: 15px;
   display: flex;
   justify-content: center;
   align-items: center;
   position: relative;
-  height: 35px;
+  height: 25px;
   overflow: hidden;
 }
 
@@ -251,22 +222,21 @@ body {
   position: relative;
 }
 
-/* El haz de luz dorado que viaja barriendo la onda simulando pulso */
 .ecg-pulse-beam {
   position: absolute;
   top: 50%;
-  left: -50%;
-  width: 50%;
-  height: 4px;
+  left: -60%;
+  width: 60%;
+  height: 3px;
   background: linear-gradient(90deg, transparent, #fbbf24, #ffffff, #fbbf24, transparent);
   transform: translateY(-50%);
   filter: drop-shadow(0 0 8px #fbbf24);
-  animation: sweepPulse 3s linear infinite;
+  animation: sweepPulse 2.5s ease-in-out infinite;
 }
 
 @keyframes sweepPulse {
-  0% { left: -50%; opacity: 0; }
-  20% { opacity: 1; }
-  80% { opacity: 1; }
-  100% { left: 100%; opacity: 0; }
+  0% { left: -60%; opacity: 0; }
+  25% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { left: 110%; opacity: 0; }
 }

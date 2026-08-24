@@ -1,11 +1,11 @@
 /**
- * Login.jsx — MI_PACS (Versión Definitiva con Línea de Pulso Limpia y Orden Correcto)
+ * Login.jsx — MI_PACS (Versión Definitiva: 3D Flotante, Anillos Sólidos y Pulso EKG)
  */
 
 import React, { useState } from "react"; 
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import "./Login.css";
+import "./Login.css"; 
 
 function Login() {
   const [identifier, setIdentifier] = useState(""); 
@@ -59,17 +59,88 @@ function Login() {
   };
 
   return (
-    <div className="login-page">
-      {/* Anillos animados de fondo */}
-      <div className="animated-ring-1" />
-      <div className="animated-ring-2" />
+    <div style={{
+      position: "relative",
+      width: "100vw",
+      height: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      background: "radial-gradient(circle at 50% 30%, #111418 0%, #07080a 70%)",
+      padding: "20px",
+      boxSizing: "border-box",
+      overflow: "hidden",
+      fontFamily: "'Inter', sans-serif"
+    }}>
+      
+      {/* 🌟 Bloque de estilos incrustado para garantizar las animaciones */}
+      <style>{`
+        @keyframes pulseGlow {
+          0% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
+          50% { transform: scale(1.06); opacity: 0.9; filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6)); }
+          100% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
+        }
+        @keyframes rotateLines {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes sweepPulse {
+          0% { left: -60%; opacity: 0; }
+          25% { opacity: 1; }
+          75% { opacity: 1; }
+          100% { left: 110%; opacity: 0; }
+        }
+      `}</style>
 
-      {/* Caja del formulario principal */}
-      <div className="login-box">
+      {/* 🌟 Anillo Superior Derecho (Ahora sólido y con el mismo estilo elegante) */}
+      <div style={{
+        position: "absolute",
+        top: "-150px",
+        right: "-150px",
+        width: "650px",
+        height: "650px",
+        border: "2px solid rgba(217, 119, 6, 0.7)", 
+        borderRadius: "50%",
+        pointerEvents: "none",
+        animation: "pulseGlow 3.5s ease-in-out infinite, rotateLines 20s linear infinite"
+      }} />
+
+      {/* 🌟 Anillo Inferior Izquierdo */}
+      <div style={{
+        position: "absolute",
+        bottom: "-200px",
+        left: "-200px",
+        width: "850px",
+        height: "850px",
+        border: "2px solid rgba(217, 119, 6, 0.7)",
+        borderRadius: "50%",
+        pointerEvents: "none",
+        animation: "pulseGlow 3.5s ease-in-out infinite reverse, rotateLines 20s linear infinite reverse"
+      }} />
+
+      {/* 📦 Caja del formulario principal flotante en 3D */}
+      <div style={{
+        position: "relative",
+        zIndex: 10,
+        width: "100%",
+        maxWidth: "400px",
+        background: "rgba(17, 20, 24, 0.95)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        padding: "38px 32px",
+        borderRadius: "16px",
+        border: "3px solid rgba(251, 191, 36, 0.6)", // Borde dorado grueso
+        boxShadow: "0 30px 60px rgba(0, 0, 0, 0.95), 0 0 45px rgba(251, 191, 36, 0.2), inset 0 1px 0 rgba(251, 191, 36, 0.4)", // Efecto 3D de sombra y resplandor
+        transform: "translateY(-4px)", // Elevación para parecer flotante
+        display: "flex",
+        flexDirection: "column",
+        gap: "20px",
+        boxSizing: "border-box"
+      }}>
         
         {/* Título y Subtítulo */}
         <div style={{ textAlign: "center", marginBottom: "4px" }}>
-          <h1 className="login-title" style={{ fontSize: "40px" }}>
+          <h1 className="login-title" style={{ fontSize: "40px", margin: "0 0 6px 0", background: "linear-gradient(135deg, #ffffff 30%, #fbbf24 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             MI_PACS
           </h1>
           <p style={{
@@ -85,7 +156,7 @@ function Login() {
         </div>
 
         {/* Formulario */}
-        <form onSubmit={handleLogin} className="login-form">
+        <form onSubmit={handleLogin} className="login-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <input
             type="text" 
             placeholder="Usuario o Correo clínico"
@@ -103,7 +174,7 @@ function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="login-input"
-              style={{ paddingRight: "45px" }}
+              style={{ paddingRight: "45px", width: "100%" }}
               required
             />
             <button
@@ -148,47 +219,39 @@ function Login() {
         </form>
 
         {/* 💓 Línea de Pulso / EKG limpio de lado a lado */}
-        <div className="ecg-container">
-          <div className="ecg-line">
-            <div className="ecg-pulse-beam" />
+        <div style={{ width: "100%", marginTop: "15px", display: "flex", justifyContent: "center", alignItems: "center", position: "relative", height: "25px", overflow: "hidden" }}>
+          <div style={{ width: "100%", height: "2px", background: "rgba(251, 191, 36, 0.2)", position: "relative" }}>
+            <div style={{
+              position: "absolute", top: "50%", left: "-60%", width: "60%", height: "3px",
+              background: "linear-gradient(90deg, transparent, #fbbf24, #ffffff, #fbbf24, transparent)",
+              transform: "translateY(-50%)", filter: "drop-shadow(0 0 8px #fbbf24)",
+              animation: "sweepPulse 2.5s ease-in-out infinite"
+            }} />
           </div>
         </div>
 
         {error && <p className="login-error">{error}</p>}
       </div>
 
-      {/* Sello institucional inferior dorado */}
+      {/* 📦 Sello institucional inferior flotante en 3D */}
       <div style={{
         position: "absolute",
         bottom: "20px",
         zIndex: 10,
         textAlign: "center",
-        padding: "8px 16px",
-        background: "rgba(17, 20, 24, 0.8)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        border: "1px solid rgba(251, 191, 36, 0.4)",
-        borderRadius: "6px",
-        boxShadow: "0 4px 15px rgba(0, 0, 0, 0.5), 0 0 10px rgba(251, 191, 36, 0.05)"
+        padding: "10px 18px",
+        background: "rgba(17, 20, 24, 0.85)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        border: "2px solid rgba(251, 191, 36, 0.5)",
+        borderRadius: "8px",
+        boxShadow: "0 15px 35px rgba(0, 0, 0, 0.85), 0 0 25px rgba(251, 191, 36, 0.15)", // Efecto 3D de sombra
+        transform: "translateY(-2px)"
       }}>
-        <p style={{ 
-          color: "#d97706", 
-          fontSize: "0.7rem", 
-          letterSpacing: "1px", 
-          margin: "0 0 3px 0", 
-          textTransform: "uppercase", 
-          fontWeight: "600" 
-        }}>
+        <p style={{ color: "#d97706", fontSize: "0.7rem", letterSpacing: "1px", margin: "0 0 3px 0", textTransform: "uppercase", fontWeight: "600" }}>
           Seguridad de Grado Hospitalario • Sault Ste. Marie, Ontario
         </p>
-        <p style={{ 
-          color: "#fbbf24", 
-          opacity: 0.9, 
-          fontSize: "0.65rem", 
-          letterSpacing: "0.5px", 
-          margin: 0, 
-          fontWeight: "400" 
-        }}>
+        <p style={{ color: "#fbbf24", opacity: 0.9, fontSize: "0.65rem", letterSpacing: "0.5px", margin: 0, fontWeight: "400" }}>
           © 2026 MI_PACS. All Rights Reserved. Developed by Sadat Karim Luna Osorio.
         </p>
       </div>
