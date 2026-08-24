@@ -1,5 +1,5 @@
 /**
- * Login.jsx — MI_PACS (Versión Definitiva: 3D Flotante, Anillos Sólidos y Pulso EKG)
+ * Login.jsx — MI_PACS (Versión Definitiva: 3D Intenso, Doble Aro Orbital y Pulso EKG)
  */
 
 import React, { useState } from "react"; 
@@ -73,11 +73,11 @@ function Login() {
       fontFamily: "'Inter', sans-serif"
     }}>
       
-      {/* 🌟 Bloque de estilos incrustado para garantizar las animaciones */}
+      {/* 🌟 Bloque de estilos incrustado para garantizar animaciones fluidas */}
       <style>{`
         @keyframes pulseGlow {
           0% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
-          50% { transform: scale(1.06); opacity: 0.9; filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6)); }
+          50% { transform: scale(1.03); opacity: 0.9; filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6)); }
           100% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
         }
         @keyframes rotateLines {
@@ -92,33 +92,57 @@ function Login() {
         }
       `}</style>
 
-      {/* 🌟 Anillo Superior Derecho (Ahora sólido y con el mismo estilo elegante) */}
+      {/* =====================================================================
+          🌌 SISTEMA ORBITAL: AROS SUPERIORES DERECHOS
+          ===================================================================== */}
+      {/* Aro Externo */}
       <div style={{
         position: "absolute",
-        top: "-150px",
-        right: "-150px",
-        width: "650px",
-        height: "650px",
-        border: "2px solid rgba(217, 119, 6, 0.7)", 
+        top: "-200px", right: "-200px",
+        width: "700px", height: "700px",
+        border: "2px solid rgba(217, 119, 6, 0.6)", 
         borderRadius: "50%",
         pointerEvents: "none",
-        animation: "pulseGlow 3.5s ease-in-out infinite, rotateLines 20s linear infinite"
+        animation: "pulseGlow 4s ease-in-out infinite, rotateLines 30s linear infinite"
       }} />
-
-      {/* 🌟 Anillo Inferior Izquierdo */}
+      {/* Aro Interno */}
       <div style={{
         position: "absolute",
-        bottom: "-200px",
-        left: "-200px",
-        width: "850px",
-        height: "850px",
-        border: "2px solid rgba(217, 119, 6, 0.7)",
+        top: "-140px", right: "-140px",
+        width: "580px", height: "580px",
+        border: "1.5px solid rgba(251, 191, 36, 0.4)", 
         borderRadius: "50%",
         pointerEvents: "none",
-        animation: "pulseGlow 3.5s ease-in-out infinite reverse, rotateLines 20s linear infinite reverse"
+        animation: "pulseGlow 3s ease-in-out infinite reverse, rotateLines 20s linear infinite reverse"
       }} />
 
-      {/* 📦 Caja del formulario principal flotante en 3D */}
+      {/* =====================================================================
+          🌌 SISTEMA ORBITAL: AROS INFERIORES IZQUIERDOS
+          ===================================================================== */}
+      {/* Aro Externo */}
+      <div style={{
+        position: "absolute",
+        bottom: "-250px", left: "-250px",
+        width: "900px", height: "900px",
+        border: "2px solid rgba(217, 119, 6, 0.6)",
+        borderRadius: "50%",
+        pointerEvents: "none",
+        animation: "pulseGlow 4.5s ease-in-out infinite reverse, rotateLines 35s linear infinite reverse"
+      }} />
+      {/* Aro Interno */}
+      <div style={{
+        position: "absolute",
+        bottom: "-200px", left: "-200px",
+        width: "800px", height: "800px",
+        border: "1.5px solid rgba(251, 191, 36, 0.4)",
+        borderRadius: "50%",
+        pointerEvents: "none",
+        animation: "pulseGlow 3.5s ease-in-out infinite, rotateLines 25s linear infinite"
+      }} />
+
+      {/* =====================================================================
+          📦 CAJA PRINCIPAL DE LOGIN (3D INTENSO)
+          ===================================================================== */}
       <div style={{
         position: "relative",
         zIndex: 10,
@@ -129,9 +153,9 @@ function Login() {
         WebkitBackdropFilter: "blur(16px)",
         padding: "38px 32px",
         borderRadius: "16px",
-        border: "3px solid rgba(251, 191, 36, 0.6)", // Borde dorado grueso
-        boxShadow: "0 30px 60px rgba(0, 0, 0, 0.95), 0 0 45px rgba(251, 191, 36, 0.2), inset 0 1px 0 rgba(251, 191, 36, 0.4)", // Efecto 3D de sombra y resplandor
-        transform: "translateY(-4px)", // Elevación para parecer flotante
+        border: "3px solid rgba(251, 191, 36, 0.9)", // 🌟 Borde dorado sólido
+        boxShadow: "0 40px 80px rgba(0, 0, 0, 1), 0 0 65px rgba(251, 191, 36, 0.45), inset 0 2px 6px rgba(251, 191, 36, 0.6)", // 🌟 Resplandor 3D potente
+        transform: "translateY(-6px)", // 🌟 Mayor elevación
         display: "flex",
         flexDirection: "column",
         gap: "20px",
@@ -140,7 +164,7 @@ function Login() {
         
         {/* Título y Subtítulo */}
         <div style={{ textAlign: "center", marginBottom: "4px" }}>
-          <h1 className="login-title" style={{ fontSize: "40px", margin: "0 0 6px 0", background: "linear-gradient(135deg, #ffffff 30%, #fbbf24 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <h1 className="login-title" style={{ fontSize: "40px", margin: "0 0 6px 0", background: "linear-gradient(135deg, #ffffff 30%, #fbbf24 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>
             MI_PACS
           </h1>
           <p style={{
@@ -233,7 +257,9 @@ function Login() {
         {error && <p className="login-error">{error}</p>}
       </div>
 
-      {/* 📦 Sello institucional inferior flotante en 3D */}
+      {/* =====================================================================
+          🏷️ SELLO INFERIOR FLOTANTE (3D INTENSO)
+          ===================================================================== */}
       <div style={{
         position: "absolute",
         bottom: "20px",
@@ -243,10 +269,9 @@ function Login() {
         background: "rgba(17, 20, 24, 0.85)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        border: "2px solid rgba(251, 191, 36, 0.5)",
+        border: "2px solid rgba(251, 191, 36, 0.8)", // 🌟 Borde intenso
         borderRadius: "8px",
-        boxShadow: "0 15px 35px rgba(0, 0, 0, 0.85), 0 0 25px rgba(251, 191, 36, 0.15)", // Efecto 3D de sombra
-        transform: "translateY(-2px)"
+        boxShadow: "0 20px 45px rgba(0, 0, 0, 1), 0 0 35px rgba(251, 191, 36, 0.4)", // 🌟 Sombra profunda y resplandor
       }}>
         <p style={{ color: "#d97706", fontSize: "0.7rem", letterSpacing: "1px", margin: "0 0 3px 0", textTransform: "uppercase", fontWeight: "600" }}>
           Seguridad de Grado Hospitalario • Sault Ste. Marie, Ontario
