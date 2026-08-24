@@ -1,0 +1,122 @@
+/* =========================================
+   ESTRUCTURA PRINCIPAL
+========================================= */
+.gestor-layout {
+  width: 100%;
+  height: calc(100vh - 20px); /* Fija la altura a la pantalla */
+  background: #07080a;
+  padding: 20px 30px;
+  color: #fff;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Evita el scroll global de toda la página */
+}
+
+.gestor-header {
+  flex-shrink: 0;
+  margin-bottom: 15px;
+}
+
+.gestor-content {
+  display: flex;
+  gap: 25px;
+  flex: 1; 
+  min-height: 0; /* 🔥 CRÍTICO: Obliga al contenedor a respetar los límites de la pantalla */
+  align-items: stretch;
+}
+
+/* =========================================
+   TARJETAS Y FORMULARIOS
+========================================= */
+.gestor-card {
+  background-color: #111418;
+  border-radius: 8px;
+  border: 1px solid #333;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100%; /* Toma la altura disponible que le da gestor-content */
+  overflow: hidden; /* Corta cualquier elemento que intente salir de la tarjeta */
+}
+
+.card-left {
+  flex: 1 1 400px;
+}
+
+.card-right {
+  flex: 2 1 500px;
+}
+
+.gestor-input {
+  width: 100%;
+  padding: 10px;
+  background-color: #0f172a;
+  color: #fff;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.gestor-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #c4b5fd;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.btn-submit {
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #fff;
+  border: none;
+  flex: 1;
+}
+
+.btn-submit.crear { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); }
+.btn-submit.editar { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+
+.btn-cancel {
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  background: #334155;
+  color: #fff;
+  border: none;
+}
+
+/* =========================================
+   SCROLL DORADO (LA SOLUCIÓN DEFINITIVA)
+========================================= */
+.scroll-dorado {
+  flex: 1; /* Ocupa todo el espacio restante de la tarjeta */
+  min-height: 0; /* 🔥 CRÍTICO: Le dice a Flexbox que no se estire más allá de la tarjeta */
+  overflow-y: auto; /* Activa la barra solo si el contenido rebasa */
+  padding-right: 8px;
+}
+
+.scroll-dorado::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-dorado::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 4px;
+}
+
+.scroll-dorado::-webkit-scrollbar-thumb {
+  background: #fbbf24;
+  border-radius: 4px;
+  border: 1px solid #1e293b;
+}
+
+.scroll-dorado::-webkit-scrollbar-thumb:hover {
+  background: #f59e0b;
+}
