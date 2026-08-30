@@ -10,11 +10,13 @@ import ModalEnviarEstudios from "../components/Modals/ModalEnviarEstudios";
 import { useAudioRecorder } from "./useAudioRecorder";
 import { modalitiesLista } from "./modalidades";
 import { styles } from "./pacientesStyles";
-import { useAuth } from "../AuthContext"; 
+import { useAuth } from "../AuthContext";
+import { useTranslation } from "react-i18next"; 
 
 export default function Pacientes() {
   const navigate = useNavigate();
-  const { user } = useAuth(); 
+  const { user } = useAuth();
+  const { t, i18n } = useTranslation(); 
 
   const [pacientes, setPacientes] = useState([]); 
   const [loading, setLoading] = useState(false);
@@ -321,19 +323,51 @@ export default function Pacientes() {
     <div style={styles.mainLayout}>
       <header style={styles.headerContainer}>
         <div style={styles.flexSpace}>
-          <h2 style={styles.tituloDorado}>Panel de Control Operativo</h2>
+          
+          {/* Contenedor Izquierdo: Título y Botón de Idioma */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <h2 style={styles.tituloDorado}>{t('menu_pacientes', 'Panel de Control Operativo')}</h2>
+            <button 
+              onClick={() => i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es')}
+              style={{ background: "#475569", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}
+            >
+              {t('cambiar_idioma', '🌐 Cambiar Idioma')}
+            </button>
+          </div> 
+
+          {/* Contenedor Derecho: Acciones y Contadores */}
           <div style={{ ...styles.headerActions, display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {seleccionados.length > 0 && (<button onClick={handleAbrirEnvioMultiple} style={{ background: "#2563eb", color: "#fff", border: "1px solid #3b82f6", padding: "8px 16px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>📤 Enviar DICOM ({seleccionados.length})</button>)}
-            {/* 🔒 PROTEGIDO: Solo perfiles autorizados ven el botón de Productividad */}
-            {['admin', 'superadmin', 'invitado'].includes(String(user?.rol || "").toLowerCase().trim()) && (
-              <button style={styles.btnProductividad} onClick={() => navigate("/productividad")}>📊 PANEL DE PRODUCTIVIDAD</button>
+            {seleccionados.length > 0 && (
+              <button onClick={handleAbrirEnvioMultiple} style={{ background: "#2563eb", color: "#fff", border: "1px solid #3b82f6", padding: "8px 16px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
+                {t('btn_enviar_dicom')} ({seleccionados.length})
+              </button>
             )}
-            <div style={styles.contadorBadge}><span style={styles.labelContador}>ESTUDIOS EN PANTALLA:</span><span style={styles.valContador}>{pacientes.length}</span></div>
+            
+            {/* 🔒 PROTEGIDO */}
+            {['admin', 'superadmin', 'invitado'].includes(String(user?.rol || "").toLowerCase().trim()) && (
+              <button style={styles.btnProductividad} onClick={() => navigate("/productividad")}>
+                {t('btn_productividad')}
+              </button>
+            )}
+            
+            <div style={styles.contadorBadge}>
+              <span style={styles.labelContador}>{t('lbl_estudios_pantalla')}</span>
+              <span style={styles.valContador}>{pacientes.length}</span>
+            </div>
           </div>
         </div>
-        <FiltrosPacientes filtros={filtros} handleFiltroChange={handleFiltroChange} setFiltroRapido={setFiltroRapido} cargarDatos={cargarDatos} loading={loading} busquedaProfunda={busquedaProfunda} setBusquedaProfunda={setBusquedaProfunda} />
+        
+        {/* Filtros intactos con setBusquedaProfunda */}
+        <FiltrosPacientes 
+          filtros={filtros} 
+          handleFiltroChange={handleFiltroChange} 
+          setFiltroRapido={setFiltroRapido} 
+          cargarDatos={cargarDatos} 
+          loading={loading} 
+          busquedaProfunda={busquedaProfunda} 
+          setBusquedaProfunda={setBusquedaProfunda} 
+        />
       </header>
-
       <main style={styles.tableContainer}>
         <div style={styles.scrollWrapper} className="custom-pacs-scroll">
           <TablaPacientes 

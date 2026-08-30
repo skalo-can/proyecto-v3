@@ -1,3 +1,5 @@
+import './i18n';
+
 import React, { StrictMode } from "react"; // 👈 ¡Inyectamos React formalmente aquí!
 import { createRoot } from "react-dom/client";
 import "./index.css";
