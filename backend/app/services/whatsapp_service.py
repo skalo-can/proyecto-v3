@@ -32,8 +32,15 @@ def enviar_mensaje_whatsapp(numero: str, mensaje: str) -> bool:
     
     options = Options()
     options.add_argument(f"--user-data-dir={user_data_dir}")
+    # 🚀 EJECUCIÓN INVISIBLE Y OPTIMIZADA PARA DOCKER
+    options.add_argument("--headless=new") 
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    
+    # Simular una pantalla real y un navegador estándar para evitar bloqueos de WhatsApp en modo headless
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = None
     try:

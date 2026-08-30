@@ -1,0 +1,25 @@
+FROM python:3.10-slim
+
+# Instalar Chromium, Drivers para Selenium y dependencias pesadas
+RUN apt-get update && apt-get install -y \
+    chromium \
+    chromium-driver \
+    libpq-dev \
+    gcc \
+    tk \
+    unixodbc-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+# Copiar e instalar librerías (IA, DICOM, API)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar el código fuente
+COPY . .
+
+# Exponer puertos de API y DICOM
+EXPOSE 8000 11112
+
+# Arrancar el servidor
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "backend"]
