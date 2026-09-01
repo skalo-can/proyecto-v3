@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../AuthContext";
+import { useTranslation } from "react-i18next";
 
 export default function ConfiguracionPACS() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const token = user?.token || localStorage.getItem("token");
   
@@ -18,7 +20,7 @@ export default function ConfiguracionPACS() {
   const [editandoId, setEditandoId] = useState(null); 
 
   const [serverStatus, setServerStatus] = useState("ACTIVO"); 
-  const [logs, setLogs] = useState(["[SISTEMA] Conexión establecida con la infraestructura MI_PACS."]);
+  const [logs, setLogs] = useState([t('configuracion_pacs.log_conexion_establecida')]);
   const endOfLogsRef = useRef(null);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export default function ConfiguracionPACS() {
           setDicomConfig({ ae_title: data.ae_title, ip: data.ip_address || data.ip || "0.0.0.0", port: data.port || "11112", client_ae: data.client_ae || "MIPACS_VISOR" });
         }
       })
-      .catch(() => agregarLog("[ADVERTENCIA] Usando configuración local por desconexión de API."));
+      .catch(() => agregarLog(t('configuracion_pacs.log_advertencia_local')));
 
     // 2. Cargar Nodos (Estaciones) desde la Base de Datos
     fetch(`${window.API_URL}/api/dicom/nodos`, { headers: { Authorization: `Bearer ${token}` } })
@@ -42,13 +44,13 @@ export default function ConfiguracionPACS() {
       .then(data => {
         if (Array.isArray(data)) {
           setNodosDestino(data);
-          agregarLog(`[SISTEMA] ${data.length} estaciones de diagnóstico cargadas desde la BD.`);
+          agregarLog(`[SISTEMA] ${data.length}${t('configuracion_pacs.log_estaciones_cargadas')}`);
         }
       })
       .catch(() => {
-        agregarLog("[ERROR] No se pudieron cargar las estaciones desde la Base de Datos.");
+        agregarLog(t('configuracion_pacs.log_error_cargar_estaciones'));
       });
-  }, [token]);
+  }, [token, t]);
 
   const agregarLog = (linea) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${linea}`]);
 
@@ -60,13 +62,13 @@ export default function ConfiguracionPACS() {
         method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ae_title: dicomConfig.ae_title, ip_address: dicomConfig.ip, port: parseInt(dicomConfig.port), client_ae: dicomConfig.client_ae })
       });
-      setServerStatus("ACTIVO"); setMensaje({ texto: "✅ Nodo PACS guardado permanentemente.", tipo: "success" });
+      setServerStatus("ACTIVO"); setMensaje({ texto: t('configuracion_pacs.msg_pacs_guardado'), tipo: "success" });
     } catch (err) {
-      setServerStatus("DETENIDO"); setMensaje({ texto: "❌ Error al guardar PACS.", tipo: "error" });
+      setServerStatus("DETENIDO"); setMensaje({ texto: t('configuracion_pacs.msg_pacs_error'), tipo: "error" });
     } finally { setLoading(false); setTimeout(() => setMensaje({ texto: "", tipo: "" }), 3000); }
   };
 
-  const handleTestPACS = () => { agregarLog(`[PRUEBA] Verificando puerto de escucha local ${dicomConfig.port}...`); setTimeout(() => agregarLog(`✅ [EXITO] El servidor MI_PACS está respondiendo.`), 1000); };
+  const handleTestPACS = () => { agregarLog(`${t('configuracion_pacs.log_prueba_puerto')}${dicomConfig.port}...`); setTimeout(() => agregarLog(t('configuracion_pacs.log_prueba_exito')), 1000); };
 
   // ==========================================
   // FUNCIONES DE ESTACIONES DIAGNÓSTICAS (CRUD REAL)
@@ -87,18 +89,18 @@ export default function ConfiguracionPACS() {
         const nodoGuardado = await response.json();
         if (editandoId) {
           setNodosDestino(nodosDestino.map(n => n.id === editandoId ? nodoGuardado : n));
-          agregarLog(`[ROUTER] Estación actualizada en BD: ${nodoGuardado.nombre}`);
+          agregarLog(`${t('configuracion_pacs.log_nodo_actualizado')}${nodoGuardado.nombre}`);
         } else {
           setNodosDestino([...nodosDestino, nodoGuardado]);
-          agregarLog(`[ROUTER] Nueva estación guardada en BD: ${nodoGuardado.nombre}`);
+          agregarLog(`${t('configuracion_pacs.log_nodo_nuevo')}${nodoGuardado.nombre}`);
         }
         setNuevoNodo({ nombre: "", ae_title: "", ip: "", puerto: "", auto_envio: false, activo: true, modalidades: [] });
         setEditandoId(null);
       } else {
-        agregarLog(`[ERROR] El servidor rechazó guardar la estación.`);
+        agregarLog(t('configuracion_pacs.log_error_guardar_nodo'));
       }
     } catch (error) {
-      agregarLog(`[ERROR] Falló la conexión con la base de datos al intentar guardar.`);
+      agregarLog(t('configuracion_pacs.log_error_bd_guardar'));
     }
   };
 
@@ -113,7 +115,7 @@ export default function ConfiguracionPACS() {
   };
 
   const handleEliminarNodo = async (id, nombre) => {
-    if(!window.confirm(`¿Está seguro de eliminar permanentemente la estación: ${nombre}?`)) return;
+    if(!window.confirm(`${t('configuracion_pacs.confirm_eliminar_nodo')}${nombre}?`)) return;
 
     try {
       const response = await fetch(`${window.API_URL}/api/dicom/nodos/${id}`, {
@@ -124,10 +126,10 @@ export default function ConfiguracionPACS() {
       if (response.ok) {
         setNodosDestino(nodosDestino.filter(n => n.id !== id));
         if (editandoId === id) handleCancelarEdicion();
-        agregarLog(`[SISTEMA] Nodo '${nombre}' borrado de la Base de Datos.`);
+        agregarLog(`${t('configuracion_pacs.log_nodo_eliminado')}'${nombre}'`);
       }
     } catch (error) {
-      agregarLog(`[SISTEMA] Error al eliminar Nodo '${nombre}'.`);
+      agregarLog(`${t('configuracion_pacs.log_error_eliminar_nodo')}'${nombre}'.`);
     }
   };
 
@@ -140,7 +142,8 @@ export default function ConfiguracionPACS() {
         body: JSON.stringify({ ...nodoActual, activo: estadoNuevo })
       });
       setNodosDestino(nodosDestino.map(n => n.id === nodoActual.id ? { ...n, activo: estadoNuevo } : n));
-      agregarLog(`[ROUTER] Tráfico hacia '${nodoActual.nombre}' ha sido ${estadoNuevo ? 'HABILITADO' : 'BLOQUEADO'} en BD.`);
+      const textHabilitado = estadoNuevo ? "HABILITADO" : "BLOQUEADO";
+      agregarLog(`[ROUTER] Tráfico hacia '${nodoActual.nombre}' ha sido ${textHabilitado} en BD.`);
     } catch (error) {
       setNodosDestino(nodosDestino.map(n => n.id === nodoActual.id ? { ...n, activo: estadoNuevo } : n));
     }
@@ -161,16 +164,16 @@ export default function ConfiguracionPACS() {
   };
 
   const handleTestNodoLista = (nodo) => {
-    if (!nodo.activo) return agregarLog(`[ERROR] La estación ${nodo.ae_title} está INACTIVA.`);
-    agregarLog(`[PING] Haciendo Ping a la estación ${nodo.ip}...`);
-    setTimeout(() => agregarLog(`✅ [EXITO] Estación ${nodo.ae_title} respondió correctamente.`), 1000);
+    if (!nodo.activo) return agregarLog(`${t('configuracion_pacs.log_error_nodo_inactivo')}${nodo.ae_title}`);
+    agregarLog(`${t('configuracion_pacs.log_ping_nodo')}${nodo.ip}...`);
+    setTimeout(() => agregarLog(`${t('configuracion_pacs.log_ping_exito')}${nodo.ae_title}`), 1000);
   };
 
   const handleEscanearRed = () => {
     setIsScanning(true);
-    agregarLog("[SCANNER] Iniciando barrido de red local buscando puertos DICOM...");
+    agregarLog(t('configuracion_pacs.log_scanner_inicio'));
     setTimeout(() => {
-      agregarLog("💡 [SCANNER] ¡Posible nodo detectado! IP: 192.168.1.105 | Puerto: 104");
+      agregarLog(t('configuracion_pacs.log_scanner_detectado'));
       if(!editandoId) setNuevoNodo({ ...nuevoNodo, ip: "192.168.1.105", puerto: "104", ae_title: "DESCONOCIDO_AET" });
       setIsScanning(false);
     }, 3000);
@@ -179,9 +182,9 @@ export default function ConfiguracionPACS() {
   return (
     <div style={containerStyle}>
       <header style={headerStyle}>
-        <h2 style={titleStyle}>Configuración de Infraestructura MI_PACS</h2>
+        <h2 style={titleStyle}>{t('configuracion_pacs.titulo')}</h2>
         <p style={{ color: "#94a3b8", margin: 0, fontSize: "0.95rem" }}>
-          Gestione Nodos DICOM, pruebe asociaciones de red y administre impresoras.
+          {t('configuracion_pacs.subtitulo')}
         </p>
       </header>
 
@@ -196,35 +199,35 @@ export default function ConfiguracionPACS() {
           
           <div style={cardStyle}>
             <div style={headerCardFlex}>
-              <h3 style={sectionTitle}>⚙️ Nodo Local PACS (StoreSCP)</h3>
-              <span style={badgeStatus(serverStatus)}>{serverStatus === "ACTIVO" ? "🟢 ESCUCHANDO" : "🔴 DETENIDO"}</span>
+              <h3 style={sectionTitle}>{t('configuracion_pacs.nodo_local_pacs')}</h3>
+              <span style={badgeStatus(serverStatus)}>{serverStatus === "ACTIVO" ? t('configuracion_pacs.estado_escuchando') : t('configuracion_pacs.estado_detenido')}</span>
             </div>
             <form onSubmit={handleGuardarPACS}>
               <div style={{ display: "flex", gap: "15px" }}>
-                <div style={{ flex: 1 }}><label style={labelStyle}>PACS AE Title:</label><input type="text" style={inputStyle} value={dicomConfig.ae_title} onChange={(e) => setDicomConfig({...dicomConfig, ae_title: e.target.value})} required /></div>
-                <div style={{ flex: 1 }}><label style={labelStyle}>Puerto DICOM:</label><input type="number" style={inputStyle} value={dicomConfig.port} onChange={(e) => setDicomConfig({...dicomConfig, port: e.target.value})} required /></div>
+                <div style={{ flex: 1 }}><label style={labelStyle}>{t('configuracion_pacs.pacs_ae_title')}</label><input type="text" style={inputStyle} value={dicomConfig.ae_title} onChange={(e) => setDicomConfig({...dicomConfig, ae_title: e.target.value})} required /></div>
+                <div style={{ flex: 1 }}><label style={labelStyle}>{t('configuracion_pacs.puerto_dicom')}</label><input type="number" style={inputStyle} value={dicomConfig.port} onChange={(e) => setDicomConfig({...dicomConfig, port: e.target.value})} required /></div>
               </div>
               <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
-                <div style={{ flex: 1 }}><label style={labelStyle}>IP de Escucha:</label><input type="text" style={inputStyle} value={dicomConfig.ip} onChange={(e) => setDicomConfig({...dicomConfig, ip: e.target.value})} required /></div>
-                <div style={{ flex: 1 }}><label style={labelStyle}>AE Title Visor Integrado:</label><input type="text" style={inputStyle} value={dicomConfig.client_ae} onChange={(e) => setDicomConfig({...dicomConfig, client_ae: e.target.value})} required /></div>
+                <div style={{ flex: 1 }}><label style={labelStyle}>{t('configuracion_pacs.ip_escucha')}</label><input type="text" style={inputStyle} value={dicomConfig.ip} onChange={(e) => setDicomConfig({...dicomConfig, ip: e.target.value})} required /></div>
+                <div style={{ flex: 1 }}><label style={labelStyle}>{t('configuracion_pacs.ae_visor')}</label><input type="text" style={inputStyle} value={dicomConfig.client_ae} onChange={(e) => setDicomConfig({...dicomConfig, client_ae: e.target.value})} required /></div>
               </div>
               <div style={btnRowStyle}>
-                <button type="button" onClick={handleTestPACS} style={btnTestStyle}>📡 Probar Servidor</button>
-                <button type="submit" disabled={loading} style={btnGuardarStyle}>💾 Guardar y Reiniciar</button>
+                <button type="button" onClick={handleTestPACS} style={btnTestStyle}>{t('configuracion_pacs.btn_probar_servidor')}</button>
+                <button type="submit" disabled={loading} style={btnGuardarStyle}>{t('configuracion_pacs.btn_guardar_reiniciar')}</button>
               </div>
             </form>
           </div>
 
           <div style={cardStyle}>
             <div style={headerCardFlex}>
-              <h3 style={{ ...sectionTitle, color: "#3b82f6" }}>📡 Consola de Red DICOM (Live)</h3>
-              <button type="button" onClick={() => setLogs(["[SISTEMA] Consola limpiada."])} style={{ background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "0.75rem" }}>🧹 Limpiar</button>
+              <h3 style={{ ...sectionTitle, color: "#3b82f6" }}>{t('configuracion_pacs.consola_red')}</h3>
+              <button type="button" onClick={() => setLogs([t('configuracion_pacs.log_consola_limpiada')])} style={{ background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "0.75rem" }}>{t('configuracion_pacs.btn_limpiar_consola')}</button>
             </div>
             <div style={terminalStyle}>
               {logs.map((log, index) => {
                 let color = "#10b981"; 
                 if (log.includes("[ERROR]")) color = "#ef4444";
-                if (log.includes("[SISTEMA]")) color = "#3b82f6";
+                if (log.includes("[SISTEMA]") || log.includes("[SYSTEM]")) color = "#3b82f6";
                 if (log.includes("[PING]")) color = "#fbbf24";
                 if (log.includes("[SCANNER]")) color = "#a855f7"; 
                 if (log.includes("[C-ECHO]") || log.includes("[ROUTER]")) color = "#d946ef"; 
@@ -240,22 +243,22 @@ export default function ConfiguracionPACS() {
           
           <div style={cardStyle}>
             <div style={headerCardFlex}>
-              <h3 style={sectionTitle}>🖥️ Nodos y Servidores de Impresión</h3>
+              <h3 style={sectionTitle}>{t('configuracion_pacs.nodos_impresion')}</h3>
               <button type="button" onClick={handleEscanearRed} disabled={isScanning} style={{ background: isScanning ? "#334155" : "#8b5cf6", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: isScanning ? "wait" : "pointer", fontSize: "0.8rem", fontWeight: "bold" }}>
-                {isScanning ? "⏳ Escaneando Red..." : "🔍 Buscar en Red Local"}
+                {isScanning ? t('configuracion_pacs.btn_escaneando') : t('configuracion_pacs.btn_buscar_red')}
               </button>
             </div>
             
             <form onSubmit={handleGuardarNodo} style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "15px", background: editandoId ? "#0f172a" : "#111418", padding: "15px", borderRadius: "8px", border: editandoId ? "1px solid #3b82f6" : "1px solid #222" }}>
-              {editandoId && <span style={{ color: "#38bdf8", fontSize: "0.8rem", fontWeight: "bold" }}>✏️ Modo Edición Activo</span>}
+              {editandoId && <span style={{ color: "#38bdf8", fontSize: "0.8rem", fontWeight: "bold" }}>{t('configuracion_pacs.modo_edicion')}</span>}
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 0.8fr", gap: "8px" }}>
-                <input type="text" placeholder="Nombre (ej. Impresora AGFA)" style={inputStyle} value={nuevoNodo.nombre} onChange={e => setNuevoNodo({...nuevoNodo, nombre: e.target.value})} required />
-                <input type="text" placeholder="AET" style={inputStyle} value={nuevoNodo.ae_title} onChange={e => setNuevoNodo({...nuevoNodo, ae_title: e.target.value})} required />
-                <input type="text" placeholder="IP" style={inputStyle} value={nuevoNodo.ip} onChange={e => setNuevoNodo({...nuevoNodo, ip: e.target.value})} required />
-                <input type="text" placeholder="Port" style={inputStyle} value={nuevoNodo.puerto} onChange={e => setNuevoNodo({...nuevoNodo, puerto: e.target.value})} required />
+                <input type="text" placeholder={t('configuracion_pacs.placeholder_nombre')} style={inputStyle} value={nuevoNodo.nombre} onChange={e => setNuevoNodo({...nuevoNodo, nombre: e.target.value})} required />
+                <input type="text" placeholder={t('configuracion_pacs.placeholder_aet')} style={inputStyle} value={nuevoNodo.ae_title} onChange={e => setNuevoNodo({...nuevoNodo, ae_title: e.target.value})} required />
+                <input type="text" placeholder={t('configuracion_pacs.placeholder_ip')} style={inputStyle} value={nuevoNodo.ip} onChange={e => setNuevoNodo({...nuevoNodo, ip: e.target.value})} required />
+                <input type="text" placeholder={t('configuracion_pacs.placeholder_port')} style={inputStyle} value={nuevoNodo.puerto} onChange={e => setNuevoNodo({...nuevoNodo, puerto: e.target.value})} required />
               </div>
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", background: "#0a0c0f", padding: "8px", borderRadius: "6px" }}>
-                <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold" }}>Soporta:</span>
+                <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontWeight: "bold" }}>{t('configuracion_pacs.lbl_soporta')}</span>
                 {modalidadesDisponibles.map(mod => (
                   <label key={mod} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.8rem", color: nuevoNodo.modalidades.includes(mod) ? "#38bdf8" : "#64748b", cursor: "pointer" }}>
                     <input type="checkbox" checked={nuevoNodo.modalidades.includes(mod)} onChange={(e) => {
@@ -266,36 +269,36 @@ export default function ConfiguracionPACS() {
                 ))}
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                {editandoId && <button type="button" onClick={handleCancelarEdicion} style={{ background: "transparent", border: "1px solid #ef4444", color: "#ef4444", padding: "8px 15px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>✖ Cancelar</button>}
-                <button type="submit" style={{ ...btnGuardarStyle, margin: 0, width: "auto", padding: "8px 20px" }}>{editandoId ? "💾 Guardar Cambios" : "➕ Añadir Nodo"}</button>
+                {editandoId && <button type="button" onClick={handleCancelarEdicion} style={{ background: "transparent", border: "1px solid #ef4444", color: "#ef4444", padding: "8px 15px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>{t('configuracion_pacs.btn_cancelar')}</button>}
+                <button type="submit" style={{ ...btnGuardarStyle, margin: 0, width: "auto", padding: "8px 20px" }}>{editandoId ? t('configuracion_pacs.btn_guardar_cambios') : t('configuracion_pacs.btn_anadir_nodo')}</button>
               </div>
             </form>
 
             <div className="custom-pacs-scroll" style={{ maxHeight: "350px", overflowY: "auto", background: "#0a0c0f", padding: "10px", borderRadius: "6px", border: "1px solid #333" }}>
-              {nodosDestino.length === 0 && <div style={{ color: "#64748b", textAlign: "center", padding: "20px" }}>No hay estaciones configuradas.</div>}
+              {nodosDestino.length === 0 && <div style={{ color: "#64748b", textAlign: "center", padding: "20px" }}>{t('configuracion_pacs.sin_estaciones')}</div>}
               {nodosDestino.map((n) => (
                 <div key={n.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid #222", padding: "15px 10px", opacity: n.activo ? 1 : 0.4, transition: "opacity 0.3s" }}>
                   <div style={{ flex: 1 }}>
                     <strong style={{ color: n.activo ? "#fbbf24" : "#94a3b8", fontSize: "1rem" }}>{n.nombre}</strong>
                     <div style={{ display: "flex", gap: "15px", color: "#94a3b8", fontSize: "0.85rem", marginTop: "6px", fontFamily: "monospace" }}>
-                      <span><span style={{color:"#64748b"}}>AET:</span> {n.ae_title || "-"}</span><span><span style={{color:"#64748b"}}>IP:</span> {n.ip || "-"}</span><span><span style={{color:"#64748b"}}>PORT:</span> {n.puerto || "-"}</span>
+                      <span><span style={{color:"#64748b"}}>{t('configuracion_pacs.lbl_aet')}</span> {n.ae_title || "-"}</span><span><span style={{color:"#64748b"}}>{t('configuracion_pacs.lbl_ip')}</span> {n.ip || "-"}</span><span><span style={{color:"#64748b"}}>{t('configuracion_pacs.lbl_port')}</span> {n.puerto || "-"}</span>
                     </div>
                     <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
-                      {n.modalidades && n.modalidades.length > 0 ? n.modalidades.map(m => (<span key={m} style={{ background: "#1e293b", color: n.activo ? "#38bdf8" : "#64748b", padding: "3px 8px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: "bold", border: "1px solid #0369a1" }}>{m}</span>)) : <span style={{ fontSize: "0.75rem", color: "#ef4444", fontWeight: "bold" }}>⚠️ Sin modalidades</span>}
+                      {n.modalidades && n.modalidades.length > 0 ? n.modalidades.map(m => (<span key={m} style={{ background: "#1e293b", color: n.activo ? "#38bdf8" : "#64748b", padding: "3px 8px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: "bold", border: "1px solid #0369a1" }}>{m}</span>)) : <span style={{ fontSize: "0.75rem", color: "#ef4444", fontWeight: "bold" }}>{t('configuracion_pacs.sin_modalidades')}</span>}
                     </div>
                   </div>
                   
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "flex-end", minWidth: "180px" }}>
                     <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                       <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.8rem", color: "#94a3b8" }}>
-                        <input type="checkbox" checked={n.auto_envio} onChange={() => toggleAutoEnvio(n)} disabled={!n.activo} /> Auto Enviar
+                        <input type="checkbox" checked={n.auto_envio} onChange={() => toggleAutoEnvio(n)} disabled={!n.activo} /> {t('configuracion_pacs.lbl_auto_enviar')}
                       </label>
                       <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "bold", color: n.activo ? "#10b981" : "#ef4444", background: "#111", padding: "4px 8px", borderRadius: "4px", border: "1px solid #333" }}>
-                        <input type="checkbox" checked={n.activo} onChange={() => toggleActivo(n)} /> {n.activo ? "🟢 ON" : "🔴 OFF"}
+                        <input type="checkbox" checked={n.activo} onChange={() => toggleActivo(n)} /> {n.activo ? t('configuracion_pacs.lbl_on') : t('configuracion_pacs.lbl_off')}
                       </label>
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button type="button" onClick={() => handleTestNodoLista(n)} disabled={!n.activo} style={{ background: "transparent", color: n.activo ? "#0ea5e9" : "#475569", border: `1px solid ${n.activo ? "#0ea5e9" : "#475569"}`, padding: "6px 10px", borderRadius: "4px", fontSize: "0.8rem", cursor: n.activo ? "pointer" : "not-allowed", fontWeight: "bold" }}>📡 Test</button>
+                      <button type="button" onClick={() => handleTestNodoLista(n)} disabled={!n.activo} style={{ background: "transparent", color: n.activo ? "#0ea5e9" : "#475569", border: `1px solid ${n.activo ? "#0ea5e9" : "#475569"}`, padding: "6px 10px", borderRadius: "4px", fontSize: "0.8rem", cursor: n.activo ? "pointer" : "not-allowed", fontWeight: "bold" }}>{t('configuracion_pacs.btn_test')}</button>
                       <button type="button" onClick={() => handleEditarNodo(n)} style={{ background: "transparent", color: "#fbbf24", border: "1px solid #fbbf24", padding: "6px 10px", borderRadius: "4px", fontSize: "0.8rem", cursor: "pointer" }}>✏️</button>
                       <button type="button" onClick={() => handleEliminarNodo(n.id, n.nombre)} style={{ background: "transparent", color: "#ef4444", border: "1px solid #ef4444", padding: "6px 10px", borderRadius: "4px", fontSize: "0.8rem", cursor: "pointer" }}>🗑️</button>
                     </div>
@@ -328,4 +331,4 @@ const btnRowStyle = { display: "flex", gap: "10px", marginTop: "15px" };
 const btnGuardarStyle = { flex: 1, background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff", border: "none", padding: "10px 15px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", fontSize: "0.9rem", transition: "all 0.2s" };
 const btnTestStyle = { flex: 1, background: "transparent", color: "#0ea5e9", border: "1px solid #0ea5e9", padding: "10px 15px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", fontSize: "0.9rem", transition: "all 0.2s" };
 const terminalStyle = { background: "#000", border: "1px solid #333", borderRadius: "6px", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.8rem", height: "300px", overflowY: "auto", flexGrow: 1, boxShadow: "inset 0 0 10px rgba(0,0,0,0.8)", lineHeight: "1.4" };
-const badgeStatus = (status) => ({ padding: "6px 10px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold", backgroundColor: status === "ACTIVO" ? "#10b98122" : "#ef444422", color: status === "ACTIVO" ? "#10b981" : "#ef4444", border: `1px solid ${status === "ACTIVO" ? "#10b981" : "#ef4444"}` }); 
+const badgeStatus = (status) => ({ padding: "6px 10px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold", backgroundColor: status === "ACTIVO" ? "#10b98122" : "#ef444422", color: status === "ACTIVO" ? "#10b981" : "#ef4444", border: `1px solid ${status === "ACTIVO" ? "#10b981" : "#ef4444"}` });

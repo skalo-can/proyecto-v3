@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import "./RecepcionForm.css"; 
 
 export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicFields = [], orders = [] }) => {
+  const { t } = useTranslation();
+  
   const emptyForm = {
     id_institucional: "",
     nombre: "",
@@ -53,12 +56,12 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
     setFormData({
       ...emptyForm,
       id_institucional: idGenerado,
-      nombre: "PACIENTE",
-      apellido: `EMERGENCIA ${sufijoVisual}`, 
+      nombre: t('recepcion_form.paciente_nn'),
+      apellido: `${t('recepcion_form.emergencia_nn')} ${sufijoVisual}`, 
       sexo: "O", 
       prioridad: "Urgente",
-      area_solicitante: "URGENCIAS",
-      medico_referente: "MEDICO TURNO"
+      area_solicitante: t('recepcion_form.urgencias'),
+      medico_referente: t('recepcion_form.medico_turno')
     });
     setExtraValues({ PatientAge: "030Y" }); 
   };
@@ -98,7 +101,7 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
     const incompletos = camposCriticos.filter(campo => !formData[campo]);
     
     if (incompletos.length > 0 || !extraValues.PatientAge) {
-      alert("⚠️ ALERTA DE SEGURIDAD: Todos los campos con asterisco (*) son obligatorios.");
+      alert(t('recepcion_form.alerta_obligatorios'));
       return;
     }
 
@@ -123,11 +126,11 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
         {/* 1. ENCABEZADO FIJO */}
         <div className="form-header-fixed" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h2 className="form-title" style={{ margin: 0 }}>
-            {initialData ? "✏️ Modificar Orden (RIS)" : "Admisión de Paciente (RIS)"}
+            {initialData ? t('recepcion_form.modificar_orden') : t('recepcion_form.admision_paciente')}
           </h2>
           {!initialData && (
             <button type="button" onClick={handleAutoNN} className="btn-nn-emergency">
-              🚨 INGRESO NN (EMERGENCIA)
+              {t('recepcion_form.ingreso_nn')}
             </button>
           )}
         </div>
@@ -135,26 +138,26 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
         {/* 2. ÁREA CON SCROLL INTERNO */}
         <div className="form-scrollable-content">
           <div className="form-section">
-            <h3><i className="fas fa-user"></i> Identificación del Paciente</h3>
+            <h3><i className="fas fa-user"></i> {t('recepcion_form.identificacion_paciente')}</h3>
             <div className="form-grid">
               <div className="form-group">
-                <label>ID Institucional *</label>
-                <input type="text" name="id_institucional" value={formData.id_institucional} onChange={handleChange} required placeholder="Cédula/NHC o ID-NN" />
+                <label>{t('recepcion_form.id_institucional')}</label>
+                <input type="text" name="id_institucional" value={formData.id_institucional} onChange={handleChange} required placeholder={t('recepcion_form.placeholder_id')} />
               </div>
               <div className="form-group">
-                <label>Nombres *</label>
+                <label>{t('recepcion_form.nombres')}</label>
                 <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} required />
               </div>
               <div className="form-group">
-                <label>Apellidos *</label>
+                <label>{t('recepcion_form.apellidos')}</label>
                 <input type="text" name="apellido" value={formData.apellido} onChange={handleChange} required />
               </div>
               <div className="form-group">
-                <label>Fecha de Nacimiento</label>
+                <label>{t('recepcion_form.fecha_nacimiento')}</label>
                 <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleChange} />
               </div>
               <div className="form-group">
-                <label>Edad (DICOM) *</label>
+                <label>{t('recepcion_form.edad_dicom')}</label>
                 <input 
                   type="text" 
                   value={extraValues.PatientAge || ""} 
@@ -163,42 +166,42 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
                 />
               </div>
               <div className="form-group">
-                <label>Sexo *</label>
+                <label>{t('recepcion_form.sexo')}</label>
                 <select name="sexo" value={formData.sexo} onChange={handleChange} required>
-                  <option value="">Seleccione...</option>
-                  <option value="M">Masculino</option>
-                  <option value="F">Femenino</option>
-                  <option value="O">Otro / NN</option>
+                  <option value="">{t('recepcion_form.seleccione')}</option>
+                  <option value="M">{t('recepcion_form.masculino')}</option>
+                  <option value="F">{t('recepcion_form.femenino')}</option>
+                  <option value="O">{t('recepcion_form.otro_nn')}</option>
                 </select>
               </div>
             </div>
           </div>
 
           <div className="form-section">
-            <h3><i className="fas fa-file-medical"></i> Detalles del Estudio</h3>
+            <h3><i className="fas fa-file-medical"></i> {t('recepcion_form.detalles_estudio')}</h3>
             <div className="form-grid">
               <div className="form-group">
-                <label>Modalidad *</label>
+                <label>{t('recepcion_form.modalidad')}</label>
                 <select name="modalidad" value={formData.modalidad} onChange={handleChange} required>
-                  <option value="">Seleccione...</option>
-                  <option value="CR">Radiología Convencional (CR)</option>
-                  <option value="DR">Radiología Digital (DR)</option>
-                  <option value="CT">Tomografía (CT)</option>
-                  <option value="MR">Resonancia (MR)</option>
-                  <option value="US">Ecografía (US)</option>
-                  <option value="MG">Mamografía (MG)</option>
-                  <option value="FL">Fluoroscopia (FL)</option>
-                  <option value="MN">Medicina Nuclear (MN)</option>
-                  <option value="Angiografía">Angiografía</option>
-                  <option value="DXA">Densitometría (DXA)</option>
+                  <option value="">{t('recepcion_form.seleccione')}</option>
+                  <option value="CR">{t('recepcion_form.mod_cr')}</option>
+                  <option value="DR">{t('recepcion_form.mod_dr')}</option>
+                  <option value="CT">{t('recepcion_form.mod_ct')}</option>
+                  <option value="MR">{t('recepcion_form.mod_mr')}</option>
+                  <option value="US">{t('recepcion_form.mod_us')}</option>
+                  <option value="MG">{t('recepcion_form.mod_mg')}</option>
+                  <option value="FL">{t('recepcion_form.mod_fl')}</option>
+                  <option value="MN">{t('recepcion_form.mod_mn')}</option>
+                  <option value="Angiografía">{t('recepcion_form.mod_angio')}</option>
+                  <option value="DXA">{t('recepcion_form.mod_dxa')}</option>
                 </select>
               </div>
               <div className="form-group">
-                <label>Área Solicitante *</label>
+                <label>{t('recepcion_form.area_solicitante')}</label>
                 <input type="text" name="area_solicitante" value={formData.area_solicitante} onChange={handleChange} required />
               </div>
               <div className="form-group">
-                <label>Médico Referente *</label>
+                <label>{t('recepcion_form.medico_referente')}</label>
                 <input type="text" name="medico_referente" value={formData.medico_referente} onChange={handleChange} required />
               </div>
 
@@ -231,7 +234,7 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
                         name={campo.tag_dicom}
                         value={extraValues[campo.tag_dicom] || ""}
                         onChange={handleExtraChange}
-                        placeholder={`Ingrese ${campo.nombre_mostrar}...`}
+                        placeholder={`${t('recepcion_form.ingrese')} ${campo.nombre_mostrar}...`}
                         rows={campo.nombre_mostrar.toLowerCase().includes("nota") ? 5 : 3}
                         className="mapeo-textarea-recepcion"
                       />
@@ -245,7 +248,7 @@ export const RecepcionForm = ({ onRegisterOrder, initialData, onCancel, dynamicF
         {/* 3. BOTÓN CONFIRMAR SIEMPRE VISIBLE */}
         <div className="form-actions">
           <button type="submit" className="btn-confirmar">
-            {initialData ? "💾 Guardar Cambios" : "Confirmar Ingreso y Notificar"}
+            {initialData ? t('recepcion_form.guardar_cambios') : t('recepcion_form.confirmar_ingreso')}
           </button>
         </div>
       </form>

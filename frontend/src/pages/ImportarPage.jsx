@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import './ImportarPage.css';
 
 export default function ImportarPage() {
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [progreso, setProgreso] = useState({
         en_progreso: false,
@@ -97,7 +99,7 @@ export default function ImportarPage() {
         const tokenLimpio = obtenerTokenLimpio();
         
         if (!tokenLimpio) {
-            alert("🔒 Sesión Inválida. Por favor, inicia sesión de nuevo.");
+            alert(t('importacion.sesion_invalida'));
             return;
         }
 
@@ -124,18 +126,18 @@ export default function ImportarPage() {
                 intervaloProgreso.current = setInterval(verificarEstadoImportacion, 1500);
             } else if (res.data.status === "cancelled") {
                 setLoading(false);
-                alert("ℹ️ Operación cancelada por el operador clínico.");
+                alert(t('importacion.operacion_cancelada'));
             }
         } catch (err) {
             setLoading(false);
-            const errorMsg = err.response?.data?.detail || "Error en la inyección de hardware local del servidor.";
-            alert(`⚠️ CORTE DE CONEXIÓN: ${errorMsg}`);
+            const errorMsg = err.response?.data?.detail || t('importacion.error_inyeccion');
+            alert(`${t('importacion.corte_conexion')}${errorMsg}`);
         }
     };
 
     // 🚀 CAMBIO 2: Función para cancelar la ingesta
     const handleCancelarImportacion = async () => {
-        const confirmar = window.confirm("¿Está seguro de que desea detener el proceso de ingesta en curso?");
+        const confirmar = window.confirm(t('importacion.confirmar_cancelar'));
         if (!confirmar) return;
 
         try {
@@ -144,9 +146,9 @@ export default function ImportarPage() {
             await axios.post(`${window.API_URL}/api/importacion-fisica/cancelar`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
-            alert("🛑 Orden de cancelación enviada. El proceso se detendrá en unos segundos.");
+            alert(t('importacion.orden_cancelacion_enviada'));
         } catch (err) {
-            alert("❌ Error al intentar comunicarse con el motor para cancelar.");
+            alert(t('importacion.error_cancelar_motor'));
         }
     };
 
@@ -158,9 +160,9 @@ export default function ImportarPage() {
             const res = await axios.post(`${window.API_URL}/api/importacion-fisica/exportar-bd`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
-            alert(`✅ Base de datos exportada con éxito.\nDetalle: ${res.data.message || "Operación completada"}`);
+            alert(`${t('importacion.bd_exportada_exito')}${res.data.message || t('importacion.operacion_completada')}`);
         } catch (err) {
-            alert(`❌ Error al exportar la base de datos: ${err.response?.data?.detail || "Fallo en el servidor"}`);
+            alert(`${t('importacion.error_exportar_bd')}${err.response?.data?.detail || t('importacion.fallo_servidor')}`);
         }
     };
 
@@ -171,9 +173,9 @@ export default function ImportarPage() {
             const res = await axios.post(`${window.API_URL}/api/importacion-fisica/importar-bd`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
-            alert(`✅ Base de datos importada con éxito.\nDetalle: ${res.data.message || "Operación completada"}`);
+            alert(`${t('importacion.bd_importada_exito')}${res.data.message || t('importacion.operacion_completada')}`);
         } catch (err) {
-            alert(`❌ Error al importar la base de datos: ${err.response?.data?.detail || "Fallo en el servidor"}`);
+            alert(`${t('importacion.error_importar_bd')}${err.response?.data?.detail || t('importacion.fallo_servidor')}`);
         }
     };
 
@@ -183,26 +185,26 @@ export default function ImportarPage() {
                 <div className="modal-overlay-persistencia">
                     <div className="modal-caja-exito">
                         <div className="modal-icono">✅</div>
-                        <h2>INGESTA FINALIZADA ESPECTACULARMENTE</h2>
-                        <p>El motor ha terminado de procesar los archivos en el disco duro local.</p>
+                        <h2>{t('importacion.ingesta_finalizada')}</h2>
+                        <p>{t('importacion.motor_terminado')}</p>
                         <div className="modal-estadisticas">
                             <div className="stat-item exitoso">
                                 <span className="stat-valor">{resumenFinal.exitosos}</span>
-                                <span className="stat-label">Guardados BD</span>
+                                <span className="stat-label">{t('importacion.guardados_bd')}</span>
                             </div>
                             <div className="stat-item fallido">
                                 <span className="stat-valor">{resumenFinal.fallidos}</span>
-                                <span className="stat-label">Omitidos</span>
+                                <span className="stat-label">{t('importacion.omitidos')}</span>
                             </div>
                         </div>
-                        <button className="btn-entendido" onClick={handleCerrarModal}>OK, ENTENDIDO</button>
+                        <button className="btn-entendido" onClick={handleCerrarModal}>{t('importacion.ok_entendido')}</button>
                     </div>
                 </div>
             )}
 
             <header className="config-header">
-                <h1 style={{ color: '#fbbf24', margin: 0, fontSize: '1.5rem', fontWeight: 'bold' }}>💿 MÓDULO DE INGESTA CLÍNICA AUTOMÁTICA</h1>
-                <p style={{ color: '#aaa', fontSize: '0.85rem' }}>Procesamiento local de Imágenes Médicas directamente en el Hardware del Servidor</p>
+                <h1 style={{ color: '#fbbf24', margin: 0, fontSize: '1.5rem', fontWeight: 'bold' }}>{t('importacion.titulo_modulo')}</h1>
+                <p style={{ color: '#aaa', fontSize: '0.85rem' }}>{t('importacion.subtitulo_modulo')}</p>
             </header>
 
             <main className="config-main" style={{ marginTop: '20px' }}>
@@ -211,8 +213,8 @@ export default function ImportarPage() {
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                         <span style={{ fontSize: '2.5rem' }}>🎛️</span>
                         <div>
-                            <h2 style={{ color: '#fff', margin: 0, fontSize: '1.2rem' }}>Importación Directa (Lector de CD / Unidades USB)</h2>
-                            <p style={{ color: '#777', margin: 0, fontSize: '0.85rem' }}>Python leerá y desempaquetará recursivamente los archivos DICOM a velocidad de hardware local sin saturar la red.</p>
+                            <h2 style={{ color: '#fff', margin: 0, fontSize: '1.2rem' }}>{t('importacion.importacion_directa')}</h2>
+                            <p style={{ color: '#777', margin: 0, fontSize: '0.85rem' }}>{t('importacion.desc_importacion')}</p>
                         </div>
                     </div>
 
@@ -223,21 +225,21 @@ export default function ImportarPage() {
                             disabled={loading || progreso.en_progreso}
                             style={{ backgroundColor: loading || progreso.en_progreso ? '#333' : '#fbbf24', color: '#000', fontWeight: 'bold', border: 'none', padding: '14px 28px', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem' }}
                         >
-                            {progreso.en_progreso ? "⏳ EXTRACCIÓN EN SEGUNDO PLANO ACTIVA..." : "🔌 SELECCIONAR UNIDAD FISICA EN SERVIDOR"}
+                            {progreso.en_progreso ? t('importacion.extraccion_activa') : t('importacion.seleccionar_unidad')}
                         </button>
                     </div>
 
                     {progreso.en_progreso && (
                         <div style={{ marginTop: '30px', backgroundColor: 'rgba(251, 191, 36, 0.03)', border: '1px solid #fbbf24', padding: '20px', borderRadius: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                <h3 style={{ color: '#fbbf24', margin: '0', fontSize: '1rem' }}>📊 MONITOR DE INGESTA ACTIVO (NÚCLEO ASÍNCRONO)</h3>
+                                <h3 style={{ color: '#fbbf24', margin: '0', fontSize: '1rem' }}>{t('importacion.monitor_ingesta')}</h3>
                                 {/* 🚀 BOTÓN DE CANCELAR AÑADIDO AQUÍ */}
-                                <button onClick={handleCancelarImportacion} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '5px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>🛑 Cancelar Proceso</button>
+                                <button onClick={handleCancelarImportacion} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '5px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>{t('importacion.btn_cancelar_proceso')}</button>
                             </div>
                             <div style={{ display: 'flex', gap: '30px', color: '#fff', fontSize: '0.9rem' }}>
-                                <div>📁 Detectados: <strong style={{ color: '#fbbf24' }}>{progreso.total_detectados}</strong></div>
-                                <div>✅ Guardados BD: <strong style={{ color: '#10b981' }}>{progreso.exitosos}</strong></div>
-                                <div>⚠️ Omitidos: <strong style={{ color: '#ef4444' }}>{progreso.fallidos}</strong></div>
+                                <div>{t('importacion.detectados')} <strong style={{ color: '#fbbf24' }}>{progreso.total_detectados}</strong></div>
+                                <div>{t('importacion.guardados_bd_monitor')} <strong style={{ color: '#10b981' }}>{progreso.exitosos}</strong></div>
+                                <div>{t('importacion.omitidos_monitor')} <strong style={{ color: '#ef4444' }}>{progreso.fallidos}</strong></div>
                             </div>
                             <div style={{ backgroundColor: '#222', height: '10px', borderRadius: '5px', marginTop: '15px', overflow: 'hidden' }}>
                                 <div style={{ backgroundColor: '#10b981', height: '100%', width: `${progreso.total_detectados > 0 ? (progreso.exitosos / progreso.total_detectados) * 100 : 0}%`, transition: 'width 0.3s ease' }}></div>
@@ -251,8 +253,8 @@ export default function ImportarPage() {
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
                         <span style={{ fontSize: '2.5rem' }}>🗄️</span>
                         <div>
-                            <h2 style={{ color: '#fff', margin: 0, fontSize: '1.2rem' }}>Gestión y Respaldo de Base de Datos</h2>
-                            <p style={{ color: '#777', margin: 0, fontSize: '0.85rem' }}>Herramientas para extraer un respaldo completo o migrar un archivo histórico desde otro nodo de la red local al sistema actual.</p>
+                            <h2 style={{ color: '#fff', margin: 0, fontSize: '1.2rem' }}>{t('importacion.gestion_respaldo')}</h2>
+                            <p style={{ color: '#777', margin: 0, fontSize: '0.85rem' }}>{t('importacion.desc_gestion')}</p>
                         </div>
                     </div>
 
@@ -261,7 +263,7 @@ export default function ImportarPage() {
                             onClick={handleExportarBD}
                             style={{ backgroundColor: '#3b82f6', color: '#fff', fontWeight: 'bold', border: 'none', padding: '12px 24px', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '10px' }}
                         >
-                            📤 Exportar Base de Datos
+                            {t('importacion.btn_exportar')}
                         </button>
                         
                         {/* 🚀 BOTÓN RECONVERTIDO PARA MIGRACIÓN EN CALIENTE POR RED */}
@@ -282,7 +284,7 @@ export default function ImportarPage() {
                                 gap: '10px' 
                             }}
                         >
-                            🌐 Migración en Caliente (Red / PACS Antiguo)
+                            {t('importacion.btn_migracion')}
                         </button>
                     </div>
                 </section>

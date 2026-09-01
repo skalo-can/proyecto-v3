@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 export default function GestorFirmas() {
+  const { t } = useTranslation();
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState("");
   const [archivoFirma, setArchivoFirma] = useState(null);
@@ -17,7 +19,7 @@ export default function GestorFirmas() {
   const handleSubirFirma = async (e) => {
     e.preventDefault();
     if (!usuarioSeleccionado || !archivoFirma) {
-      alert("⚠️ Debe seleccionar un usuario y adjuntar una imagen de firma.");
+      alert(t('firmas.alerta_obligatorio'));
       return;
     }
 
@@ -40,11 +42,11 @@ export default function GestorFirmas() {
 
       if (!response.ok) throw new Error("No se pudo almacenar la firma");
 
-      alert("✅ Firma guardada y asegurada localmente con éxito.");
+      alert(t('firmas.alerta_exito'));
       setArchivoFirma(null);
       setUsuarioSeleccionado("");
     } catch (error) {
-      alert("❌ Error: " + error.message);
+      alert(t('firmas.alerta_error') + error.message);
     } finally {
       setLoading(false);
     }
@@ -57,18 +59,18 @@ export default function GestorFirmas() {
 
   return (
     <div style={layoutStyle}>
-      <h2 style={{ fontSize: "2rem", marginBottom: "5px" }}>🔒 Módulo de Seguridad: Gestión de Firmas</h2>
-      <p style={{ color: "#94a3b8", marginBottom: "30px" }}>Resguarde las firmas digitales localmente en el servidor para los reportes médicos.</p>
+      <h2 style={{ fontSize: "2rem", marginBottom: "5px" }}>{t('firmas.titulo')}</h2>
+      <p style={{ color: "#94a3b8", marginBottom: "30px" }}>{t('firmas.subtitulo')}</p>
 
       <div style={cardStyle}>
         <form onSubmit={handleSubirFirma}>
-          <label style={labelStyle}>Seleccionar Profesional / Administrador</label>
+          <label style={labelStyle}>{t('firmas.seleccionar_profesional')}</label>
           <select 
             value={usuarioSeleccionado} 
             onChange={(e) => setUsuarioSeleccionado(e.target.value)}
             style={inputStyle}
           >
-            <option value="">-- Seleccione un usuario --</option>
+            <option value="">{t('firmas.placeholder_usuario')}</option>
             {usuarios.map(u => (
               <option key={u.id} value={u.id}>
                 {u.nombre_completo || u.username} ({u.rol})
@@ -76,7 +78,7 @@ export default function GestorFirmas() {
             ))}
           </select>
 
-          <label style={labelStyle}>Imagen de la Firma (PNG con fondo transparente recomendado)</label>
+          <label style={labelStyle}>{t('firmas.imagen_firma')}</label>
           <input 
             type="file" 
             accept="image/png, image/jpeg"
@@ -89,7 +91,7 @@ export default function GestorFirmas() {
             disabled={loading}
             style={{ width: "100%", padding: "12px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", color: "#fff", border: "none", opacity: loading ? 0.7 : 1 }}
           >
-            {loading ? "Almacenando de forma segura..." : "🛡️ Guardar Firma Localmente"}
+            {loading ? t('firmas.btn_guardando') : t('firmas.btn_guardar')}
           </button>
         </form>
       </div>

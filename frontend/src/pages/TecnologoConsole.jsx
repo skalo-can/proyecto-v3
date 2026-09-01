@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
-// 🗑️ IMPORTACIÓN DEL HEADER ELIMINADA: El Layout de App.jsx ya se encarga de mostrarlo
 import './TecnologoConsole.css';
 
 const TecnologoConsole = () => {
+    const { t } = useTranslation();
     const [pacientes, setPacientes] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -30,7 +31,7 @@ const TecnologoConsole = () => {
             await axios.put(`http://192.168.5.21:8000/api/ris/order/atender/${id}`, { usuario_id: 1 });
             setPacientes(prev => prev.filter(p => p.id_orden !== id));
         } catch (err) {
-            alert("Error al procesar la atención.");
+            alert(t('consola_ris.alerta_error'));
         }
     };
 
@@ -38,26 +39,26 @@ const TecnologoConsole = () => {
         // 🚀 Quitamos la clase 'tecnologo-container' general para que el Layout controle el fondo y el scroll
         <main className="tecnologo-main" style={{ padding: '20px', height: '100%' }}>
             <div className="tecnologo-header-bar">
-                <h1>CONSOLA TÉCNICA RIS</h1>
-                </div>
+                <h1>{t('consola_ris.titulo')}</h1>
+            </div>
 
             <div className="pacientes-grid">
                 {pacientes.map((p) => (
                     <div key={p.id_orden} className="paciente-card">
                         <div className="card-header">
                             <span className="card-tag-modality">{p.modalidad || 'DR'}</span>
-                            <span className="card-tag-priority">{p.prioridad || 'Urgente'}</span>
+                            <span className="card-tag-priority">{p.prioridad || t('consola_ris.default_urgente')}</span>
                         </div>
                         <div className="card-body">
                             <h3 className="card-name">{p.apellido}, {p.nombre}</h3>
                             <div className="card-details">
                                 <p>ID: <strong>{p.id_institucional}</strong></p>
                                 <p>Acc: <strong>{p.accession_number}</strong></p>
-                                <p style={{fontStyle: 'italic', marginTop: '10px'}}>{p.estudio_descripcion || 'Radiografía'}</p>
+                                <p style={{fontStyle: 'italic', marginTop: '10px'}}>{p.estudio_descripcion || t('consola_ris.default_estudio')}</p>
                             </div>
                         </div>
                         <button className="btn-marcar-atendido" onClick={() => handleAtender(p.id_orden)}>
-                            MARCAR ATENDIDO
+                            {t('consola_ris.btn_atender')}
                         </button>
                     </div>
                 ))}
@@ -65,7 +66,7 @@ const TecnologoConsole = () => {
 
             {!loading && pacientes.length === 0 && (
                 <div style={{textAlign: 'center', color: '#64748b', marginTop: '100px'}}>
-                    ✅ No hay pacientes pendientes.
+                    {t('consola_ris.sin_pacientes')}
                 </div>
             )}
         </main>

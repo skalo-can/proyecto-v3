@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { obtenerEstiloModalidad } from "./modalidades";
 import { styles } from "./pacientesStyles"; 
 import { useAuth } from "../AuthContext"; 
@@ -9,7 +10,7 @@ export default function TablaPacientes({
   abrirModuloDictado, abrirEditorPaciente, handleReabrirFlujoEstudio, abrirModalTranscriptor, abrirModalFirma,
   handleMarcarTomado 
 }) {
-
+  const { t } = useTranslation();
   const { user } = useAuth();
 
   const userRol = String(user?.rol || "").toLowerCase().trim();
@@ -186,23 +187,23 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
       <thead style={styles.theadStyle}>
         <tr>
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}><input type="checkbox" onChange={(e) => setSeleccionados(e.target.checked ? pacientes.map(p => p.estudio_interno_id) : [])} checked={pacientes.length > 0 && seleccionados.length === pacientes.length} /></th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("estado_pacs")}>ESTADO {renderIconoOrden("estado_pacs")}</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>ID PACIENTE {renderIconoOrden("id")}</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("paciente")}>1ER APELLIDO {renderIconoOrden("paciente")}</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>2DO APELLIDO</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("primer_nombre")}>1ER NOMBRE {renderIconoOrden("primer_nombre")}</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>2DO NOMBRE</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>EMAIL CORREO</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>TELÉFONO / WHATSAPP</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>FLUJO / ADJUNTOS</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("fecha")}>FECHA {renderIconoOrden("fecha")}</th> 
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>SEXO</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("modalidad")}>MOD {renderIconoOrden("modalidad")}</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer', color: '#fbbf24' }} onClick={() => solicitarOrdenamiento("descripcion")}>ESTUDIO {renderIconoOrden("descripcion")}</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>INSTITUCIÓN</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("departamento")}>DEPTO {renderIconoOrden("departamento")}</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>ADMIN / EDITAR</th>
-          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>VISOR</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("estado_pacs")}>{t('tabla.estado')} {renderIconoOrden("estado_pacs")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("id")}>{t('tabla.id')} {renderIconoOrden("id")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("paciente")}>{t('tabla.apellido1')} {renderIconoOrden("paciente")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.apellido2')}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("primer_nombre")}>{t('tabla.nombre1')} {renderIconoOrden("primer_nombre")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.nombre2')}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.email')}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.telefono')}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.flujo')}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("fecha")}>{t('tabla.fecha')} {renderIconoOrden("fecha")}</th> 
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.sexo')}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("modalidad")}>{t('tabla.mod')} {renderIconoOrden("modalidad")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer', color: '#fbbf24' }} onClick={() => solicitarOrdenamiento("descripcion")}>{t('tabla.estudio')} {renderIconoOrden("descripcion")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.institucion')}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap", cursor: 'pointer' }} onClick={() => solicitarOrdenamiento("departamento")}>{t('tabla.depto')} {renderIconoOrden("departamento")}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.admin')}</th>
+          <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.visor')}</th>
         </tr>
       </thead>
 <tbody>
@@ -210,7 +211,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           <tr>
             <td colSpan="18" style={styles.waitingState}>
               <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📡</div>
-              <p style={{ margin: 0, fontWeight: 'bold' }}>No se localizaron registros coincidentes.</p>
+              <p style={{ margin: 0, fontWeight: 'bold' }}>{t('tabla.sin_registros')}</p>
             </td>
           </tr>
         ) : (

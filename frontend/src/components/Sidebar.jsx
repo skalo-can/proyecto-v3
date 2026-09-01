@@ -2,11 +2,13 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom"; 
 import { useAuth } from "../AuthContext.jsx"; 
 import { FaUserPlus, FaUsersCog } from "react-icons/fa";
+import { useTranslation } from "react-i18next";
 import "./Sidebar.css";
 
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
-  const { user } = useAuth(); 
+  const { user } = useAuth();
+  const { t } = useTranslation();
 
   const isActive = (path) => location.pathname === path;
 
@@ -43,13 +45,11 @@ export default function Sidebar({ isOpen, onClose }) {
   const esUrgenciologo = user?.es_urgenciologo === true;
 
   const handleLimpiezaClinica = async () => {
-    if (!isAdmin) return alert("Acceso denegado.");
+    if (!isAdmin) return alert(t('alertas_limpieza.acceso_denegado'));
     
-    const primerFiltro = window.prompt(
-      "⚠️ ATENCIÓN: Estás a punto de borrar todos los pacientes y estudios.\n\nPara iniciar, escribe la palabra LIMPIAR en mayúsculas:"
-    );
-    if (primerFiltro !== "LIMPIAR") {
-      if (primerFiltro !== null) alert("❌ Palabra incorrecta. Operación cancelada.");
+    const primerFiltro = window.prompt(t('alertas_limpieza.prompt_advertencia'));
+    if (primerFiltro !== t('alertas_limpieza.palabra_clave')) {
+      if (primerFiltro !== null) alert(t('alertas_limpieza.palabra_incorrecta'));
       return;
     }
 
@@ -62,12 +62,10 @@ export default function Sidebar({ isOpen, onClose }) {
     const minFlag = ahora.getMinutes() < 30 ? "01" : "59";
     const tokenMaestro = `${hhStr}${dia}${mes}${anio}${minFlag}`;
 
-    const tokenIngresado = window.prompt(
-      "🔒 SISTEMA BLOQUEADO\n\nEsta acción requiere autorización de Nivel Maestro.\nComunícate con Soporte (SKALO) para obtener el Token Dinámico de hoy:\n\nIngrese el Token de Autorización:"
-    );
+    const tokenIngresado = window.prompt(t('alertas_limpieza.prompt_token'));
 
     if (tokenIngresado !== tokenMaestro) {
-      alert("❌ ACCESO DENEGADO: Token inválido o expirado. El incidente ha sido registrado.");
+      alert(t('alertas_limpieza.token_invalido'));
       return;
     }
 
@@ -80,7 +78,7 @@ export default function Sidebar({ isOpen, onClose }) {
       if (data.success) { alert("✅ " + data.message); window.location.href = "/pacientes"; } 
       else { alert("❌ Error: " + data.message); }
     } catch (error) {
-      alert("❌ Fallo de conexión con el servidor al intentar limpiar el sistema.");
+      alert(t('alertas_limpieza.error_conexion'));
     }
   };
 
@@ -104,46 +102,46 @@ export default function Sidebar({ isOpen, onClose }) {
           <nav className="sidebar-nav">
             
             <Link to="/pacientes" className={`sidebar-link ${isActive("/pacientes") ? "active" : ""}`} onClick={onClose}>
-              <span className="icon">👥</span> Pacientes
+              <span className="icon">👥</span> {t('sidebar.pacientes')}
             </Link>
 
             {['admin', 'superadmin', 'radiologo', 'transcriptor'].includes(user?.rol) && (
               <Link to="/plantillas" className={`sidebar-link ${isActive("/plantillas") ? "active" : ""}`} onClick={onClose}>
-                <span className="icon">📚</span> Gestor de Plantillas
+                <span className="icon">📚</span> {t('sidebar.plantillas')}
               </Link>
             )}
 
             {isAdmin && (
               <Link to="/gestion-firmas" className={`sidebar-link ${isActive("/gestion-firmas") ? "active" : ""}`} onClick={onClose}>
-                <span className="icon">🔒</span> Gestión de Firmas
+                <span className="icon">🔒</span> {t('sidebar.firmas')}
               </Link>
             )}
 
             {(isAdmin || isRecepcion) && (
               <Link to="/recepcion" className={`sidebar-link ${isActive("/recepcion") ? "active" : ""}`} onClick={onClose}>
-                <span className="icon"><FaUserPlus /></span> Recepción / RIS
+                <span className="icon"><FaUserPlus/></span> {t('sidebar.recepcion')}
               </Link>
             )}
 
             {(isAdmin || isTecnologo) && (
               <Link to="/tecnologo" className={`sidebar-link ${isActive("/tecnologo") ? "active" : ""}`} onClick={onClose}>
-                <span className="icon">🖥️</span> Consola RIS
+                <span className="icon">🖥️</span> {t('sidebar.consola_ris')}
               </Link>
             )}          
 
             {(isAdmin || isInvitado) && (
               <Link to="/estadisticas" className={`sidebar-link ${isActive("/estadisticas") ? "active" : ""}`} onClick={onClose}>
-                <span className="icon">📊</span> Estadísticas
+                <span className="icon">📊</span> {t('sidebar.estadisticas')}
               </Link>
             )}
 
             {isAdmin && (
               <>
                 <Link to="/importar" className={`sidebar-link ${isActive("/importar") ? "active" : ""}`} onClick={onClose}>
-                  <span className="icon">💿</span> Importar CD / USB
+                  <span className="icon">💿</span> {t('sidebar.importar_cd')}
                 </Link>
                 <Link to="/exportar" className={`sidebar-link ${isActive("/exportar") ? "active" : ""}`} onClick={onClose}>
-                  <span className="icon">📦</span> Exportar Estudios
+                  <span className="icon">📦</span> {t('sidebar.exportar')}
                 </Link>
               </>
             )}          
@@ -154,35 +152,35 @@ export default function Sidebar({ isOpen, onClose }) {
             {(isAdmin || isAuxiliar) && (
               <div className="admin-section">
                 <button className="sidebar-link dropdown-toggle" onClick={() => setOpenAdmin(!openAdmin)}>
-                  <span className="icon">⚙️</span> Administración <span className="arrow">{openAdmin ? "▴" : "▾"}</span>
+                  <span className="icon">⚙️</span> {t('sidebar.administracion')} <span className="arrow">{openAdmin ? "▴" : "▾"}</span>
                 </button>
 
                 {openAdmin && (
                   <div className="sidebar-submenu">
-                    {isSkalo && (<Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} style={{ color: '#818cf8', fontWeight: 'bold' }}><span className="icon"><FaUsersCog /></span> Gestión Usuarios</Link>)}
-                    {isSkalo && (<Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>⚙️ Configuración MI_PACS</Link>)}
-                    {isSkalo && (<Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#34d399', fontWeight: 'bold' }}>📦 Ciclo de Vida / Backups</Link>)}
-                    {isSkalo && (<Link to="/recuperar-backups" className={`submenu-link ${isActive("/recuperar-backups") ? "active" : ""}`} style={{ color: '#facc15', fontWeight: 'bold' }}>🔍 Recuperar Backups</Link>)}
-                    {isSkalo && (<Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#60a5fa', fontWeight: '500' }}>🏷️ Configurar Tags DICOM</Link>)}
+                    {isSkalo && (<Link to="/gestion-usuarios" className={`submenu-link ${isActive("/gestion-usuarios") ? "active" : ""}`} style={{ color: '#818cf8', fontWeight: 'bold' }}><span className="icon"><FaUsersCog /></span> {t('sidebar.gestion_usuarios')}</Link>)}
+                    {isSkalo && (<Link to="/" className={`submenu-link ${location.pathname === "/" ? "active" : ""}`} style={{ color: '#fbbf24', fontWeight: 'bold' }}>⚙️ {t('sidebar.configuracion')}</Link>)}
+                    {isSkalo && (<Link to="/gestion-backups" className={`submenu-link ${isActive("/gestion-backups") ? "active" : ""}`} style={{ color: '#34d399', fontWeight: 'bold' }}>📦 {t('sidebar.ciclo_vida')}</Link>)}
+                    {isSkalo && (<Link to="/recuperar-backups" className={`submenu-link ${isActive("/recuperar-backups") ? "active" : ""}`} style={{ color: '#facc15', fontWeight: 'bold' }}>🔍 {t('sidebar.recuperar_backups')}</Link>)}
+                    {isSkalo && (<Link to="/config-mapeo" className={`submenu-link ${isActive("/config-mapeo") ? "active" : ""}`} style={{ color: '#60a5fa', fontWeight: '500' }}>🏷️ {t('sidebar.tags_dicom')}</Link>)}
                     
                     {isSkalo && (
                       <Link to="/facturacion-servicio" className={`submenu-link ${isActive("/facturacion-servicio") ? "active" : ""}`} style={{ color: '#f59e0b', fontWeight: 'bold' }}>
-                        📈 Facturación de Servicios
+                        📈 {t('sidebar.facturacion')}
                       </Link>
                     )}
                     
                     {isAdmin && (
                       <>
-                        <Link to="/auditoria" className={`submenu-link ${isActive("/auditoria") ? "active" : ""}`}>📊 Auditoría</Link>
-                        <Link to="/email-logs" className={`submenu-link ${isActive("/email-logs") ? "active" : ""}`}>✉️ Logs Email</Link>
-                        <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`}>📱 Logs WhatsApp</Link>
+                        <Link to="/auditoria" className={`submenu-link ${isActive("/auditoria") ? "active" : ""}`}>📊 {t('sidebar.auditoria')}</Link>
+                        <Link to="/email-logs" className={`submenu-link ${isActive("/email-logs") ? "active" : ""}`}>✉️ {t('sidebar.logs_email')}</Link>
+                        <Link to="/whatsapp-logs" className={`submenu-link ${isActive("/whatsapp-logs") ? "active" : ""}`}>📱 {t('sidebar.logs_whatsapp')}</Link>
                       </>
                     )}
                     
-                    {isSkalo && (<Link to="/perfil-institucion" className={`submenu-link ${isActive("/perfil-institucion") ? "active" : ""}`} style={{ color: '#38bdf8', fontWeight: 'bold' }}>🏥 Perfil de Institución</Link>)} 
-                    {isAdmin && (<button className="submenu-link reset-link" onClick={handleLimpiezaClinica} style={{ color: '#ff4d4d', fontWeight: 'bold', textAlign: 'left', background: 'transparent', border: 'none', width: '100%', cursor: 'pointer', padding: '10px 12px' }}>🧹 Limpiar Datos Clínicos</button>)}
+                    {isSkalo && (<Link to="/perfil-institucion" className={`submenu-link ${isActive("/perfil-institucion") ? "active" : ""}`} style={{ color: '#38bdf8', fontWeight: 'bold' }}>🏥 {t('sidebar.perfil_institucion')}</Link>)} 
+                    {isAdmin && (<button className="submenu-link reset-link" onClick={handleLimpiezaClinica} style={{ color: '#ff4d4d', fontWeight: 'bold', textAlign: 'left', background: 'transparent', border: 'none', width: '100%', cursor: 'pointer', padding: '10px 12px' }}>🧹 {t('sidebar.limpiar_datos')}</button>)}
                   </div>
-                )}
+                )}                
               </div>
             )}
 
@@ -192,7 +190,7 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* BOTÓN DE CIERRE DE SESIÓN AL PIE */}
         <div className="sidebar-footer">
           <Link to="/logout" className="sidebar-link logout-btn">
-            <span className="icon">🚪</span> Cerrar Sesión
+            <span className="icon">🚪</span> {t('sidebar.cerrar_sesion')}
           </Link>
         </div>
 

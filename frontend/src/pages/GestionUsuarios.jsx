@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'; 
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import './GestionUsuarios.css';
 
 // =========================================================
@@ -63,6 +64,8 @@ const PERMISOS_POR_DEFECTO = {
 const TODOS_LOS_PERMISOS = Array.from(new Set(Object.values(PERMISOS_POR_DEFECTO).flatMap(obj => Object.keys(obj))));
 
 export default function GestionUsuarios() {
+    const { t } = useTranslation();
+    
     // 🚀 ESTADO ACTUALIZADO: Incluye registro_medico y es_urgenciologo
     const estadoInicial = { id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '', es_urgenciologo: false };
     const [userForm, setUserForm] = useState(estadoInicial);
@@ -71,7 +74,7 @@ export default function GestionUsuarios() {
     const [selectedUsers, setSelectedUsers] = useState({});
     const [verPassword, setVerPassword] = useState(false);
 
-// ✨ NUEVO ESTADO PARA EFECTO VISUAL DE TABLA
+    // ✨ NUEVO ESTADO PARA EFECTO VISUAL DE TABLA
     const [hoveredRow, setHoveredRow] = useState(null);
 
     useEffect(() => { fetchUsuarios(); }, []);
@@ -116,8 +119,8 @@ export default function GestionUsuarios() {
     };
 
     const handleGuardar = async () => {
-        if (!userForm.rol) return alert("⚠️ Debe seleccionar un Rol Institucional.");
-        if (!userForm.username || !userForm.nombre) return alert("⚠️ Nombre y Username son obligatorios");
+        if (!userForm.rol) return alert(t('gestion_usuarios.alerta_rol'));
+        if (!userForm.username || !userForm.nombre) return alert(t('gestion_usuarios.alerta_obligatorios'));
 
         try {
             const permisosLimpios = {};
@@ -130,22 +133,22 @@ export default function GestionUsuarios() {
             if (userForm.id) {
                 // ✅ CÓDIGO CORREGIDO 2/4
                 await axios.put(`${window.API_URL}/api/usuarios/${userForm.id}`, payload);
-                alert("✅ Usuario actualizado correctamente");
+                alert(t('gestion_usuarios.alerta_actualizado'));
             } else {
                 // ✅ CÓDIGO CORREGIDO 3/4
                 await axios.post(`${window.API_URL}/api/usuarios/crear-perfil`, payload);
-                alert("✅ Colaborador creado con éxito");
+                alert(t('gestion_usuarios.alerta_creado'));
             }
             setUserForm(estadoInicial);
             setPermisos({});
             setVerPassword(false);
             fetchUsuarios();
-        } catch (err) { alert("❌ Error al procesar la solicitud."); }
+        } catch (err) { alert(t('gestion_usuarios.alerta_error_solicitud')); }
     };
 
     const handleCambiarEstado = async (nuevoEstado) => {
             const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
-            if (ids.length === 0) return alert("Seleccione usuarios en la tabla");
+            if (ids.length === 0) return alert(t('gestion_usuarios.alerta_seleccione_tabla'));
             const accion = nuevoEstado ? "ACTIVAR" : "BLOQUEAR";
             try {
                 for (let id of ids) {
@@ -153,56 +156,56 @@ export default function GestionUsuarios() {
                     // ✅ CÓDIGO CORREGIDO 4/4
                     await axios.put(`${window.API_URL}/api/usuarios/${id}/estado?activo=${nuevoEstado}`);
                 }
-                alert(`✅ Usuarios actualizados: ${accion}`);
+                alert(`${t('gestion_usuarios.alerta_usuarios_actualizados')}${accion}`);
                 setSelectedUsers({});
                 fetchUsuarios();
-            } catch (err) { alert(`Error al intentar ${accion}.`); }
+            } catch (err) { alert(`${t('gestion_usuarios.alerta_error_intentar')}${accion}.`); }
         };
 
     const handleEliminar = async () => {
         const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
-        if (ids.length === 0) return alert("Seleccione usuarios");
-        if (window.confirm(`⚠️ ¿Eliminar permanentemente a ${ids.length} usuarios?`)) {
+        if (ids.length === 0) return alert(t('gestion_usuarios.alerta_seleccione_usuarios'));
+        if (window.confirm(`${t('gestion_usuarios.alerta_eliminar_permanente')}${ids.length}${t('gestion_usuarios.alerta_usuarios')}`)) {
             try {
                 for (let id of ids) { 
                     // ✅ CÓDIGO CORREGIDO 5/4 (Bonus track en la eliminación)
                     await axios.delete(`${window.API_URL}/api/usuarios/${id}`); 
                 }
-                alert("🗑️ Usuarios eliminados");
+                alert(t('gestion_usuarios.alerta_eliminados'));
                 setUserForm(estadoInicial);
                 setPermisos({}); 
                 setSelectedUsers({}); 
                 setVerPassword(false);
                 fetchUsuarios(); 
-            } catch (err) { alert("Error al eliminar."); }
+            } catch (err) { alert(t('gestion_usuarios.alerta_error_eliminar')); }
         }
     };
 
     return (
         <div className="gestion-usuarios-wrapper">
             <header className="gestion-header">
-                <h1 style={{color: '#fbbf24', margin: 0, fontSize: '1.5rem', fontWeight: 'bold'}}>🛠️ CONSOLA DE MANDO MI_PACS</h1>
-                <p style={{color: '#aaa', fontSize: '0.85rem'}}>Gestión de Seguridad y Colaboradores</p>
+                <h1 style={{color: '#fbbf24', margin: 0, fontSize: '1.5rem', fontWeight: 'bold'}}>{t('gestion_usuarios.titulo')}</h1>
+                <p style={{color: '#aaa', fontSize: '0.85rem'}}>{t('gestion_usuarios.subtitulo')}</p>
             </header>
 
             <main className="gestion-main">
                 <section className="gestion-card-registro">
                     <div className="form-grid-maestro">
-                        <div className="field-group"><label>NOMBRE COMPLETO</label><input value={userForm.nombre} onChange={e => setUserForm({...userForm, nombre: e.target.value})} /></div>
-                        <div className="field-group"><label>USERNAME</label><input value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} /></div>
-                        <div className="field-group"><label>EMAIL INST.</label><input value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} /></div>
+                        <div className="field-group"><label>{t('gestion_usuarios.nombre_completo')}</label><input value={userForm.nombre} onChange={e => setUserForm({...userForm, nombre: e.target.value})} /></div>
+                        <div className="field-group"><label>{t('gestion_usuarios.username')}</label><input value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} /></div>
+                        <div className="field-group"><label>{t('gestion_usuarios.email_inst')}</label><input value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} /></div>
                         
                         <div className="field-group">
-                            <label>REGISTRO MÉDICO (Opcional)</label>
+                            <label>{t('gestion_usuarios.registro_medico')}</label>
                             <input 
-                                placeholder="Ej. RM-12345" 
+                                placeholder={t('gestion_usuarios.placeholder_rm')} 
                                 value={userForm.registro_medico} 
                                 onChange={e => setUserForm({...userForm, registro_medico: e.target.value})} 
                             />
                         </div>
                         
                         <div className="field-group">
-                            <label>NUEVA PASSWORD {userForm.id && "(OPCIONAL)"}</label>
+                            <label>{t('gestion_usuarios.nueva_password')} {userForm.id && t('gestion_usuarios.opcional')}</label>
                             <div style={{ display: 'flex', position: 'relative' }}>
                                 <input type={verPassword ? "text" : "password"} value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} style={{ flex: 1, paddingRight: '45px' }} />
                                 <button type="button" onClick={() => setVerPassword(!verPassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer' }}>
@@ -212,9 +215,9 @@ export default function GestionUsuarios() {
                         </div>
 
                         <div className="field-group">
-                            <label>ROL INSTITUCIONAL</label>
+                            <label>{t('gestion_usuarios.rol_institucional')}</label>
                             <select value={userForm.rol} onChange={e => cambiarRol(e.target.value)} style={{ border: !userForm.rol ? '2px solid #ef4444' : '1px solid #444' }}>
-                                <option value="">-- SELECCIONE ROL --</option>
+                                <option value="">{t('gestion_usuarios.seleccione_rol')}</option>
                                 {Object.keys(PERMISOS_POR_DEFECTO).map(r => (
                                     <option key={r} value={r}>{r.toUpperCase()}</option>
                                 ))}
@@ -232,7 +235,7 @@ export default function GestionUsuarios() {
                                     style={{ width: '22px', height: '22px', cursor: 'pointer', accentColor: '#f97316' }}
                                 />
                                 <label htmlFor="check-urgencias" style={{ margin: 0, color: '#f97316', fontSize: '1rem', cursor: 'pointer', fontWeight: 'bold' }}>
-                                    🚨 Otorgar permisos de Urgenciología (Flujo Fast-Track de Emergencias)
+                                    {t('gestion_usuarios.permisos_urgenciologo')}
                                 </label>
                             </div>
                         )}
@@ -240,7 +243,7 @@ export default function GestionUsuarios() {
 
                     {userForm.rol && (
                         <>
-                            <h3 style={{color: '#fbbf24', margin: '20px 0 10px 0', fontSize: '0.9rem'}}>MATRIZ DE PERMISOS: {userForm.rol.toUpperCase()}</h3>
+                            <h3 style={{color: '#fbbf24', margin: '20px 0 10px 0', fontSize: '0.9rem'}}>{t('gestion_usuarios.matriz_permisos')} {userForm.rol.toUpperCase()}</h3>
                             <div className="permisos-container-master">
                                 {TODOS_LOS_PERMISOS.map(key => (
                                     <label key={key} className="permiso-label" style={{ color: '#fff' }}>
@@ -254,26 +257,26 @@ export default function GestionUsuarios() {
 
                     <div className="botones-accion-container">
                         <button className="btn-maestro btn-crear" onClick={handleGuardar} style={{ opacity: !userForm.rol ? 0.6 : 1 }}>
-                            {userForm.id ? "💾 GUARDAR CAMBIOS" : "👤 CREAR USUARIO"}
+                            {userForm.id ? t('gestion_usuarios.btn_guardar_cambios') : t('gestion_usuarios.btn_crear_usuario')}
                         </button>
-                        <button className="btn-maestro" style={{ background: '#10b981' }} onClick={() => handleCambiarEstado(true)}>🔓 ACTIVAR</button>
-                        <button className="btn-maestro btn-bloquear" onClick={() => handleCambiarEstado(false)}>🔒 BLOQUEAR</button>
-                        <button className="btn-maestro btn-eliminar" onClick={handleEliminar}>🗑️ ELIMINAR</button>
+                        <button className="btn-maestro" style={{ background: '#10b981' }} onClick={() => handleCambiarEstado(true)}>{t('gestion_usuarios.btn_activar')}</button>
+                        <button className="btn-maestro btn-bloquear" onClick={() => handleCambiarEstado(false)}>{t('gestion_usuarios.btn_bloquear')}</button>
+                        <button className="btn-maestro btn-eliminar" onClick={handleEliminar}>{t('gestion_usuarios.btn_eliminar')}</button>
                     </div>
                 </section>
 
                 <section className="gestion-card-tabla">
-                    <h3 style={{color: '#fbbf24', margin: '0 0 15px 0', fontSize: '1.1rem', fontWeight: 'bold'}}>👥 COLABORADORES ACTIVOS EN SISTEMA</h3>
+                    <h3 style={{color: '#fbbf24', margin: '0 0 15px 0', fontSize: '1.1rem', fontWeight: 'bold'}}>{t('gestion_usuarios.colaboradores_activos')}</h3>
                     <div className="tabla-scroll-area">
                         <table className="tabla-usuarios">
                             <thead>
                                 <tr>
-                                    <th>SEL.</th>
-                                    <th>COLABORADOR</th>
-                                    <th>ACCESO</th>
-                                    <th>ROL</th>
-                                    <th>ESTADO</th>
-                                    <th>ACCIÓN</th>
+                                    <th>{t('gestion_usuarios.th_sel')}</th>
+                                    <th>{t('gestion_usuarios.th_colaborador')}</th>
+                                    <th>{t('gestion_usuarios.th_acceso')}</th>
+                                    <th>{t('gestion_usuarios.th_rol')}</th>
+                                    <th>{t('gestion_usuarios.th_estado')}</th>
+                                    <th>{t('gestion_usuarios.th_accion')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -308,7 +311,7 @@ export default function GestionUsuarios() {
                                             <td>
                                                 <span className="rol-badge" style={{ background: '#333', color: '#fbbf24', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
                                                     {u.rol.toUpperCase()}
-                                                    {u.es_urgenciologo && <span title="Permisos de Urgenciología Activos" style={{marginLeft: '6px', fontSize: '14px'}}>🚨</span>}
+                                                    {u.es_urgenciologo && <span title={t('gestion_usuarios.title_urgencias_activas')} style={{marginLeft: '6px', fontSize: '14px'}}>🚨</span>}
                                                 </span>
                                             </td>
                                             <td>
@@ -319,11 +322,11 @@ export default function GestionUsuarios() {
                                                     alignItems: 'center',
                                                     gap: '6px'
                                                 }}>
-                                                    {u.bloqueado ? '🛑 BLOQUEO SEGURIDAD' : (u.is_active ? '● OPERATIVO' : '○ INACTIVO')}
+                                                    {u.bloqueado ? t('gestion_usuarios.estado_bloqueo') : (u.is_active ? t('gestion_usuarios.estado_operativo') : t('gestion_usuarios.estado_inactivo'))}
                                                 </span>
                                             </td>
                                             <td onClick={(e) => e.stopPropagation()}>
-                                                <button className="btn-editar-mini" style={{ background: '#ffffff', color: '#000000', fontWeight: 'bold', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => seleccionarParaEditar(u)}>EDITAR</button>
+                                                <button className="btn-editar-mini" style={{ background: '#ffffff', color: '#000000', fontWeight: 'bold', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => seleccionarParaEditar(u)}>{t('gestion_usuarios.btn_editar')}</button>
                                             </td>
                                         </tr>
                                     );

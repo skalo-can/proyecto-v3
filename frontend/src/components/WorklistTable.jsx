@@ -1,9 +1,11 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FaEdit, FaTrash, FaCheckCircle, FaQrcode } from "react-icons/fa"; // 🚀 Importamos el icono de QR
 import "./WorklistTable.css";
 
 // 🚀 Añadimos onShowQR a las props recibidas
 const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR }) => {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrders, setSelectedOrders] = useState([]);
 
@@ -29,15 +31,15 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
       <div className="worklist-search-container">
         <input
           type="text"
-          placeholder="🔍 Buscar por nombre, ID o Acc. Number..."
+          placeholder={t('worklist_table.placeholder_buscar')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="search-input-ris"
         />
         <div className="search-info-bar">
-          <h3>Pacientes en Espera</h3>
+          <h3>{t('worklist_table.pacientes_espera')}</h3>
           <span className="results-pill">
-            {filteredOrders.length} {filteredOrders.length === 1 ? "resultado" : "resultados"}
+            {filteredOrders.length} {filteredOrders.length === 1 ? t('worklist_table.resultado') : t('worklist_table.resultados')}
           </span>
         </div>
       </div>
@@ -56,12 +58,12 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
                   checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
                 />
               </th>
-              <th>Paciente</th>
-              <th>ID</th>
-              <th>Modalidad</th>
-              <th>Acc. Number</th>
-              <th>Prioridad</th>
-              <th>Acciones</th>
+              <th>{t('worklist_table.col_paciente')}</th>
+              <th>{t('worklist_table.col_id')}</th>
+              <th>{t('worklist_table.col_modalidad')}</th>
+              <th>{t('worklist_table.col_acc')}</th>
+              <th>{t('worklist_table.col_prioridad')}</th>
+              <th>{t('worklist_table.col_acciones')}</th>
             </tr>
           </thead>
           <tbody>
@@ -92,20 +94,20 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
                       <button 
                         className="btn-icon qr-gold" 
                         onClick={() => onShowQR(order)} 
-                        title="Generar QR de Acceso"
+                        title={t('worklist_table.title_qr')}
                         style={{ color: '#fbbf24', fontSize: '1.1rem', marginRight: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}
                       >
                         <FaQrcode />
                       </button>
 
-                      <button className="btn-icon edit" onClick={() => onEdit(order)} title="Editar"><FaEdit /></button>
-                      <button className="btn-icon delete" onClick={() => onDelete(order.id_orden)} title="Eliminar"><FaTrash /></button>
+                      <button className="btn-icon edit" onClick={() => onEdit(order)} title={t('worklist_table.title_editar')}><FaEdit /></button>
+                      <button className="btn-icon delete" onClick={() => onDelete(order.id_orden)} title={t('worklist_table.title_eliminar')}><FaTrash /></button>
 
                       {order.estado_ris === "En Espera" ? (
-                        <button className="btn-action-start" onClick={() => onStart(order)}>Iniciar</button>
+                        <button className="btn-action-start" onClick={() => onStart(order)}>{t('worklist_table.btn_iniciar')}</button>
                       ) : order.estado_ris === "Iniciado" ? (
                         <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                          <span className="badge-iniciado"><i className="fas fa-check-circle"></i> En Worklist</span>
+                          <span className="badge-iniciado"><i className="fas fa-check-circle"></i> {t('worklist_table.badge_worklist')}</span>
                           <button 
                             className="btn-action-atender" 
                             onClick={() => onAtender(order.id_orden)} 
@@ -121,11 +123,11 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
                               gap: '4px' 
                             }}
                           >
-                            <FaCheckCircle /> Atender
+                            <FaCheckCircle /> {t('worklist_table.btn_atender')}
                           </button>
                         </div>
                       ) : (
-                        <span className="badge-atendido" style={{ color: '#888', fontStyle: 'italic' }}>✓ Atendido</span>
+                        <span className="badge-atendido" style={{ color: '#888', fontStyle: 'italic' }}>{t('worklist_table.badge_atendido')}</span>
                       )}
                     </td>
                   </tr>
@@ -133,7 +135,7 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
               })
             ) : (
               <tr>
-                <td colSpan="7" className="no-results">No hay pacientes en la lista.</td>
+                <td colSpan="7" className="no-results">{t('worklist_table.sin_pacientes')}</td>
               </tr>
             )}
           </tbody>

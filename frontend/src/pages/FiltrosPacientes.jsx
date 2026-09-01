@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 // 🚀 LISTA MAESTRA DE MODALIDADES
 const MODALIDADES_MASTER = [
@@ -23,6 +24,8 @@ export default function FiltrosPacientes({
   busquedaProfunda,
   setBusquedaProfunda
 }) {
+  const { t } = useTranslation();
+  
   const filtrosBox = { background: '#1a1d21', padding: '15px', borderRadius: '10px', marginTop: '10px', border: '1px solid #222' };
   const filtrosFlex = { display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' };
   const fGroup = { display: 'flex', flexDirection: 'column', gap: '4px' };
@@ -30,12 +33,10 @@ export default function FiltrosPacientes({
   const iSearch = { background: '#000', color: '#fff', border: '1px solid #444', padding: '8px', borderRadius: '4px', fontSize: '0.8rem', height: '38px', width: '100%', transition: 'all 0.3s' };
   const sStyle = { background: '#000', color: '#fff', border: '1px solid #444', padding: '8px', borderRadius: '4px', fontSize: '0.8rem', height: '38px', transition: 'all 0.3s' };
   
-  // Estilos de botones rápidos compactos (Solo dejamos Hoy, Ayer, 7 Días)
   const btnQuick = { background: '#334155', color: '#fbbf24', border: 'none', padding: '0 8px', borderRadius: '4px', cursor: 'pointer', height: '38px', fontSize: '0.7rem', fontWeight: 'bold', transition: 'background 0.2s' };
   
-  // 🔥 ESTILO DINÁMICO DEL BOTÓN DE BÚSQUEDA PROFUNDA (NEÓN)
   const btnDeepSearch = { 
-    background: busquedaProfunda ? '#0ea5e9' : 'transparent', // Cyan vibrante si está activo
+    background: busquedaProfunda ? '#0ea5e9' : 'transparent',
     color: busquedaProfunda ? '#fff' : '#0ea5e9', 
     border: `1px solid #0ea5e9`, 
     boxShadow: busquedaProfunda ? '0 0 12px rgba(14, 165, 233, 0.6)' : 'none',
@@ -57,22 +58,19 @@ export default function FiltrosPacientes({
     <div style={filtrosBox}>
       <div style={filtrosFlex}>
         
-        {/* INTERRUPTOR MAESTRO: BÚSQUEDA HISTÓRICA PROFUNDA */}
         <div style={fGroup}>
-          <label style={{...lStyle, color: busquedaProfunda ? '#0ea5e9' : '#94a3b8'}}>MODO MOTOR DE BÚSQUEDA</label>
+          <label style={{...lStyle, color: busquedaProfunda ? '#0ea5e9' : '#94a3b8'}}>{t('filtros.motor_busqueda')}</label>
           <button 
             type="button" 
             onClick={() => setBusquedaProfunda(!busquedaProfunda)} 
             style={btnDeepSearch}
             title="Al activar, el sistema ignorará los límites de tiempo y buscará en toda la historia de la Base de Datos."
           >
-            {busquedaProfunda ? "🌌 BÚSQUEDA PROFUNDA: ON" : "🔦 BÚSQUEDA PROFUNDA: OFF"}
+            {busquedaProfunda ? "🌌 " + t('filtros.busqueda_profunda') + ": ON" : "🔦 " + t('filtros.busqueda_profunda') + ": OFF"}
           </button>
         </div>
 
-        {/* CEREBRO CONDICIONAL DE FECHAS */}
         {busquedaProfunda ? (
-          // SI ESTÁ ACTIVO: Mostramos un solo campo opcional con estilo neón
           <div style={fGroup}>
             <label style={{...lStyle, color: '#0ea5e9'}}>FECHA EXACTA (OPCIONAL)</label>
             <input 
@@ -84,31 +82,30 @@ export default function FiltrosPacientes({
             />
           </div>
         ) : (
-          // SI ESTÁ APAGADO: Mostramos el filtro normal rápido y el rango Desde/Hasta
           <>
             <div style={fGroup}>
-              <label style={lStyle}>RÁPIDO</label>
+              <label style={lStyle}>{t('filtros.rapido')}</label>
               <div style={{ display: 'flex', gap: '4px' }}>
-                <button type="button" onClick={() => setFiltroRapido("HOY")} style={btnQuick}>HOY</button>
-                <button type="button" onClick={() => setFiltroRapido("AYER")} style={btnQuick}>AYER</button>
-                <button type="button" onClick={() => setFiltroRapido("SEMANA")} style={btnQuick}>7 DÍAS</button>
+                <button type="button" onClick={() => setFiltroRapido("HOY")} style={btnQuick}>{t('filtros.hoy')}</button>
+                <button type="button" onClick={() => setFiltroRapido("AYER")} style={btnQuick}>{t('filtros.ayer')}</button>
+                <button type="button" onClick={() => setFiltroRapido("SEMANA")} style={btnQuick}>{t('filtros.siete_dias')}</button>
               </div>
             </div>
             <div style={fGroup}>
-              <label style={lStyle}>DESDE</label>
+              <label style={lStyle}>{t('filtros.desde')}</label>
               <input type="date" name="fechaDesde" style={sStyle} value={filtros.fechaDesde} onChange={handleFiltroChange} />
             </div>
             <div style={fGroup}>
-              <label style={lStyle}>HASTA</label>
+              <label style={lStyle}>{t('filtros.hasta')}</label>
               <input type="date" name="fechaHasta" style={sStyle} value={filtros.fechaHasta} onChange={handleFiltroChange} />
             </div>
           </>
         )}
 
         <div style={fGroup}>
-          <label style={lStyle}>MODALIDAD</label>
+          <label style={lStyle}>{t('filtros.modalidad')}</label>
           <select name="modalidad" style={sStyle} value={filtros.modalidad} onChange={handleFiltroChange}>
-            <option value="">Todas</option>
+            <option value="">{t('filtros.todas')}</option>
             {MODALIDADES_MASTER.map(m => (
               <option key={m} value={m.split(' ')[0]}>{m}</option>
             ))}
@@ -116,9 +113,9 @@ export default function FiltrosPacientes({
         </div>
 
         <div style={fGroup}>
-          <label style={lStyle}>ESTADO</label>
+          <label style={lStyle}>{t('filtros.estado')}</label>
           <select name="estado" style={{ ...sStyle, minWidth: '135px' }} value={filtros.estado} onChange={handleFiltroChange}>
-            <option value="">-- Todos --</option>
+            <option value="">{t('filtros.todos')}</option>
             <option value="Tomado">🔵 Tomado</option>
             <option value="Importado">⚪ Importado</option>
             <option value="Urgencia">🚨 Urgencia</option>
@@ -132,11 +129,11 @@ export default function FiltrosPacientes({
         </div>
         
         <div style={{ ...fGroup, flex: 1 }}>
-          <label style={{...lStyle, color: busquedaProfunda ? '#0ea5e9' : '#fbbf24'}}>BÚSQUEDA PREDICTIVA GLOBAL</label>
+          <label style={{...lStyle, color: busquedaProfunda ? '#0ea5e9' : '#fbbf24'}}>{t('filtros.predictiva')}</label>
           <input 
             type="text" 
             name="busqueda" 
-            placeholder="Escribe Apellidos, Nombres o Cédula... ¡Filtra en vivo!" 
+            placeholder={t('filtros.placeholder')} 
             style={{
               ...iSearch, 
               borderColor: busquedaProfunda ? '#0ea5e9' : '#444',
@@ -149,7 +146,7 @@ export default function FiltrosPacientes({
         
         <div style={fGroup}>
           <button type="button" onClick={cargarDatos} style={btnBuscar}>
-            {loading ? "⏳ BUSCANDO..." : "🔍 REFRESCO FORZADO"}
+            {loading ? "⏳ BUSCANDO..." : "🔍 " + t('filtros.refresco')}
           </button>
         </div>
       </div>

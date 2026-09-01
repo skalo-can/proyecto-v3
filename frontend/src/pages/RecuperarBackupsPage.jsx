@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { FaSearch, FaFolderOpen, FaServer } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import './RecuperarBackupsPage.css'; // 👈 Aquí importamos el diseño visual
 
 const RecuperarBackupsPage = () => {
+  const { t } = useTranslation();
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -24,7 +26,7 @@ const RecuperarBackupsPage = () => {
       
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.detail || "Error al conectar con el NAS");
+        throw new Error(err.detail || t('recuperar_backups.error_conectar_nas'));
       }
       
       const data = await response.json();
@@ -47,9 +49,9 @@ const RecuperarBackupsPage = () => {
         },
         body: JSON.stringify({ ruta })
       });
-      if (!res.ok) throw new Error("No se pudo abrir la carpeta");
+      if (!res.ok) throw new Error(t('recuperar_backups.error_abrir_carpeta'));
     } catch (err) {
-      alert("Error: " + err.message);
+      alert(t('recuperar_backups.error_prefijo') + err.message);
     }
   };
 
@@ -57,8 +59,8 @@ const RecuperarBackupsPage = () => {
     <div className="recuperar-backups-container">
       
       <div className="header-section">
-        <h1><FaSearch /> Explorador y Recuperación NAS</h1>
-        <p>Busque estudios archivados físicamente en los discos de red (H:) por nombre o identificación.</p>
+        <h1><FaSearch /> {t('recuperar_backups.titulo')}</h1>
+        <p>{t('recuperar_backups.subtitulo')}</p>
       </div>
 
       {error && (
@@ -71,16 +73,16 @@ const RecuperarBackupsPage = () => {
       <div className="search-panel">
         <form onSubmit={buscarEnNAS} className="search-form">
           <div className="input-group">
-            <label>Buscar Paciente (Nombre o ID)</label>
+            <label>{t('recuperar_backups.lbl_buscar_paciente')}</label>
             <input
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Ej: Jose Helmer o 17709056..."
+              placeholder={t('recuperar_backups.placeholder_buscar')}
             />
           </div>
           <button type="submit" className="btn-buscar" disabled={cargando || busqueda.length < 2}>
-            {cargando ? "Buscando..." : <><FaSearch /> Buscar</>}
+            {cargando ? t('recuperar_backups.buscando') : <><FaSearch /> {t('recuperar_backups.btn_buscar')}</>}
           </button>
         </form>
       </div>
@@ -91,11 +93,11 @@ const RecuperarBackupsPage = () => {
           <table className="tabla-resultados">
             <thead>
               <tr>
-                <th>Paciente</th>
-                <th>ID</th>
-                <th>Modalidad</th>
-                <th>Fecha Backup</th>
-                <th style={{ textAlign: 'center' }}>Acción</th>
+                <th>{t('recuperar_backups.th_paciente')}</th>
+                <th>{t('recuperar_backups.th_id')}</th>
+                <th>{t('recuperar_backups.th_modalidad')}</th>
+                <th>{t('recuperar_backups.th_fecha_backup')}</th>
+                <th style={{ textAlign: 'center' }}>{t('recuperar_backups.th_accion')}</th>
               </tr>
             </thead>
             <tbody>
@@ -110,10 +112,10 @@ const RecuperarBackupsPage = () => {
                   <td style={{ textAlign: 'center' }}>
                     <button 
                       onClick={() => abrirCarpeta(res.ruta)}
-                      title="Abrir carpeta en Windows"
+                      title={t('recuperar_backups.title_abrir_carpeta')}
                       className="btn-abrir"
                     >
-                      <FaFolderOpen /> Abrir Ubicación
+                      <FaFolderOpen /> {t('recuperar_backups.btn_abrir_ubicacion')}
                     </button>
                   </td>
                 </tr>
@@ -125,7 +127,7 @@ const RecuperarBackupsPage = () => {
         !cargando && busqueda && (
           <div className="no-results">
             <FaServer size={40} style={{ opacity: 0.3, marginBottom: '15px' }} />
-            <p>No se encontraron carpetas que coincidan con "{busqueda}" en el NAS.</p>
+            <p>{t('recuperar_backups.sin_resultados_1')}{busqueda}{t('recuperar_backups.sin_resultados_2')}</p>
           </div>
         )
       )}

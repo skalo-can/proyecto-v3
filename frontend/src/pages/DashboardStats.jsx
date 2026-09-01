@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { useAuth } from "../AuthContext";
 
@@ -23,6 +24,7 @@ const obtenerColorBarra = (porcentaje) => {
 };
 
 export default function DashboardStats() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -93,7 +95,7 @@ export default function DashboardStats() {
 
   const aplicarFiltro = async () => {
     if (!filtros.inicio || !filtros.fin) {
-      alert("⚠️ Por favor selecciona una fecha de inicio y fin.");
+      alert(t('estadisticas.alerta_fechas'));
       return;
     }
 
@@ -202,7 +204,7 @@ export default function DashboardStats() {
       return (
         <div style={{ background: '#1a1d21', border: '1px solid #4a5066', borderRadius: '8px', padding: '12px 16px', color: '#fff', fontSize: '0.8rem', boxShadow: '0 4px 15px rgba(0,0,0,0.6)' }}>
           <p style={{ margin: '0 0 10px 0', borderBottom: '1px solid #333', paddingBottom: '6px', color: '#a0aabf', fontWeight: 'bold' }}>
-            Fecha: {label}
+            {t('estadisticas.fecha')} {label}
           </p>
           
           {desgloses.length > 0 ? (
@@ -213,22 +215,22 @@ export default function DashboardStats() {
                     <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: item.color }}></span>
                     {item.dataKey}
                   </span>
-                  <span>{item.value} Estudios</span>
+                  <span>{item.value} {t('estadisticas.estudios_min')}</span>
                 </div>
               ))}
               
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '30px', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #444' }}>
-                <span style={{ color: '#fff', fontWeight: 'bold' }}>Total Día:</span>
-                <span style={{ fontWeight: 'bold', color: '#fff' }}>{total} Estudios</span>
+                <span style={{ color: '#fff', fontWeight: 'bold' }}>{t('estadisticas.total_dia')}</span>
+                <span style={{ fontWeight: 'bold', color: '#fff' }}>{total} {t('estadisticas.estudios_min')}</span>
               </div>
             </>
           ) : (
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '30px' }}>
               <span style={{ color: '#a0aabf', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#a0aabf' }}></span>
-                Total General
+                {t('estadisticas.total_general')}
               </span>
-              <span style={{ fontWeight: 'bold' }}>{total} Estudios</span>
+              <span style={{ fontWeight: 'bold' }}>{total} {t('estadisticas.estudios_min')}</span>
             </div>
           )}
         </div>
@@ -239,65 +241,65 @@ export default function DashboardStats() {
 
   const renderTooltipFormatterPie = (value, name) => {
     const porcentaje = totalEstudiosDona > 0 ? ((value / totalEstudiosDona) * 100).toFixed(1) : 0;
-    return [`${value} Estudios (${porcentaje}%)`, name];
+    return [`${value} ${t('estadisticas.estudios_min')} (${porcentaje}%)`, name];
   };
 
   return (
     <div style={{ padding: '20px', color: 'white', backgroundColor: '#0f1114', height: '100vh', width: '100%', boxSizing: 'border-box', overflowY: 'auto' }}>
       <h2 style={{ color: '#fbbf24', marginBottom: '20px', borderLeft: '4px solid #fbbf24', paddingLeft: '15px' }}>
-        Panel de Control Estadístico
+        {t('estadisticas.titulo')}
       </h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-        <div style={cardStyle}><span style={labelStyle}>Personas Únicas</span><div style={valueStyle}>{stats.pacientesTotal || 0}</div></div>
-        <div style={cardStyle}><span style={labelStyle}>Total Estudios</span><div style={{ ...valueStyle, color: '#fbbf24' }}>{stats.estudiosTotal || 0}</div></div>
-        <div style={cardStyle}><span style={labelStyle}>Total Imágenes</span><div style={valueStyle}>{stats.imagenesTotal || 0}</div></div>
+        <div style={cardStyle}><span style={labelStyle}>{t('estadisticas.personas_unicas')}</span><div style={valueStyle}>{stats.pacientesTotal || 0}</div></div>
+        <div style={cardStyle}><span style={labelStyle}>{t('estadisticas.total_estudios')}</span><div style={{ ...valueStyle, color: '#fbbf24' }}>{stats.estudiosTotal || 0}</div></div>
+        <div style={cardStyle}><span style={labelStyle}>{t('estadisticas.total_imagenes')}</span><div style={valueStyle}>{stats.imagenesTotal || 0}</div></div>
         
         <div style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={labelStyle}>Capacidad Almacenamiento</span>
+            <span style={labelStyle}>{t('estadisticas.capacidad_almacenamiento')}</span>
             <span style={{ fontSize: "0.85rem", fontWeight: "bold", color: obtenerColorBarra(stats.porcentajeNAS) }}>{stats.porcentajeNAS || 0}%</span>
           </div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginTop: '2px' }}>
-            {stats.almacenamientoGB > 0 ? stats.almacenamientoGB : (stats.discoUsadoGB || "0.00")} GB <span style={{ fontSize: "0.75rem", color: "#666", fontWeight: "normal" }}>local PACS</span>
+            {stats.almacenamientoGB > 0 ? stats.almacenamientoGB : (stats.discoUsadoGB || "0.00")} GB <span style={{ fontSize: "0.75rem", color: "#666", fontWeight: "normal" }}>{t('estadisticas.local_pacs')}</span>
           </div>
           <div style={{ ...progressBg, height: '8px', background: '#11141a', border: '1px solid #2a303c' }}>
             <div style={{ ...progressFill, width: `${stats.porcentajeNAS || 0}%`, backgroundColor: obtenerColorBarra(stats.porcentajeNAS) }}></div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: "#888", marginTop: "8px" }}>
-            <span>Usado: <strong style={{ color: "#eee" }}>{stats.discoUsadoGB ? Math.round(stats.discoUsadoGB) : 0} GB</strong></span>
-            <span>Libre: <strong style={{ color: obtenerColorBarra(stats.porcentajeNAS) }}>{stats.discoLibreGB ? Math.round(stats.discoLibreGB) : 0} GB</strong></span>
-            <span>Total: {stats.discoTotalGB ? Math.round(stats.discoTotalGB) : 0} GB</span>
+            <span>{t('estadisticas.usado')} <strong style={{ color: "#eee" }}>{stats.discoUsadoGB ? Math.round(stats.discoUsadoGB) : 0} GB</strong></span>
+            <span>{t('estadisticas.libre')} <strong style={{ color: obtenerColorBarra(stats.porcentajeNAS) }}>{stats.discoLibreGB ? Math.round(stats.discoLibreGB) : 0} GB</strong></span>
+            <span>{t('estadisticas.total')} {stats.discoTotalGB ? Math.round(stats.discoTotalGB) : 0} GB</span>
           </div>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
         <div style={cardStyle}>
-          <h3 style={labelStyle}>🔍 Consumo por Periodo</h3>
+          <h3 style={labelStyle}>{t('estadisticas.consumo_periodo')}</h3>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
             <input type="date" style={inputStyle} value={filtros.inicio} onChange={(e) => setFiltros({...filtros, inicio: e.target.value})} />
             <input type="date" style={inputStyle} value={filtros.fin} onChange={(e) => setFiltros({...filtros, fin: e.target.value})} />
-            <button onClick={aplicarFiltro} style={btnStyle}>Calcular</button>
-            <button onClick={limpiarFiltro} style={{ ...btnStyle, background: 'transparent', color: '#ef4444', border: '1px solid #ef4444' }}>Limpiar</button>
+            <button onClick={aplicarFiltro} style={btnStyle}>{t('estadisticas.btn_calcular')}</button>
+            <button onClick={limpiarFiltro} style={{ ...btnStyle, background: 'transparent', color: '#ef4444', border: '1px solid #ef4444' }}>{t('estadisticas.btn_limpiar')}</button>
           </div>
           <div style={{ padding: '15px', background: '#11141a', borderRadius: '8px', border: '1px solid #2a303c', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '15px', textAlign: 'center' }}>
-            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Personas Únicas:</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#8b5cf6' }}>{datosFiltrados.pacientesEnRango}</span></div>
-            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Estudios:</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#3b82f6' }}>{datosFiltrados.estudiosEnRango}</span></div>
-            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Imágenes:</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#fbbf24' }}>{datosFiltrados.imagenesEnRango}</span></div>
-            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>Espacio (GB):</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#10b981' }}>{datosFiltrados.gbConsumidos}</span></div>
+            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>{t('estadisticas.lbl_personas')}</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#8b5cf6' }}>{datosFiltrados.pacientesEnRango}</span></div>
+            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>{t('estadisticas.lbl_estudios')}</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#3b82f6' }}>{datosFiltrados.estudiosEnRango}</span></div>
+            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>{t('estadisticas.lbl_imagenes')}</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#fbbf24' }}>{datosFiltrados.imagenesEnRango}</span></div>
+            <div><span style={{...labelStyle, marginBottom: '4px', fontSize: '0.7rem'}}>{t('estadisticas.lbl_espacio')}</span><span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#10b981' }}>{datosFiltrados.gbConsumidos}</span></div>
           </div>
         </div>
 
         <div style={cardStyle}>
-          <h3 style={labelStyle}>Crecimiento de Red por Modalidad</h3>
+          <h3 style={labelStyle}>{t('estadisticas.crecimiento_red')}</h3>
           <div style={{ textAlign: 'center', width: '100%', height: '200px' }}>
             {isMounted && (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={datosGrafica} margin={{ top: 10, right: 20, left: 10, bottom: 25 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                  <XAxis dataKey="fecha" stroke="#888" fontSize={10} label={{ value: "Línea de Tiempo (Días)", position: "insideBottom", offset: -15, fill: "#888", fontSize: 11 }} />
-                  <YAxis stroke="#888" fontSize={10} label={{ value: "Cantidad de Estudios", angle: -90, position: "insideLeft", offset: -5, fill: "#888", fontSize: 11 }} />
+                  <XAxis dataKey="fecha" stroke="#888" fontSize={10} label={{ value: t('estadisticas.linea_tiempo'), position: "insideBottom", offset: -15, fill: "#888", fontSize: 11 }} />
+                  <YAxis stroke="#888" fontSize={10} label={{ value: t('estadisticas.cantidad_estudios'), angle: -90, position: "insideLeft", offset: -5, fill: "#888", fontSize: 11 }} />
                   <Tooltip content={<CustomTooltipLine />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                   
                   {tieneDesglose && modalidadesActivas.map(mod => (
@@ -316,7 +318,7 @@ export default function DashboardStats() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', paddingBottom: '30px' }}>
         <div style={cardStyle}>
-          <h3 style={labelStyle}>Distribución (%)</h3>
+          <h3 style={labelStyle}>{t('estadisticas.distribucion')}</h3>
           <div style={{ display: 'flex', justifyContent: 'center', width: '100%', height: '300px' }}>
             {isMounted && (
               <ResponsiveContainer width="100%" height="100%">
@@ -335,15 +337,15 @@ export default function DashboardStats() {
         </div>
 
         <div style={cardStyle}>
-          <h3 style={labelStyle}>Detalle de Valores</h3>
+          <h3 style={labelStyle}>{t('estadisticas.detalle_valores')}</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #333', color: '#888' }}>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Mod.</th>
-                <th style={{ padding: '8px', textAlign: 'left' }} title="Pacientes atendidos en esta modalidad específica">Pacientes por Mod.</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Estudios</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Imágenes</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Porcentaje (%)</th> 
+                <th style={{ padding: '8px', textAlign: 'left' }}>{t('estadisticas.th_mod')}</th>
+                <th style={{ padding: '8px', textAlign: 'left' }} title={t('estadisticas.title_pacientes_mod')}>{t('estadisticas.th_pacientes_mod')}</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>{t('estadisticas.th_estudios')}</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>{t('estadisticas.th_imagenes')}</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>{t('estadisticas.th_porcentaje')}</th> 
               </tr>
             </thead>
             <tbody>
@@ -365,7 +367,7 @@ export default function DashboardStats() {
             {/* 🚀 NUEVA FILA DE TOTALES DINÁMICOS */}
             <tfoot>
               <tr style={{ borderTop: '2px solid #555', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 8px', color: '#fff', fontWeight: 'bold' }}>TOTAL</td>
+                <td style={{ padding: '10px 8px', color: '#fff', fontWeight: 'bold' }}>{t('estadisticas.th_total')}</td>
                 <td style={{ padding: '10px 8px', color: '#8b5cf6', fontWeight: 'bold', fontSize: '0.9rem' }}>
                   {modalidadesSeguras.reduce((acc, curr) => acc + (curr.pacientes || 0), 0)}
                 </td>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { RecepcionForm } from "../components/RecepcionForm";
 import WorklistTable from "../components/WorklistTable";
 import axios from "axios";
@@ -8,6 +9,8 @@ import "./RecepcionPage.css";
 import { ModalEntregaQR } from "../components/GeneradorQR/ModalEntregaQR";
 
 export default function RecepcionPage() {
+  const { t } = useTranslation();
+  
   const [orders, setOrders] = useState([]);
   const [orderToEdit, setOrderToEdit] = useState(null);
   const [dynamicFields, setDynamicFields] = useState([]);
@@ -47,18 +50,18 @@ export default function RecepcionPage() {
       fetchData(); 
     } catch (error) {
       console.error("Error en la operación:", error);
-      alert("Error al procesar la solicitud.");
+      alert(t('recepcion.alerta_procesar_error'));
     }
   };
 
   const handleDelete = async (orderId) => {
-    const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar esta orden?");
+    const confirmacion = window.confirm(t('recepcion.alerta_eliminar'));
     if (confirmacion) {
       try {
         await axios.delete(`http://192.168.5.21:8000/api/ris/order/${orderId}`);
         fetchData();
       } catch (error) {
-        alert(error.response?.data?.detail || "No se pudo eliminar.");
+        alert(error.response?.data?.detail || t('recepcion.alerta_eliminar_error'));
       }
     }
   };
@@ -72,10 +75,10 @@ export default function RecepcionPage() {
     try {
       await axios.put(`http://192.168.5.21:8000/api/ris/order/start/${order.id_orden}`);
       await fetchData();
-      alert(`✅ Paciente ${order.nombre} enviado a la Worklist (${order.modalidad})`);
+      alert(`${t('recepcion.alerta_iniciar_exito_1')}${order.nombre}${t('recepcion.alerta_iniciar_exito_2')}${order.modalidad})`);
     } catch (error) {
       console.error("Error al iniciar:", error);
-      alert("No se pudo iniciar la orden.");
+      alert(t('recepcion.alerta_iniciar_error'));
     }
   };
 
@@ -107,13 +110,13 @@ export default function RecepcionPage() {
       <div className="recepcion-header-info">
         <div className="header-flex-container">
             <div>
-                <h1>Centro de Admisión y Worklist RIS</h1>
-                <p>Gestión modular: {orders.length} órdenes activas</p>
+                <h1>{t('recepcion.titulo')}</h1>
+                <p>{t('recepcion.subtitulo_1')}{orders.length}{t('recepcion.subtitulo_2')}</p>
             </div>
             {/* 🚀 BOTÓN CON CONDICIÓN CORREGIDA */}
             {(orderToEdit || modalQRAbierto) && (
                 <button onClick={handleResetVista} className="btn-back-to-list-v2">
-                    <i className="fas fa-undo"></i> VOLVER A LA LISTA
+                    <i className="fas fa-undo"></i> {t('recepcion.volver_lista')}
                 </button>
             )}
         </div>
@@ -131,7 +134,7 @@ export default function RecepcionPage() {
 
         <div className="layout-section-list">
           <div className="list-card-header">
-            <h3><i className="fas fa-list"></i> Pacientes en Espera Hoy</h3>
+            <h3><i className="fas fa-list"></i> {t('recepcion.pacientes_espera')}</h3>
             <button onClick={fetchData} className="btn-refresh">
               <i className="fas fa-sync"></i>
             </button>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import { 
   Table, Button, Form, Input, Card, Space,
   Typography, message, Popconfirm, Tag, Divider, AutoComplete 
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, SettingOutlined, DatabaseOutlined, AlertOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, SettingOutlined, DatabaseOutlined } from '@ant-design/icons';
 import "./ConfigMapeoPage.css";
 
 const { Title, Text } = Typography;
@@ -27,6 +28,7 @@ const dicomFullDictionary = [
 ];
 
 const ConfigMapeoPage = () => {
+  const { t } = useTranslation();
   const [mapeos, setMapeos] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
@@ -62,12 +64,12 @@ const ConfigMapeoPage = () => {
       };
 
       await axios.post(API_URL, payload);
-      message.success("Campo vinculado al estándar DICOM");
+      message.success(t('config_mapeo.msg_vinculado'));
       form.resetFields();
       fetchMapeos();
     } catch (err) {
       console.error("Error al guardar:", err);
-      message.error("Error al guardar: Verifique la conexión o el método (405)");
+      message.error(t('config_mapeo.msg_error_guardar'));
     } finally {
       setLoading(false);
     }
@@ -76,23 +78,23 @@ const ConfigMapeoPage = () => {
   const eliminarMapeosSeleccionados = async () => {
     try {
       await Promise.all(selectedRowKeys.map(id => axios.delete(`${API_URL}/${id}`)));
-      message.success("Mapeos eliminados correctamente");
+      message.success(t('config_mapeo.msg_eliminados'));
       setSelectedRowKeys([]);
       fetchMapeos();
     } catch (err) {
-      message.error("Error al eliminar");
+      message.error(t('config_mapeo.msg_error_eliminar'));
     }
   };
 
   const columns = [
     {
-      title: 'Nombre en Formulario',
+      title: t('config_mapeo.col_nombre'),
       dataIndex: 'nombre_mostrar',
       key: 'nombre_mostrar',
       render: (text) => <strong style={{ color: '#fbbf24' }}>{text}</strong>,
     },
     {
-      title: 'Tag DICOM (Keyword)',
+      title: t('config_mapeo.col_tag'),
       dataIndex: 'tag_dicom',
       key: 'tag_dicom',
       render: (tag) => {
@@ -111,23 +113,23 @@ const ConfigMapeoPage = () => {
     <div className="mapeo-page-container">
       <div className="mapeo-header">
         <Title level={3} style={{ color: 'white', margin: 0 }}>
-          <SettingOutlined /> Configuración de Tags DICOM
+          <SettingOutlined /> {t('config_mapeo.titulo')}
         </Title>
-        <Text style={{ color: '#8c8c8c' }}>Vincule campos del formulario con el estándar internacional DICOM.</Text>
+        <Text style={{ color: '#8c8c8c' }}>{t('config_mapeo.subtitulo')}</Text>
         <Divider style={{ borderColor: '#333', margin: '15px 0' }} />
       </div>
 
       <div className="mapeo-content-layout">
         <div className="mapeo-form-side">
-          <Card title={<span style={{color: '#eee'}}><PlusOutlined /> Nuevo Mapeo</span>} className="mapeo-card-dark">
+          <Card title={<span style={{color: '#eee'}}><PlusOutlined /> {t('config_mapeo.nuevo_mapeo')}</span>} className="mapeo-card-dark">
             <Form form={form} layout="vertical" onFinish={onFinish}>
-              <Form.Item name="nombre_mostrar" label="ETIQUETA EN RECEPCIÓN" rules={[{ required: true }]}>
-                <Input placeholder="Ej: Fecha Nacimiento" className="mapeo-input" />
+              <Form.Item name="nombre_mostrar" label={t('config_mapeo.etiqueta_recepcion')} rules={[{ required: true }]}>
+                <Input placeholder={t('config_mapeo.placeholder_etiqueta')} className="mapeo-input" />
               </Form.Item>
               
-              <Form.Item name="tag_dicom" label="TAG DICOM (KEYWORD)" rules={[{ required: true }]}>
+              <Form.Item name="tag_dicom" label={t('config_mapeo.tag_dicom')} rules={[{ required: true }]}>
                 <AutoComplete
-                  placeholder="Busque por nombre o código DICOM..."
+                  placeholder={t('config_mapeo.placeholder_tag')}
                   className="mapeo-input"
                   // ✅ Manejo de opciones optimizado para evitar Warnings
                   onSelect={(value, option) => form.setFieldsValue({ tag_dicom: option.label })}
@@ -144,7 +146,7 @@ const ConfigMapeoPage = () => {
               </Form.Item>
 
               <Button type="primary" htmlType="submit" block icon={<DatabaseOutlined />} className="btn-vincular" loading={loading}>
-                Vincular y Limpiar Casillas
+                {t('config_mapeo.btn_vincular')}
               </Button>
             </Form>
           </Card>
@@ -152,11 +154,11 @@ const ConfigMapeoPage = () => {
 
         <div className="mapeo-table-side">
           <Card 
-            title={<span style={{color: '#eee'}}>Tags Activos en MI_PACS</span>} 
+            title={<span style={{color: '#eee'}}>{t('config_mapeo.tags_activos')}</span>} 
             className="mapeo-card-dark"
             extra={selectedRowKeys.length > 0 && (
-              <Popconfirm title="¿Eliminar seleccionados?" onConfirm={eliminarMapeosSeleccionados}>
-                <Button type="primary" danger size="small" icon={<DeleteOutlined />}>ELIMINAR</Button>
+              <Popconfirm title={t('config_mapeo.confirm_eliminar')} onConfirm={eliminarMapeosSeleccionados}>
+                <Button type="primary" danger size="small" icon={<DeleteOutlined />}>{t('config_mapeo.btn_eliminar')}</Button>
               </Popconfirm>
             )}
           >

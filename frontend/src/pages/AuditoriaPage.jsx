@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { ShieldAlert, AlertOctagon, CheckCircle } from "lucide-react";
 import { useAuth } from "../AuthContext";
+import { useTranslation } from "react-i18next";
 import "./AuditoriaPage.css";
 
 export default function AuditoriaPage() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [registros, setRegistros] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -31,11 +33,11 @@ export default function AuditoriaPage() {
         const data = await response.json();
         setRegistros(data);
       } else {
-        setError("No se pudo cargar la auditoría.");
+        setError(t('auditoria.error_cargar'));
       }
     } catch (err) {
       console.error(err);
-      setError("Error de conexión al cargar la auditoría.");
+      setError(t('auditoria.error_conexion'));
     } finally {
       setCargando(false);
     }
@@ -47,12 +49,12 @@ export default function AuditoriaPage() {
       case 'ok':
       case 'éxito':
       case 'autorizado':
-        return <span style={{ color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={14}/> Autorizado</span>;
+        return <span style={{ color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={14}/> {t('auditoria.autorizado')}</span>;
       case 'denegado':
       case 'bloqueado':
-        return <span style={{ color: '#ef4444', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}><ShieldAlert size={14}/> Bloqueado</span>;
+        return <span style={{ color: '#ef4444', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}><ShieldAlert size={14}/> {t('auditoria.bloqueado')}</span>;
       case 'expirado':
-        return <span style={{ color: '#fbbf24', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertOctagon size={14}/> Expirado</span>;
+        return <span style={{ color: '#fbbf24', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertOctagon size={14}/> {t('auditoria.expirado')}</span>;
       default:
         return <span style={{ color: '#a0aabf', textTransform: 'capitalize' }}>{resultado}</span>;
     }
@@ -65,27 +67,27 @@ export default function AuditoriaPage() {
         <div>
           {/* 🔥 EVOLUCIÓN: Título actualizado para reflejar la Auditoría General */}
           <h1 className="auditoria-title" style={{ marginBottom: '5px' }}>
-            🛡️ Auditoría General del Sistema
+            {t('auditoria.titulo')}
           </h1>
           <div style={{ background: 'rgba(251, 191, 36, 0.1)', color: '#fbbf24', padding: '4px 12px', borderRadius: '15px', border: '1px solid #fbbf24', fontSize: '10px', fontWeight: '800', display: 'inline-block' }}>
-            REGISTRO DE SEGURIDAD, ACCESOS Y DESCARGAS
+            {t('auditoria.subtitulo')}
           </div>
         </div>
         <button className="volver-btn" onClick={() => window.history.back()} style={{ margin: 0 }}>
-          ⬅ Volver
+          {t('auditoria.btn_volver')}
         </button>
       </div>
 
       <div className="auditoria-card">
         {cargando ? (
           <div style={{ textAlign: 'center', color: '#fbbf24', marginTop: '40px', fontWeight: 'bold' }}>
-            ⏳ Consultando registros de seguridad...
+            {t('auditoria.cargando')}
           </div>
         ) : error ? (
           <div style={{ textAlign: 'center', color: '#ef4444', marginTop: '40px' }}>
             <p>⚠️ {error}</p>
             <button onClick={() => window.location.reload()} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer', marginTop: '10px' }}>
-              Reintentar
+              {t('auditoria.btn_reintentar')}
             </button>
           </div>
         ) : (
@@ -93,19 +95,19 @@ export default function AuditoriaPage() {
             <thead>
               {/* 🔥 EVOLUCIÓN: Columnas genéricas preparadas para eventos de seguridad y descargas clínicas */}
               <tr>
-                <th>ID</th>
-                <th>Objetivo (Usuario/Paciente)</th>
-                <th>Evento / Detalle</th>
-                <th>IP Origen</th>
-                <th>Resultado</th>
-                <th>Fecha de Evento</th>
+                <th>{t('auditoria.th_id')}</th>
+                <th>{t('auditoria.th_objetivo')}</th>
+                <th>{t('auditoria.th_evento')}</th>
+                <th>{t('auditoria.th_ip')}</th>
+                <th>{t('auditoria.th_resultado')}</th>
+                <th>{t('auditoria.th_fecha')}</th>
               </tr>
             </thead>
             <tbody>
               {registros.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="no-data">
-                    No hay registros de auditoría en el sistema.
+                    {t('auditoria.sin_registros')}
                   </td>
                 </tr>
               ) : (

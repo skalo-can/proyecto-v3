@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import './ExportarPage.css';
 
 export default function ExportarPage() {
+    const { t } = useTranslation();
     const [criterio, setCriterio] = useState('');
     const [estudios, setEstudios] = useState([]);
     const [seleccionados, setSeleccionados] = useState([]);
@@ -24,7 +26,7 @@ export default function ExportarPage() {
 
     const handleBuscarPaciente = async () => {
         if (!criterio.trim()) {
-            alert("⚠️ Ingrese una cédula o identificación para buscar.");
+            alert(t('exportacion.alerta_ingrese_id'));
             return;
         }
 
@@ -62,7 +64,7 @@ export default function ExportarPage() {
                         ...item,
                         estudio_real_id: item.estudio_interno_id || item.id,
                         estudio_unico_id: item.estudio_interno_id || item.accession_number || `flat_${idx}`,
-                        nombrePaciente: `${item.primer_nombre} ${item.primer_apellido}` || "Paciente Encontrado",
+                        nombrePaciente: `${item.primer_nombre} ${item.primer_apellido}` || t('exportacion.paciente_encontrado'),
                         cedula: item.identificacion,
                         // 🚀 FIX: Leemos tipo_estudio de la base de datos real
                         modalidad_real: item.tipo_estudio || item.modalidad || "DX",
@@ -72,10 +74,10 @@ export default function ExportarPage() {
             });
 
             setEstudios(todosLosEstudios);
-            if (todosLosEstudios.length === 0) alert("ℹ️ No se encontraron estudios asociados a esta identificación.");
+            if (todosLosEstudios.length === 0) alert(t('exportacion.alerta_no_encontrados'));
         } catch (err) {
             console.error("Error en búsqueda:", err);
-            alert("❌ Error al conectar con la base de datos PACS.");
+            alert(t('exportacion.alerta_error_db'));
         } finally {
             setBuscando(false);
         }
@@ -92,20 +94,20 @@ export default function ExportarPage() {
 
     const handleCancelarExportacion = () => {
         setEstadoExportacion('error');
-        setMensajeProgreso('Exportación cancelada por el usuario.');
+        setMensajeProgreso(t('exportacion.msg_cancelada'));
         setProgreso(0);
     };
 
     const handleExportarHardwareLocal = async () => {
-        if (seleccionados.length === 0) return alert("⚠️ Debe seleccionar al menos un estudio.");
+        if (seleccionados.length === 0) return alert(t('exportacion.alerta_seleccione'));
 
         setEstadoExportacion('procesando');
         setProgreso(10);
-        setMensajeProgreso("Iniciando aislamiento de estudios seleccionados...");
+        setMensajeProgreso(t('exportacion.msg_aislando'));
 
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            setTimeout(() => { if (estadoExportacion === 'procesando') setProgreso(40); setMensajeProgreso("Copiando y empaquetando DICOMs..."); }, 1500);
+            setTimeout(() => { if (estadoExportacion === 'procesando') setProgreso(40); setMensajeProgreso(t('exportacion.msg_copiando')); }, 1500);
             
             const estudiosAExportar = estudios.filter(est => seleccionados.includes(est.estudio_unico_id));
 
@@ -119,31 +121,31 @@ export default function ExportarPage() {
             
             if (res.data.status === "success") {
                 setProgreso(100);
-                setMensajeProgreso("¡Exportación completada!");
+                setMensajeProgreso(t('exportacion.msg_completado'));
                 setEstadoExportacion('completada');
                 setTimeout(() => {
-                    alert(`📦 EXPORTACIÓN COMPLETA:\n\n${res.data.message}`);
+                    alert(`${t('exportacion.alerta_completada')}${res.data.message}`);
                     setSeleccionados([]); 
                     setEstadoExportacion('inactiva');
                 }, 500);
             } else {
                 setEstadoExportacion('error');
-                setMensajeProgreso("Ocurrió un error.");
-                alert(`⚠️ Problema: ${res.data.message}`);
+                setMensajeProgreso(t('exportacion.msg_error'));
+                alert(`${t('exportacion.alerta_problema')}${res.data.message}`);
             }
         } catch (err) {
             console.error(err);
             setEstadoExportacion('error');
-            setMensajeProgreso("Fallo en la transferencia.");
-            alert(`❌ SISTEMA: ${err.response?.data?.detail || "Error interno."}`);
+            setMensajeProgreso(t('exportacion.msg_fallo'));
+            alert(`${t('exportacion.alerta_sistema')}${err.response?.data?.detail || t('exportacion.error_interno')}`);
         }
     };
 
     return (
         <div className="exportar-page-wrapper">
             <header className="config-header">
-                <h1 style={{ color: '#fbbf24', margin: 0, fontSize: '1.5rem', fontWeight: 'bold' }}>📦 MÓDULO DE EXPORTACIÓN Y QUEMADO DICOM</h1>
-                <p style={{ color: '#aaa', fontSize: '0.85rem' }}>Extracción de Estudios Médicos con Estructuras nativas para entrega de discos a pacientes</p>
+                <h1 style={{ color: '#fbbf24', margin: 0, fontSize: '1.5rem', fontWeight: 'bold' }}>{t('exportacion.titulo_modulo')}</h1>
+                <p style={{ color: '#aaa', fontSize: '0.85rem' }}>{t('exportacion.subtitulo_modulo')}</p>
             </header>
 
             <main className="config-main" style={{ marginTop: '20px' }}>
@@ -151,16 +153,16 @@ export default function ExportarPage() {
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
                         <span style={{ fontSize: '2.5rem' }}>💾</span>
                         <div>
-                            <h2 style={{ color: '#fff', margin: 0, fontSize: '1.2rem' }}>Escribir Estudios a Medios Externos</h2>
-                            <p style={{ color: '#777', margin: 0, fontSize: '0.85rem' }}>Agrupa las imágenes DICOM de la base de datos local y genera un paquete clínico listo para diagnóstico externo.</p>
+                            <h2 style={{ color: '#fff', margin: 0, fontSize: '1.2rem' }}>{t('exportacion.escribir_estudios')}</h2>
+                            <p style={{ color: '#777', margin: 0, fontSize: '0.85rem' }}>{t('exportacion.desc_escribir')}</p>
                         </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', marginBottom: '30px' }}>
                         <div className="form-group-export" style={{ width: '300px' }}>
-                            <label style={{ color: '#fbbf24', fontSize: '0.8rem', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>IDENTIFICACIÓN / CÉDULA DEL PACIENTE</label>
+                            <label style={{ color: '#fbbf24', fontSize: '0.8rem', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>{t('exportacion.identificacion')}</label>
                             <input 
-                                placeholder="Ej. 1110486325" 
+                                placeholder={t('exportacion.placeholder_id')} 
                                 value={criterio} onChange={e => setCriterio(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleBuscarPaciente()}
                                 disabled={estadoExportacion === 'procesando'}
@@ -171,7 +173,7 @@ export default function ExportarPage() {
                             onClick={handleBuscarPaciente} disabled={buscando || estadoExportacion === 'procesando'}
                             style={{ backgroundColor: '#2563eb', color: '#fff', fontWeight: 'bold', border: 'none', padding: '12px 24px', borderRadius: '6px', cursor: 'pointer' }}
                         >
-                            {buscando ? "Buscando..." : "🔍 BUSCAR PACIENTE"}
+                            {buscando ? t('exportacion.buscando') : t('exportacion.buscar_paciente')}
                         </button>
                     </div>
 
@@ -183,12 +185,12 @@ export default function ExportarPage() {
                                         <th style={{ padding: '12px 15px', width: '50px' }}>
                                             <input type="checkbox" onChange={toggleSeleccionarTodo} checked={seleccionados.length === estudios.length && estudios.length > 0} disabled={estadoExportacion === 'procesando'} style={{ cursor: 'pointer', transform: 'scale(1.2)' }} />
                                         </th>
-                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>PACIENTE</th>
-                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>FECHA</th>
-                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>MODALIDAD</th>
-                                        <th style={{ padding: '12px 15px', color: '#fbbf24' }}>ESTUDIO / PROCEDIMIENTO</th>
-                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>DOCUMENTOS ADJUNTOS</th>
-                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>ESTADO PACS</th>
+                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>{t('exportacion.th_paciente')}</th>
+                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>{t('exportacion.th_fecha')}</th>
+                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>{t('exportacion.th_modalidad')}</th>
+                                        <th style={{ padding: '12px 15px', color: '#fbbf24' }}>{t('exportacion.th_estudio')}</th>
+                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>{t('exportacion.th_adjuntos')}</th>
+                                        <th style={{ padding: '12px 15px', color: '#94a3b8' }}>{t('exportacion.th_estado_pacs')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -212,16 +214,16 @@ export default function ExportarPage() {
                                                     </span>
                                                 </td>
                                                 <td style={{ padding: '12px 15px', color: '#f8fafc', fontWeight: '500' }}>
-                                                    {est.descripcion || est.study_description || est.procedimiento || "Sin descripción DICOM"}
+                                                    {est.descripcion || est.study_description || est.procedimiento || t('exportacion.sin_descripcion')}
                                                 </td>
                                                 <td style={{ padding: '12px 15px' }}>
                                                     {est.tienePdf ? (
-                                                        <span style={{ color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>📄 Reporte PDF</span>
+                                                        <span style={{ color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>{t('exportacion.reporte_pdf')}</span>
                                                     ) : (
-                                                        <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>⚠️ Sin informe</span>
+                                                        <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{t('exportacion.sin_informe')}</span>
                                                     )}
                                                 </td>
-                                                <td style={{ padding: '12px 15px', color: '#cbd5e1' }}>{est.estado_pacs || est.estado || "Ingresado"}</td>
+                                                <td style={{ padding: '12px 15px', color: '#cbd5e1' }}>{est.estado_pacs || est.estado || t('exportacion.ingresado')}</td>
                                             </tr>
                                         );
                                     })}
@@ -234,7 +236,7 @@ export default function ExportarPage() {
                     <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px', border: '1px solid #333', marginBottom: '25px', opacity: estadoExportacion === 'procesando' ? 0.5 : 1, pointerEvents: estadoExportacion === 'procesando' ? 'none' : 'auto' }}>
                         
                         <label style={{ color: '#fbbf24', fontSize: '0.9rem', display: 'block', marginBottom: '15px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                            🎯 ¿CÓMO DESEA EXPORTAR LOS ESTUDIOS?
+                            {t('exportacion.como_desea_exportar')}
                         </label>
 
                         <div style={{ display: 'flex', gap: '20px', marginBottom: '25px' }}>
@@ -244,9 +246,9 @@ export default function ExportarPage() {
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <input type="radio" checked={modoDestino === 'EXPLORADOR'} readOnly style={{ transform: 'scale(1.2)' }} />
-                                    <strong style={{ color: '#fff', fontSize: '1rem' }}>🗂️ Explorador de Windows</strong>
+                                    <strong style={{ color: '#fff', fontSize: '1rem' }}>{t('exportacion.explorador_windows')}</strong>
                                 </div>
-                                <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '8px 0 0 25px' }}>Se abrirá una ventana para que usted elija manualmente la ruta, USB o disco duro donde guardar.</p>
+                                <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '8px 0 0 25px' }}>{t('exportacion.desc_explorador')}</p>
                             </div>
 
                             <div 
@@ -255,9 +257,9 @@ export default function ExportarPage() {
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <input type="radio" checked={modoDestino === 'CD_DVD'} readOnly style={{ transform: 'scale(1.2)' }} />
-                                    <strong style={{ color: '#fff', fontSize: '1rem' }}>💿 Quemador CD / DVD Directo</strong>
+                                    <strong style={{ color: '#fff', fontSize: '1rem' }}>{t('exportacion.quemador_cd')}</strong>
                                 </div>
-                                <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '8px 0 0 25px' }}>El sistema buscará automáticamente la unidad de CD/DVD insertada y grabará el contenido.</p>
+                                <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '8px 0 0 25px' }}>{t('exportacion.desc_quemador')}</p>
                             </div>
                         </div>
 
@@ -269,10 +271,10 @@ export default function ExportarPage() {
                                     onChange={(e) => setIncluirVisor(e.target.checked)}
                                     style={{ transform: 'scale(1.3)', cursor: 'pointer' }}
                                 />
-                                Incluir Software "MI_PACS Lite" (Visor Portable)
+                                {t('exportacion.incluir_visor')}
                             </label>
                             <p style={{ color: '#94a3b8', margin: '5px 0 0 28px', fontSize: '0.85rem' }}>
-                                Graba un ejecutable ligero para que el médico remitente no necesite instalar programas externos.
+                                {t('exportacion.desc_visor')}
                             </p>
                         </div>
                     </div>
@@ -289,7 +291,7 @@ export default function ExportarPage() {
                             </div>
                             {estadoExportacion === 'procesando' && (
                                 <button onClick={handleCancelarExportacion} style={{ backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                                    ❌ Cancelar Operación
+                                    {t('exportacion.btn_cancelar')}
                                 </button>
                             )}
                         </div>
@@ -300,7 +302,7 @@ export default function ExportarPage() {
                             onClick={handleExportarHardwareLocal} disabled={seleccionados.length === 0}
                             style={{ backgroundColor: seleccionados.length === 0 ? '#333' : '#10b981', color: seleccionados.length === 0 ? '#666' : '#000', fontWeight: 'bold', border: 'none', padding: '14px 28px', borderRadius: '6px', cursor: seleccionados.length === 0 ? 'not-allowed' : 'pointer', fontSize: '1.05rem', display: 'block', width: '100%' }}
                         >
-                            💾 INICIAR EXPORTACIÓN DE ESTUDIOS ({seleccionados.length})
+                            {t('exportacion.btn_iniciar')}{seleccionados.length})
                         </button>
                     )}
                 </section>
