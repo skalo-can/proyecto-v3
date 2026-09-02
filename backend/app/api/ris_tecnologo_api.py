@@ -13,14 +13,14 @@ class AtencionSchema(BaseModel):
 # =========================================================
 # 🧠 FASE 2: MOTOR DE INTELIGENCIA LOCAL (TRIAGE AUTOMÁTICO)
 # =========================================================
-def motor_analisis_local_background(estudio_id: int):
+def motor_analisis_local_background(estudio_id: int, lang: str = "es"):
     """
     Analiza el estudio en segundo plano buscando palabras clave clínicas críticas.
-    Usa su propia conexión a la BD para no bloquear la respuesta HTTP.
+    Se adapta al idioma para leer metadatos y escribir el triage correctamente.
     """
     db_ia = SessionLocal()
     try:
-        print(f"🤖 [IA LOCAL] Iniciando análisis de triage para estudio {estudio_id}...")
+        print(f"🤖 [IA LOCAL] Iniciando análisis de triage para estudio {estudio_id} (Idioma: {lang})...")
         
         estudio = db_ia.query(Estudio).filter(Estudio.id == estudio_id).first()
         if not estudio:
@@ -34,19 +34,38 @@ def motor_analisis_local_background(estudio_id: int):
         # Unimos todo y lo pasamos a mayúsculas para la búsqueda
         descripcion_clinica = f"{modalidad} {motivo} {nota}".upper()
 
-        # 2. Diccionarios de Conocimiento Clínico (Ajustables)
-        palabras_criticas = ["POLITRAUMATISMO", "ACV", "INFARTO", "HEMORRAGIA", "URGENCIA VITAL", "UCI", "BALA", "HERIDA", "TEP", "ICTUS", "DERRAME"]
-        palabras_urgentes = ["FRACTURA", "DOLOR INTENSO", "DISNEA", "URGENCIAS", "APENDICITIS", "COLICO", "CÓLICO"]
+        # 2. Diccionarios Multilingües (Soporta metadatos de LATAM y Norteamérica)
+        palabras_criticas = [
+            # Español
+            "POLITRAUMATISMO", "ACV", "INFARTO", "HEMORRAGIA", "URGENCIA VITAL", "UCI", "BALA", "HERIDA", "TEP", "ICTUS", "DERRAME",
+            # Inglés
+            "TRAUMA", "STROKE", "INFARCT", "HEMORRHAGE", "BLEEDING", "ICU", "GUNSHOT", "WOUND", "PULMONARY EMBOLISM"
+        ]
+        
+        palabras_urgentes = [
+            # Español
+            "FRACTURA", "DOLOR INTENSO", "DISNEA", "URGENCIAS", "APENDICITIS", "COLICO", "CÓLICO",
+            # Inglés
+            "FRACTURE", "SEVERE PAIN", "DYSPNEA", "EMERGENCY", "ER", "APPENDICITIS", "COLIC"
+        ]
 
-        prioridad_asignada = "NORMAL"
+        # 3. Diccionario de salidas según el idioma seleccionado
+        salidas_triage = {
+            "es": {"critico": "CRÍTICO", "urgente": "URGENTE", "normal": "NORMAL"},
+            "en": {"critico": "CRITICAL", "urgente": "URGENT", "normal": "NORMAL"}
+        }
+        
+        # Fallback a español si el idioma no está configurado
+        salida_actual = salidas_triage.get(lang, salidas_triage["es"])
+        prioridad_asignada = salida_actual["normal"]
 
-        # 3. Inferencia Básica (Reglas de Decisión)
+        # 4. Inferencia Básica (Reglas de Decisión)
         if any(palabra in descripcion_clinica for palabra in palabras_criticas):
-            prioridad_asignada = "CRITICO"
+            prioridad_asignada = salida_actual["critico"]
         elif any(palabra in descripcion_clinica for palabra in palabras_urgentes):
-            prioridad_asignada = "URGENTE"
+            prioridad_asignada = salida_actual["urgente"]
 
-        # 4. Guardado seguro ignorando errores si la columna aún no está creada
+        # 5. Guardado seguro ignorando errores si la columna aún no está creada
         if hasattr(estudio, 'prioridad_ia'):
             estudio.prioridad_ia = prioridad_asignada
         else:
@@ -68,7 +87,8 @@ def motor_analisis_local_background(estudio_id: int):
 async def atender_paciente(
     estudio_id: int, 
     data: AtencionSchema, 
-    background_tasks: BackgroundTasks, # 🔥 Inyectamos el gestor de tareas en segundo plano
+    background_tasks: BackgroundTasks,
+    lang: str = "es", # 🔥 Inyectamos el idioma desde el frontend
     db: Session = Depends(get_db)
 ):
     # 1. Buscamos el estudio en la tabla de resultados (PACS)
@@ -93,8 +113,8 @@ async def atender_paciente(
         db.commit()
         print(f"✅ Paciente {estudio_id} finalizado y eliminado de la lista técnica.")
 
-        # 🧠 DISPARADOR DE IA: Enviamos el estudio a triage de forma invisible
-        background_tasks.add_task(motor_analisis_local_background, estudio_id)
+        # 🧠 DISPARADOR DE IA: Enviamos el estudio a triage de forma invisible pasando el idioma
+        background_tasks.add_task(motor_analisis_local_background, estudio_id, lang)
 
         return {"status": "success"}
         

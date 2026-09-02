@@ -857,6 +857,7 @@ def asistencia_ia(
     datos: IARequest, 
     estudio_id: int = None,
     paciente_id: int = None, 
+    lang: str = "es", # 🔥 Inyectamos el idioma del frontend
     db: Session = Depends(get_db)
 ):
     estudio = resolver_estudio(db, estudio_id, paciente_id)
@@ -883,6 +884,9 @@ def asistencia_ia(
         modalidad_esperada = estudio.tipo_estudio or "No especificada"
         descripcion_esperada = estudio.descripcion or "No especificada"
         
+        # Determinamos la orden estricta para el LLM
+        idioma_salida = "INGLÉS (ENGLISH)" if lang == "en" else "ESPAÑOL (SPANISH)"
+
         prompt = f"""
         INSTRUCCIÓN CRÍTICA DE SEGURIDAD MÉDICA — TOLERANCIA CERO A ERRORES DE IDENTIDAD.
         Eres un radiólogo experto encargado de la auditoría final de calidad. Antes de evaluar el texto del informe, debes ejecutar de forma obligatoria un protocolo estricto de correspondencia anatómica.
@@ -897,17 +901,20 @@ def asistencia_ia(
         PROTOCOLOS DE CONTROL DE RIESGO:
         1. VALIDACIÓN VISUAL OBLIGATORIA: Analiza los píxeles de la imagen proporcionada. Si la estructura anatómica visible NO coincide con la región declarada en el sistema ({descripcion_esperada}), debes asumir inmediatamente que hay un cruce de archivos o un error de indexación en el servidor.
         
-        2. ACCIÓN ANTE MISMATCH (ABORTAR): Si la validación anatómica falla (por ejemplo, ves un cráneo/columna pero el estudio dice ser un Tórax), tienes estrictamente prohibido realizar cualquier análisis clínico. Debes responder única y exclusivamente con este mensaje de alerta estructurado:
+        2. ACCIÓN ANTE MISMATCH (ABORTAR): Si la validación anatómica falla (por ejemplo, ves un cráneo/columna pero el estudio dice ser un Tórax), tienes estrictamente prohibido realizar cualquier análisis clínico. Debes responder única y exclusivamente con este mensaje de alerta estructurado, traducido al {idioma_salida}:
             "[💡 SUGERENCIA IA: 🚨 ERROR CRÍTICO DE SEGURIDAD: Se ha detectado una falta de correspondencia anatómica. La imagen visualizada en el servidor no coincide con la descripción de '{descripcion_esperada}' registrada para este estudio. Por favor, suspenda la firma y reporte este caso al administrador del PACS para verificar la integridad del archivo DICOM.]"
         
         3. ACCIÓN ANTE COINCIDENCIA (PROCESAR): Si la imagen coincide plenamente con la región anatómica declarada, procede a evaluar el informe preliminar del transcriptor de forma normal. Comienza tu respuesta con "[💡 SUGERENCIA IA: " y ciérrala con "]". Sé conciso y directo.
+
+        REGLA DE IDIOMA ESTRICTA: 
+        Escribe absolutamente toda tu respuesta (análisis, sugerencias o alertas) ESTRICTAMENTE EN {idioma_salida}. No utilices ningún otro idioma para comunicarte con el médico.
         """
         response = client.models.generate_content(model='gemini-3.5-flash', contents=[img, prompt])
         return {"sugerencia": response.text}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fallo en el motor de análisis clínico automatizado: {str(e)}")
-
+    
 class RechazoImagenInput(BaseModel):
     nota_rechazo: str
 
@@ -1076,13 +1083,14 @@ except ImportError:
 def auto_transcribir_con_ia(
     estudio_id: int = None,
     paciente_id: int = None, 
+    lang: str = "es", # 🔥 Inyectamos el parámetro de idioma
     db: Session = Depends(get_db)
 ):
     if modelo_ia_voz is None:
         raise HTTPException(status_code=500, detail="Whisper no está instalado en el servidor.")
         
     try:
-        # 1. 🧠 Búsqueda exacta del audio por Estudio ID
+        # (Lógica intacta de búsqueda de archivo físico)
         if estudio_id is not None:
             estudio_con_audio = db.query(Estudio).filter(Estudio.id == estudio_id).first()
         else:
@@ -1090,13 +1098,11 @@ def auto_transcribir_con_ia(
             estudio_con_audio = next((e for e in estudios if getattr(e, "audio_path", None)), None)
         
         if not estudio_con_audio or not getattr(estudio_con_audio, "audio_path", None):
-            raise HTTPException(status_code=404, detail="Este estudio específico no tiene ningún audio dictado asociado en la base de datos.")
+            raise HTTPException(status_code=404, detail="Este estudio específico no tiene ningún audio.")
 
-        # 2. Extraemos el nombre exacto del archivo
         ruta_audio_db = estudio_con_audio.audio_path
         nombre_archivo = ruta_audio_db.split("/")[-1]
         
-        # 3. 🎯 Búsqueda física a prueba de fallos en el disco duro
         ruta_base = os.path.join(str(STATIC_DIR), "audios_dictado")
         archivo_encontrado = None
         
@@ -1107,23 +1113,18 @@ def auto_transcribir_con_ia(
                     break
                     
         if not archivo_encontrado:
-            raise HTTPException(status_code=404, detail=f"Falta el archivo físico en el disco: {nombre_archivo}")
+            raise HTTPException(status_code=404, detail=f"Falta el archivo físico: {nombre_archivo}")
 
-        # 🪄 MAGIA DE LA IA: Transcribimos el archivo encontrado
-        resultado = modelo_ia_voz.transcribe(archivo_encontrado, language="es")
+        # 🪄 MAGIA DE LA IA: Pasamos la variable dinámica 'lang' a Whisper
+        resultado = modelo_ia_voz.transcribe(archivo_encontrado, language=lang)
         texto_medico = resultado.get("text", "").strip()
         
         if not texto_medico:
-            raise HTTPException(status_code=400, detail="La IA analizó el archivo, pero estaba vacío o contenía solo ruido.")
+            raise HTTPException(status_code=400, detail="La IA analizó el archivo, pero estaba vacío.")
             
         return {"status": "success", "texto": texto_medico}
         
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print("\n" + "="*50)
-        print("🚨 ERROR FATAL DE WHISPER 🚨")
-        traceback.print_exc()
-        print("="*50 + "\n")
-        raise HTTPException(status_code=500, detail=f"Fallo crítico: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Fallo crítico: {str(e)}")

@@ -9,6 +9,7 @@ Responsabilidades:
 - Seleccionar el modelo IA adecuado según el tipo de estudio
 - Ejecutar inferencia IA (local o remota)
 - Normalizar la salida al formato estándar MI_PACS
+- Traducir dinámicamente los hallazgos visuales de la IA según el idioma del cliente
 
 Este servicio NO realiza diagnóstico. Solo actúa como ayuda visual
 bajo supervisión del médico.
@@ -25,6 +26,35 @@ from app.models.estudio_imagen import EstudioImagen
 
 # Router IA que selecciona el modelo adecuado
 from app.ia.ia_router import seleccionar_modelo
+
+# ---------------------------------------------------------
+# SISTEMA DE TRADUCCIÓN SEGURA DE HALLAZGOS (CERO DEPENDENCIAS)
+# ---------------------------------------------------------
+# Se utiliza un diccionario estático para evitar llamadas a APIs externas
+# que puedan romper el flujo si no hay internet o fallan los tiempos de respuesta.
+TRADUCCIONES_HALLAZGOS = {
+    "en": {
+        # Aquí puedes agregar los textos exactos que devuelven tus modelos en español
+        # para mapearlos a su versión en inglés o cualquier otro idioma futuro.
+        "Nódulo detectado": "Nodule detected",
+        "Fractura evidente": "Evident fracture",
+        "Anomalía detectada": "Anomaly detected",
+    },
+    "fr": {
+        "Nódulo detectado": "Nodule détecté",
+        "Fractura evidente": "Fracture évidente",
+    }
+}
+
+def _traducir_hallazgo(hallazgo: str, lang: str) -> str:
+    """
+    Traduce el texto del hallazgo de forma segura. 
+    Si el idioma es 'es' o la traducción no existe, devuelve el texto original intacto.
+    """
+    if lang == "es" or lang not in TRADUCCIONES_HALLAZGOS:
+        return hallazgo
+    
+    return TRADUCCIONES_HALLAZGOS[lang].get(hallazgo, hallazgo)
 
 
 # ---------------------------------------------------------
@@ -69,14 +99,14 @@ def _cargar_stack_dicom(estudio_id: int, db: Session) -> np.ndarray:
 # ---------------------------------------------------------
 # ANÁLISIS IA PRINCIPAL
 # ---------------------------------------------------------
-def analizar_estudio_con_ia(db: Session, estudio_id: int) -> dict:
+def analizar_estudio_con_ia(db: Session, estudio_id: int, lang: str = "es") -> dict:
     """
     Ejecuta el flujo completo de análisis IA para un estudio:
 
     - Carga stack DICOM (Z, Y, X)
     - Selecciona el modelo IA adecuado según el tipo de estudio
     - Ejecuta inferencia IA
-    - Devuelve hallazgos y segmentación en formato estándar MI_PACS
+    - Devuelve hallazgos traducidos y segmentación en formato estándar MI_PACS
     """
 
     estudio = (
@@ -98,11 +128,15 @@ def analizar_estudio_con_ia(db: Session, estudio_id: int) -> dict:
     # Ejecutar inferencia IA
     resultado_modelo = modelo_ia(volumen)
 
+    # Procesar y traducir hallazgos de forma segura
+    hallazgos_originales = resultado_modelo.get("hallazgos", [])
+    hallazgos_traducidos = [_traducir_hallazgo(h, lang) for h in hallazgos_originales]
+
     # Normalizar salida para MI_PACS
     resultado = {
         "estudio_id": estudio_id,
         "modelo": resultado_modelo.get("modelo", "modelo_ia_desconocido"),
-        "hallazgos": resultado_modelo.get("hallazgos", []),
+        "hallazgos": hallazgos_traducidos,
         "segmentacion": resultado_modelo.get("segmentacion"),
     }
 

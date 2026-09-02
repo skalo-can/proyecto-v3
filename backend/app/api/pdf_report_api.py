@@ -49,6 +49,7 @@ def _get_estudio_seguro(estudio_id: int, db: Session, usuario_actual) -> Estudio
 def generar_pdf_estudio(
     request: Request, # ⚠️ Obligatorio incluir 'request' para que slowapi lea la IP
     estudio_id: int, 
+    lang: str = "es", # 🔥 Parámetro de idioma inyectado desde el frontend
     usuario=Depends(obtener_usuario_actual), 
     db: Session=Depends(get_db)
 ):
@@ -74,6 +75,7 @@ def generar_pdf_estudio(
         "texto_diagnostico": texto_diag_limpio,
         "nombre_medico": nombre_medico,
         "registro_medico": getattr(usuario, 'registro_medico', getattr(usuario, 'licencia', '')),
+        "lang": lang # 🔥 Pasamos el idioma para que la plantilla HTML se adapte si lo requiere
     }
 
     firma_db = db.query(FirmaRadiologo).filter(FirmaRadiologo.usuario_id == usuario.id).first()
@@ -83,7 +85,7 @@ def generar_pdf_estudio(
     else:
         datos_estudio["ruta_firma"] = None
 
-    pdf_path = PDF_REPORTS_DIR / f"estudio_{estudio_id}.pdf"
+    pdf_path = PDF_REPORTS_DIR / f"estudio_{estudio_id}_{lang}.pdf" # 🔥 Sufijo opcional para separar PDFs por idioma
     os.makedirs(PDF_REPORTS_DIR, exist_ok=True)
 
     exito = construir_reporte_pdf(datos_estudio, str(pdf_path), "plantilla_reporte.html")
@@ -100,6 +102,7 @@ def generar_pdf_estudio(
 def archivar_cuenta_cobro(
     request: Request, # ⚠️ Obligatorio incluir 'request'
     datos_factura: DatosFacturaSchema,
+    lang: str = "es", # 🔥 Parámetro opcional de idioma
     usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db)
 ):
@@ -114,6 +117,7 @@ def archivar_cuenta_cobro(
 
         firma_db = db.query(FirmaRadiologo).filter(FirmaRadiologo.usuario_id == usuario.id).first()
         datos_limpios = datos_factura.dict()
+        datos_limpios["lang"] = lang # 🔥 Inyectamos el idioma al diccionario de la factura
 
         if firma_db:
             ruta_firma_fisica = os.path.join(CARPETA_FIRMAS, firma_db.nombre_archivo)
