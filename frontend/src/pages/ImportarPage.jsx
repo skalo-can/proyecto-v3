@@ -7,16 +7,17 @@ export default function ImportarPage() {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [progreso, setProgreso] = useState({
-        en_progreso: false,
-        exitosos: 0,
-        fallidos: 0,
-        total_detectados: 0,
-        finalizado: false
+        en_progreso: false, exitosos: 0, fallidos: 0,
+        total_detectados: 0, finalizado: false
     });
     const [resumenFinal, setResumenFinal] = useState(null);
+    
+    // 🚀 NUEVOS ESTADOS PARA EL MODAL VISUAL
+    const [mostrarModalRuta, setMostrarModalRuta] = useState(false);
+    const [rutaInput, setRutaInput] = useState("");
+    
     const intervaloProgreso = useRef(null);
 
-    // Función para extraer y limpiar el token de autenticación
     const obtenerTokenLimpio = () => {
         let tokenCrudo = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
         return tokenCrudo.replace(/['"]+/g, '').trim();
@@ -25,18 +26,13 @@ export default function ImportarPage() {
     const verificarEstadoImportacion = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            // ✅ CORREGIDO 1/6
             const res = await axios.get(`${window.API_URL}/api/importacion-fisica/estado`, {
-                headers: { 
-                    'Authorization': `Bearer ${tokenLimpio}`,
-                    'Accept': 'application/json'
-                }
+                headers: { 'Authorization': `Bearer ${tokenLimpio}`, 'Accept': 'application/json' }
             });
 
             const data = res.data || {};
 
             if (data.finalizado === true) {
-                // 🚀 Matamos el intervalo inmediatamente y purgamos la memoria
                 if (intervaloProgreso.current) {
                     clearInterval(intervaloProgreso.current);
                     intervaloProgreso.current = null; 
@@ -53,17 +49,15 @@ export default function ImportarPage() {
     };
 
     useEffect(() => {
-        let componenteMontado = true; // 🚀 Bandera anti-fantasmas
+        let componenteMontado = true;
 
         const reconectarProgreso = async () => {
             try {
                 const tokenLimpio = obtenerTokenLimpio();
-                // ✅ CORREGIDO 2/6
                 const res = await axios.get(`${window.API_URL}/api/importacion-fisica/estado`, {
                     headers: { 'Authorization': `Bearer ${tokenLimpio}`, 'Accept': 'application/json' }
                 });
                 
-                // Solo activamos el temporizador si el usuario no ha cerrado la pestaña
                 if (componenteMontado && res.data && res.data.en_progreso && !res.data.finalizado) {
                     if (intervaloProgreso.current) clearInterval(intervaloProgreso.current);
                     setProgreso(res.data);
@@ -78,37 +72,43 @@ export default function ImportarPage() {
         reconectarProgreso();
 
         return () => { 
-            componenteMontado = false; // 🚀 Si el usuario huye de la pestaña, abortamos arranques futuros
+            componenteMontado = false; 
             if (intervaloProgreso.current) clearInterval(intervaloProgreso.current); 
         };
     }, []);
 
-    // 🚀 Limpieza profunda al cerrar la ventana de éxito
-    const handleCerrarModal = () => {
+    const handleCerrarModalExito = () => {
         setResumenFinal(null);
-        setProgreso({
-            en_progreso: false,
-            exitosos: 0,
-            fallidos: 0,
-            total_detectados: 0,
-            finalizado: false
-        });
+        setProgreso({ en_progreso: false, exitosos: 0, fallidos: 0, total_detectados: 0, finalizado: false });
     };
 
-    const handleImportarHardwareLocal = async () => {
+    // 🚀 ABRE EL MODAL VISUAL EN LUGAR DEL WINDOW.PROMPT
+    const abrirModalRuta = () => {
         const tokenLimpio = obtenerTokenLimpio();
-        
         if (!tokenLimpio) {
             alert(t('importacion.sesion_invalida'));
             return;
         }
+        setRutaInput("");
+        setMostrarModalRuta(true);
+    };
 
+    // 🚀 EJECUTA LA IMPORTACIÓN CUANDO EL USUARIO CONFIRMA EN EL MODAL
+    const confirmarImportacion = async () => {
+        if (!rutaInput || rutaInput.trim() === '') {
+            alert(t('importacion.ruta_requerida'));
+            return;
+        }
+
+        setMostrarModalRuta(false);
         setLoading(true);
         setResumenFinal(null);
         
         try {
-            // ✅ CORREGIDO 3/6
-            const res = await axios.post(`${window.API_URL}/api/importacion-fisica/disco-externo`, {}, {
+            const tokenLimpio = obtenerTokenLimpio();
+            const res = await axios.post(`${window.API_URL}/api/importacion-fisica/disco-externo`, 
+            { ruta: rutaInput.trim() }, 
+            {
                 headers: { 
                     'Authorization': `Bearer ${tokenLimpio}`,
                     'Content-Type': 'application/json'
@@ -117,11 +117,8 @@ export default function ImportarPage() {
 
             if (res.data.status === "success") {
                 setProgreso({ 
-                    en_progreso: true, 
-                    exitosos: 0, 
-                    fallidos: 0, 
-                    total_detectados: res.data.archivos_detectados || 0, 
-                    finalizado: false 
+                    en_progreso: true, exitosos: 0, fallidos: 0, 
+                    total_detectados: res.data.archivos_detectados || 0, finalizado: false 
                 });
                 intervaloProgreso.current = setInterval(verificarEstadoImportacion, 1500);
             } else if (res.data.status === "cancelled") {
@@ -135,14 +132,12 @@ export default function ImportarPage() {
         }
     };
 
-    // 🚀 CAMBIO 2: Función para cancelar la ingesta
     const handleCancelarImportacion = async () => {
         const confirmar = window.confirm(t('importacion.confirmar_cancelar'));
         if (!confirmar) return;
 
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            // ✅ CORREGIDO 4/6
             await axios.post(`${window.API_URL}/api/importacion-fisica/cancelar`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
@@ -152,11 +147,9 @@ export default function ImportarPage() {
         }
     };
 
-    // 🚀 CAMBIO 3: Funciones para Base de Datos
     const handleExportarBD = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            // ✅ CORREGIDO 5/6
             const res = await axios.post(`${window.API_URL}/api/importacion-fisica/exportar-bd`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
@@ -169,7 +162,6 @@ export default function ImportarPage() {
     const handleImportarBD = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            // ✅ CORREGIDO 6/6
             const res = await axios.post(`${window.API_URL}/api/importacion-fisica/importar-bd`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
@@ -181,6 +173,37 @@ export default function ImportarPage() {
 
     return (
         <div className="importar-page-wrapper">
+            
+            {/* 🚀 MODAL VISUAL PARA LA RUTA */}
+            {mostrarModalRuta && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+                    <div style={{ backgroundColor: '#1a1d26', border: '1px solid #fbbf24', borderRadius: '10px', padding: '25px', width: '90%', maxWidth: '500px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+                        <h3 style={{ color: '#fbbf24', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span>📁</span> Ingesta Clínica Local
+                        </h3>
+                        <p style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '15px', whiteSpace: 'pre-line' }}>
+                            {t('importacion.prompt_ruta')}
+                        </p>
+                        <input 
+                            type="text" 
+                            value={rutaInput}
+                            onChange={(e) => setRutaInput(e.target.value)}
+                            placeholder="D:\ o /mnt/usb"
+                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #4a5066', backgroundColor: '#0f1114', color: '#fff', fontSize: '1rem', boxSizing: 'border-box', outline: 'none', marginBottom: '20px', fontFamily: 'monospace' }}
+                            autoFocus
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            <button onClick={() => setMostrarModalRuta(false)} style={{ padding: '10px 20px', backgroundColor: '#334155', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                Cancelar
+                            </button>
+                            <button onClick={confirmarImportacion} style={{ padding: '10px 20px', backgroundColor: '#fbbf24', color: '#000', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                Iniciar Extracción
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {resumenFinal && (
                 <div className="modal-overlay-persistencia">
                     <div className="modal-caja-exito">
@@ -197,7 +220,7 @@ export default function ImportarPage() {
                                 <span className="stat-label">{t('importacion.omitidos')}</span>
                             </div>
                         </div>
-                        <button className="btn-entendido" onClick={handleCerrarModal}>{t('importacion.ok_entendido')}</button>
+                        <button className="btn-entendido" onClick={handleCerrarModalExito}>{t('importacion.ok_entendido')}</button>
                     </div>
                 </div>
             )}
@@ -208,7 +231,6 @@ export default function ImportarPage() {
             </header>
 
             <main className="config-main" style={{ marginTop: '20px' }}>
-                {/* SECCIÓN 1: IMPORTACIÓN DE IMÁGENES */}
                 <section className="config-card" style={{ backgroundColor: '#111', border: '1px solid #222', padding: '25px', borderRadius: '8px', marginBottom: '20px' }}>
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                         <span style={{ fontSize: '2.5rem' }}>🎛️</span>
@@ -221,7 +243,7 @@ export default function ImportarPage() {
                     <div style={{ marginTop: '25px' }}>
                         <button 
                             className={`btn-importar-nucleo ${loading || progreso.en_progreso ? 'deshabilitado' : ''}`}
-                            onClick={handleImportarHardwareLocal}
+                            onClick={abrirModalRuta}
                             disabled={loading || progreso.en_progreso}
                             style={{ backgroundColor: loading || progreso.en_progreso ? '#333' : '#fbbf24', color: '#000', fontWeight: 'bold', border: 'none', padding: '14px 28px', borderRadius: '6px', cursor: 'pointer', fontSize: '1rem' }}
                         >
@@ -233,7 +255,6 @@ export default function ImportarPage() {
                         <div style={{ marginTop: '30px', backgroundColor: 'rgba(251, 191, 36, 0.03)', border: '1px solid #fbbf24', padding: '20px', borderRadius: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                 <h3 style={{ color: '#fbbf24', margin: '0', fontSize: '1rem' }}>{t('importacion.monitor_ingesta')}</h3>
-                                {/* 🚀 BOTÓN DE CANCELAR AÑADIDO AQUÍ */}
                                 <button onClick={handleCancelarImportacion} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '5px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>{t('importacion.btn_cancelar_proceso')}</button>
                             </div>
                             <div style={{ display: 'flex', gap: '30px', color: '#fff', fontSize: '0.9rem' }}>
@@ -248,7 +269,6 @@ export default function ImportarPage() {
                     )}
                 </section>
 
-                {/* 🚀 NUEVA SECCIÓN 2: GESTIÓN DE BASE DE DATOS */}
                 <section className="config-card" style={{ backgroundColor: '#111', border: '1px solid #222', padding: '25px', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
                         <span style={{ fontSize: '2.5rem' }}>🗄️</span>
@@ -266,22 +286,15 @@ export default function ImportarPage() {
                             {t('importacion.btn_exportar')}
                         </button>
                         
-                        {/* 🚀 BOTÓN RECONVERTIDO PARA MIGRACIÓN EN CALIENTE POR RED */}
                         <button 
-                            onClick={handleImportarHardwareLocal}
+                            onClick={handleImportarBD}
                             disabled={loading || progreso.en_progreso}
                             style={{ 
                                 backgroundColor: loading || progreso.en_progreso ? '#333' : '#8b5cf6', 
                                 color: '#fff', 
-                                fontWeight: 'bold', 
-                                border: 'none', 
-                                padding: '12px 24px', 
-                                borderRadius: '6px', 
+                                fontWeight: 'bold', border: 'none', padding: '12px 24px', borderRadius: '6px', 
                                 cursor: loading || progreso.en_progreso ? 'not-allowed' : 'pointer', 
-                                fontSize: '1rem', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '10px' 
+                                fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '10px' 
                             }}
                         >
                             {t('importacion.btn_migracion')}

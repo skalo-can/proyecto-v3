@@ -16,11 +16,6 @@ from PIL import Image
 from pydicom import dcmread
 from pydantic import BaseModel
 
-# IMPORTACIONES PARA EL EXPLORADOR VISUAL DE WINDOWS
-import tkinter as tk
-from tkinter import filedialog
-import threading
-
 from app.core.database import get_db, SessionLocal, engine
 from app.core.auth import obtener_usuario_actual
 from app.core.roles import requiere_rol
@@ -37,9 +32,6 @@ from app.dicom_utils.dicom_importer import process_single_dicom_file
 
 # 🎯 PREFIJO CORE UNIFICADO: Ajustado para interceptar la ruta exacta del frontend
 router = APIRouter(tags=["Importación DICOM"])
-
-# Variable de control global para el ciclo de vida del explorador nativo
-explorador_bloqueo = False
 
 # 🆕 MATRIZ GLOBAL DE SEGUIMIENTO: Permite al frontend auditar la ingesta en tiempo real
 ESTADO_IMPORTACION = {
@@ -251,26 +243,21 @@ def tarea_fondo_importacion_recursiva(ruta_origen: str):
         ESTADO_IMPORTACION["en_progreso"] = False
         db.close()
 
-
-def subproceso_abrir_explorador(resultado_compartido: dict):
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-    ruta = filedialog.askdirectory(title="MI_PACS — Seleccione la carpeta origen de estudios DICOM")
-    resultado_compartido["ruta_seleccionada"] = route = ruta
-    root.destroy()
-
+# Modelo de datos para recibir la ruta vía JSON desde el frontend
+class RutaImportacion(BaseModel):
+    ruta: str
 
 # ----------------------------------------------------------------------
 # 🔒 ENDPOINT BLINDADO CON JWT Y RUTA UNIFICADA LIMPIA (/api/pacientes/import/disco-externo)
 # ----------------------------------------------------------------------
 @router.post("/importacion-fisica/disco-externo")
 def importar_desde_disco_manual(
+    payload: RutaImportacion,
     background_tasks: BackgroundTasks,
     usuario=Depends(obtener_usuario_actual)  # 🔐 Reestablecemos el candado de sesión
 ):
-    """Abre el explorador de Windows nativo de forma segura validando el Token del Superusuario."""
-    global explorador_bloqueo, ESTADO_IMPORTACION
+    """Extrae la ruta provista por el administrador y procesa los archivos directamente en Docker."""
+    global ESTADO_IMPORTACION
     
     # Validamos jerarquía admitiendo el rol sin fricción de mayúsculas
     rol_usuario = getattr(usuario, "rol", "").lower()
@@ -279,30 +266,14 @@ def importar_desde_disco_manual(
             status_code=403, 
             detail="Acceso restringido. Su rol no cuenta con credenciales para inyectar hardware local."
         )
-    
-    if explorador_bloqueo:
-        raise HTTPException(
-            status_code=400, 
-            detail="El explorador de archivos ya se encuentra desplegado en el servidor."
-        )
         
-    explorador_bloqueo = True
-    resultado_compartido = {"ruta_seleccionada": ""}
-    
-    try:
-        hilo_interfaz = threading.Thread(target=subproceso_abrir_explorador, args=(resultado_compartido,))
-        hilo_interfaz.start()
-        hilo_interfaz.join()
-    finally:
-        explorador_bloqueo = False
-        
-    ruta_final = resultado_compartido.get("ruta_seleccionada")
+    ruta_final = payload.ruta.strip()
     
     if not ruta_final:
         return {"status": "cancelled", "message": "Operación cancelada por el operador clínico."}
         
     if not os.path.exists(ruta_final):
-        raise HTTPException(status_code=400, detail="La ruta seleccionada no es accesible.")
+        raise HTTPException(status_code=400, detail=f"La ruta seleccionada ({ruta_final}) no es accesible en el servidor Docker.")
     
     # Pre-conteo rápido de archivos válidos para enviar respuesta inmediata al frontend
     conteo_archivos = 0

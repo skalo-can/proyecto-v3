@@ -24,6 +24,10 @@ services:
       - db
     volumes:
       - .:/app 
+      # 🔥 AQUÍ ESTÁ LA MAGIA: Conectamos tus discos físicos de Windows al contenedor Linux
+      - "H:/:/mnt/usb_h"  # <-- Usar comillas y barra normal
+      - D:\:/mnt/usb_d
+      - E:\:/mnt/usb_e
 
   frontend:
     build:
