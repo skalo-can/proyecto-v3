@@ -82,3 +82,5 @@ backend/static/exports/
 # Excluir sesión persistente de WhatsApp (Selenium / Chrome)
 whatsapp_session/
 whatsapp_session/**
+*MI_PACS_SECURE_REPLICA*
+*MI_PACS_NAS_EXTERNAL*
