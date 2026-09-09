@@ -294,16 +294,59 @@ def actualizar(paciente_id: int, paciente: PacienteUpdate, db: Session = Depends
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Fallo en persistencia: {str(e)}")
 
+
+# ⚠️ Asegúrate de importar la función si está en otro archivo, 
+# o ignora esta línea si 'importar_desde_directorio_externo' ya vive en este mismo archivo.
+
 @router.post("/import/disco-externo")
-def importar_disco_externo(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+def importar_disco_externo(
+    credentials: HTTPAuthorizationCredentials = Depends(security), 
+    db: Session = Depends(get_db)
+):
+    # 1. Validación de seguridad original
     token = credentials.credentials
     if not token or len(token) < 10:
         raise HTTPException(status_code=401, detail="Token inválido o expirado.")
+    
     try:
-        return {"status": "success", "message": "Estudios externos acoplados."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Fallo: {str(e)}")
+        # 2. Definir la ruta estática segura dentro del contenedor Docker
+        BASE_DIR = Path(__file__).resolve().parent.parent.parent
+        carpeta_importacion = BASE_DIR / "importaciones"
+        os.makedirs(carpeta_importacion, exist_ok=True)
+        ruta_a_escanear = str(carpeta_importacion)
 
+        # 3. Validar que el recepcionista haya puesto archivos en la carpeta
+        if not os.listdir(ruta_a_escanear):
+            return {
+                "status": "warning", 
+                "message": "La carpeta 'importaciones' está vacía. Copie los archivos DICOM en D:\\proyecto v3\\importaciones primero."
+            }
+
+        # 4. Disparar tu motor de desempaquetado masivo
+        exito = importar_desde_directorio_externo(ruta_a_escanear)
+
+        if not exito:
+            raise HTTPException(status_code=500, detail="El motor de importación falló al leer la carpeta.")
+
+        # 5. Limpieza automática: Vaciamos el buzón tras una importación exitosa
+        for item in os.listdir(ruta_a_escanear):
+            item_path = os.path.join(ruta_a_escanear, item)
+            try:
+                if os.path.isfile(item_path):
+                    os.remove(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+            except Exception as e:
+                print(f"⚠️ No se pudo eliminar el archivo residual {item}: {e}")
+
+        return {
+            "status": "success", 
+            "message": "Estudios DICOM importados exitosamente desde la carpeta local."
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fallo en la importación: {str(e)}")
+    
 @router.post("/estudio/{estudio_id}/reabrir-flujo")
 @router.post("/{paciente_id}/reabrir-flujo")
 def reabrir_flujo_estudio(
@@ -666,52 +709,18 @@ def descargar_pdf_paciente(
 class ExportacionInput(BaseModel):
     estudios_ids: List[Union[int, str]]
     incluir_visor: bool = True  
-    modo_destino: str = "EXPLORADOR"
+    modo_destino: str = "EXPLORADOR" # Lo mantenemos por compatibilidad con el frontend
 
 @router.post("/exportar/medios-externos")
 def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Session = Depends(get_db)):
     try:
-        if not datos.estudios_ids: raise ValueError("No se suministraron estudios al motor físico.")
+        if not datos.estudios_ids: raise ValueError("No se suministraron estudios al motor.")
 
-        unidad_destino = None
-
-        if datos.modo_destino == "EXPLORADOR":
-            codigo_tk = (
-                "import tkinter as tk; "
-                "from tkinter import filedialog; "
-                "root = tk.Tk(); "
-                "root.withdraw(); "
-                "root.attributes('-topmost', True); "
-                "carpeta = filedialog.askdirectory(title='MI_PACS: Seleccione destino'); "
-                "print(carpeta)"
-            )
-            try:
-                resultado = subprocess.check_output(["python", "-c", codigo_tk], text=True, stderr=subprocess.DEVNULL)
-                carpeta_seleccionada = resultado.strip()
-            except Exception:
-                carpeta_seleccionada = ""
-
-            if not carpeta_seleccionada: raise ValueError("Operación cancelada. No seleccionaste ninguna carpeta de destino.")
-            unidad_destino = os.path.join(carpeta_seleccionada, "MI_PACS_EXPORT")
-            os.makedirs(unidad_destino, exist_ok=True)
-
-        elif datos.modo_destino == "CD_DVD":
-            letras_unidades = [f"{chr(i)}:" for i in range(68, 91)]
-            for letra in letras_unidades:
-                ruta_base = f"{letra}\\"
-                try:
-                    if os.path.exists(ruta_base):
-                        archivo_prueba = os.path.join(ruta_base, ".mipacs_test")
-                        with open(archivo_prueba, 'w') as f: f.write('1')
-                        os.remove(archivo_prueba)
-                        ruta_definitiva = f"{letra}\\MI_PACS_EXPORT"
-                        os.makedirs(ruta_definitiva, exist_ok=True)
-                        unidad_destino = ruta_definitiva
-                        break
-                except Exception:
-                    continue
-
-            if not unidad_destino: raise ValueError("No se detectó ningún CD o DVD grabable insertado.")
+        # 🚀 NUEVA LÓGICA COMPATIBLE CON DOCKER
+        # Creamos/usamos una carpeta fija llamada 'exportaciones' en la raíz del proyecto
+        BASE_DIR = Path(__file__).resolve().parent.parent.parent
+        unidad_destino = BASE_DIR / "exportaciones"
+        os.makedirs(unidad_destino, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         carpeta_lote = os.path.join(unidad_destino, f"Lote_Diagnostico_{timestamp}")
@@ -720,7 +729,7 @@ def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Sess
         estudios_procesados = 0
 
         for item_id in datos.estudios_ids:
-            # 1. RECUPERAR EL ESTUDIO EXACTO (Esto ya operaba por ID independiente)
+            # 1. RECUPERAR EL ESTUDIO EXACTO
             estudio_db = db.query(Estudio).filter(Estudio.id == item_id).first()
             if not estudio_db: continue
 
@@ -734,7 +743,7 @@ def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Sess
             carpeta_paciente = os.path.join(carpeta_lote, f"{nombre_paciente}_ID{identificacion_paciente}")
             os.makedirs(carpeta_paciente, exist_ok=True)
 
-            # 2. IDENTIFICADORES DEL ESTUDIO (Para el aislamiento)
+            # 2. IDENTIFICADORES DEL ESTUDIO
             target_uid = str(getattr(estudio_db, "study_instance_uid", "")).strip()
             target_modality = str(getattr(estudio_db, "tipo_estudio", getattr(estudio_db, "modalidad", ""))).strip().upper()
             
@@ -745,7 +754,7 @@ def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Sess
                     target_uid = str(meta.get("StudyInstanceUID", "")).strip()
                 except: pass
 
-            # 3. RECOPILACIÓN DE RUTAS SOSPECHOSAS
+            # 3. RECOPILACIÓN DE RUTAS
             rutas_validas = set()
             r1 = getattr(estudio_db, "ruta_archivos", None)
             r2 = getattr(estudio_db, "ruta_dicom", None)
@@ -766,7 +775,6 @@ def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Sess
                             try:
                                 ds = pydicom.dcmread(f, stop_before_pixels=True, force=True)
                                 p_id = str(getattr(ds, "PatientID", "")).strip()
-                                # Solo marcamos la carpeta si vemos que el paciente está ahí
                                 if identificacion_paciente in p_id or p_id in identificacion_paciente:
                                     rutas_validas.add(folder_path)
                                     break
@@ -776,7 +784,7 @@ def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Sess
             carpeta_dicom_destino = os.path.join(carpeta_paciente, "IMAGENES_DICOM")
             os.makedirs(carpeta_dicom_destino, exist_ok=True)
 
-            # 🚀 4. EL BUCLE DE BARRERA DE TITANIO (FILTRO ARCHIVO POR ARCHIVO)
+            # 4. EL BUCLE DE BARRERA (COPIA ARCHIVOS DICOM)
             archivos_copiados = 0
             if rutas_validas:
                 import pydicom
@@ -785,41 +793,34 @@ def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Sess
                         for root, dirs, files in os.walk(ruta):
                             for file in files:
                                 src_file = os.path.join(root, file)
-                                
                                 try:
                                     ds = pydicom.dcmread(src_file, stop_before_pixels=True, force=True)
                                     file_pid = str(getattr(ds, "PatientID", "")).strip()
                                     file_uid = str(getattr(ds, "StudyInstanceUID", "")).strip()
                                     file_mod = str(getattr(ds, "Modality", "")).strip().upper()
                                     
-                                    # 🚨 BARRERA 1: IDENTIDAD ESTRICTA DEL PACIENTE
                                     if identificacion_paciente not in file_pid and file_pid not in identificacion_paciente:
                                         continue 
 
-                                    # 🚨 BARRERA 2: AISLAMIENTO EXACTO DEL ESTUDIO
                                     if target_uid and file_uid and target_uid != file_uid:
                                         continue 
                                         
-                                    # BARRERA 2 DE RESPALDO: Si no tenemos UID en la DB, filtramos por Modalidad
                                     elif not target_uid and target_modality and file_mod:
                                         if target_modality not in file_mod and file_mod not in target_modality:
-                                            # Los equipos antiguos a veces mezclan DX con CR.
                                             if target_modality in ["CR", "DX"] and file_mod in ["CR", "DX"]:
                                                 pass
                                             else:
                                                 continue 
                                 except Exception:
-                                    continue # Si no es un archivo DICOM, lo ignoramos
+                                    continue # Ignora no-DICOMs
 
-                                # ¡SI LLEGA AQUÍ, ES EL ARCHIVO CORRECTO Y PURO!
                                 archivos_copiados += 1
                                 nombre_unico = f"IMG_{archivos_copiados:05d}.dcm"
                                 dest_file = os.path.join(carpeta_dicom_destino, nombre_unico)
                                 shutil.copy2(src_file, dest_file)
                                 
-                    print(f"✅ EXPORTACIÓN AISLADA DE GRADO MÉDICO: {archivos_copiados} archivos DICOM transferidos para estudio ID: {item_id}.")
-                    # 🛡️ GATILLO DE AUDITORÍA: EXPORTACIÓN EXITOSA
-                    registrar_auditoria(db, request, estudio_id=estudio_db.id, tipo=datos.modo_destino, resultado="ok")
+                    print(f"✅ EXPORTACIÓN AISLADA: {archivos_copiados} archivos DICOM transferidos para estudio ID: {item_id}.")
+                    registrar_auditoria(db, request, estudio_id=estudio_db.id, tipo="exportacion_local", resultado="ok")
                 except Exception as e:
                     print(f"❌ Error en copia multiserie: {e}")
             else:
@@ -841,13 +842,15 @@ def exportar_medios_externos(datos: ExportacionInput, request: Request, db: Sess
                 except: pass
 
         estado_visor_msg = " (Con Visor Lite incluido)" if datos.incluir_visor else ""
-        return {"status": "success", "message": f"Se grabaron y empaquetaron {estudios_procesados} estudios{estado_visor_msg} en:\n{unidad_destino}"}
+        return {
+            "status": "success", 
+            "message": f"Se grabaron y empaquetaron {estudios_procesados} estudios{estado_visor_msg}.\n\nLos archivos están listos en la carpeta:\nproyecto v3/exportaciones"
+        }
 
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fallo del Motor Físico: {str(e)}")
-
 class IARequest(BaseModel):
     texto_actual: str
 

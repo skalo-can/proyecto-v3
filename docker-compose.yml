@@ -25,9 +25,10 @@ services:
     volumes:
       - .:/app 
       # 🔥 AQUÍ ESTÁ LA MAGIA: Conectamos tus discos físicos de Windows al contenedor Linux
-      - "H:/:/mnt/usb_h"  # <-- Usar comillas y barra normal
-      - D:\:/mnt/usb_d
-      - E:\:/mnt/usb_e
+      #- "H:/:/mnt/nas_externo"  # <-- Usar comillas y barra normal
+      #- "D:/:/mnt/replica_segura"
+      #- "E:/:/mnt/usb_e" 
+      - "D:/MI_PACS_NAS_EXTERNAL:/mnt/nas_externo"    
 
   frontend:
     build:

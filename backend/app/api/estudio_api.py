@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import text, inspect
+from sqlalchemy import text, inspect, or_, func
 import os
 from pathlib import Path
 from collections import defaultdict
@@ -8,9 +8,10 @@ import jwt
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
+from app.models.paciente import Paciente
 from app.models.estudio import Estudio 
 from app.models.estudio_imagen import EstudioImagen 
-from app.core.auth import obtener_usuario_actual
+from app.core.auth import obtener_usuario_actual, SECRET_KEY, ALGORITHM
 from app.services.generador_pdf import construir_reporte_pdf 
 from app.core.config import PDF_REPORTS_DIR
 
@@ -117,9 +118,6 @@ async def firmar_estudio_endpoint(
         raise HTTPException(status_code=500, detail=f"Error PACS: {str(e)}")
 
 
-# =====================================================================
-# ✅ ENDPOINT: GENERAR ENLACE SEGURO (TOKEN TEMPORAL)
-# =====================================================================
 @router.post("/{estudio_id}/compartir")
 def generar_enlace_compartido(
     estudio_id: int, 
@@ -142,7 +140,7 @@ def generar_enlace_compartido(
 
 
 # =====================================================================
-# ✅ ENDPOINT: OBTENER LISTA DE IMÁGENES (SEGURIDAD DUAL)
+# ✅ ENDPOINT: OBTENER IMÁGENES (VERSIÓN ESTABLE - SERIES SEPARADAS)
 # =====================================================================
 @router.get("/{estudio_id}/imagenes")
 def obtener_imagenes_de_estudio(
@@ -150,6 +148,7 @@ def obtener_imagenes_de_estudio(
     request: Request, 
     db: Session = Depends(get_db)
 ):
+    # 1. Validación de seguridad
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         raise HTTPException(status_code=401, detail="Falta token de seguridad.")
@@ -157,7 +156,6 @@ def obtener_imagenes_de_estudio(
     token_str = auth_header.replace("Bearer ", "")
     acceso_concedido = False
 
-    # 1. Validar si es el paciente invitado
     try:
         payload = jwt.decode(token_str, SECRET_COMPARTIR, algorithms=["HS256"])
         if payload.get("rol") == "invitado_paciente" and payload.get("estudio_id") == estudio_id:
@@ -165,82 +163,141 @@ def obtener_imagenes_de_estudio(
     except Exception:
         pass 
 
-    # 2. Si no es paciente, intentar validar como personal clínico (médico/admin)
     if not acceso_concedido:
-        # Importamos temporalmente tu decodificador normal para ver si es un médico
         from app.core.auth import SECRET_KEY, ALGORITHM 
         try:
             jwt.decode(token_str, SECRET_KEY, algorithms=[ALGORITHM])
         except Exception:
             raise HTTPException(status_code=403, detail="Credenciales inválidas o expiradas.")
 
-    # 3. Respuesta agrupada por series
+    # 2. Consulta original (SIN fusiones externas)
     imagenes = db.query(EstudioImagen).filter(EstudioImagen.estudio_id == estudio_id).all()
     if not imagenes:
-        return [] 
+        return []
         
-    series_dict = defaultdict(list)
-    for img in imagenes:
-        nombre_serie = getattr(img, "series_description", None)
-        if not nombre_serie:
-            partes_ruta = Path(img.ruta_archivo).parts
-            nombre_serie = partes_ruta[-2] if len(partes_ruta) >= 2 else "Serie Principal"
-                
-        series_dict[nombre_serie].append({"id": img.id, "ruta_archivo": img.ruta_archivo})
+    # 3. Ordenamiento estricto por metadatos
+    def sort_key(img):
+        try: s_val = int(getattr(img, "numero_serie", 1) or 1)
+        except: s_val = 9999
+        desc = str(getattr(img, "series_description", "")).strip().upper()
+        try: i_val = int(getattr(img, "numero_instancia", 1) or 1)
+        except: i_val = 9999
+        return (s_val, desc, i_val)
         
-    return [{"serie": str(k).upper(), "imagenes": v} for k, v in series_dict.items()]
+    imagenes_ordenadas = sorted(imagenes, key=sort_key)
 
-from app.models.paciente import Paciente  # Asegúrate de que esto esté arriba con tus importaciones
+    # 4. Agrupación por Detección de Saltos (El código que separó las 1341 imágenes)
+    series_dict = {}
+    fallback_counter = 1
+    last_instancia = -1
+    last_clave_base = ""
+
+    for img in imagenes_ordenadas:
+        ruta_limpia = img.ruta_archivo.replace("\\", "/") if getattr(img, "ruta_archivo", None) else ""
+        partes_ruta = Path(ruta_limpia).parts
+        carpeta_fisica = partes_ruta[-2] if len(partes_ruta) >= 2 else "1"
+        
+        num_serie = str(getattr(img, "numero_serie", "")).strip()
+        if num_serie.lower() in ["none", "null", ""]: num_serie = "0"
+        
+        desc_serie = str(getattr(img, "series_description", "")).strip()
+        if desc_serie.lower() in ["none", "null", ""]: desc_serie = ""
+        
+        try: instancia_actual = int(getattr(img, "numero_instancia", 0) or 0)
+        except: instancia_actual = 0
+
+        clave_base = f"{carpeta_fisica}_{num_serie}_{desc_serie}"
+
+        if clave_base == last_clave_base:
+            if instancia_actual <= last_instancia and instancia_actual != 0:
+                fallback_counter += 1
+        else:
+            last_clave_base = clave_base
+            fallback_counter += 1
+
+        last_instancia = instancia_actual
+        clave_unica = f"{clave_base}_{fallback_counter}"
+
+        if clave_unica not in series_dict:
+            if desc_serie:
+                nombre_mostrar = desc_serie.upper()
+            elif num_serie != "0":
+                nombre_mostrar = f"SERIE {num_serie}"
+            else:
+                nombre_mostrar = f"SERIE {fallback_counter}"
+
+            series_dict[clave_unica] = {
+                "serie": nombre_mostrar,
+                "imagenes": []
+            }
+
+        series_dict[clave_unica]["imagenes"].append({
+            "id": img.id,
+            "ruta_archivo": ruta_limpia
+        })
+
+    return list(series_dict.values())
 
 # =====================================================================
-# ✅ ENDPOINT: OBTENER HISTORIAL DE ESTUDIOS PREVIOS DEL PACIENTE
+# ✅ ENDPOINT: OBTENER HISTORIAL (LISTA COMPLETA ESTABLE)
 # =====================================================================
 @router.get("/{id}/previo")
 def obtener_estudios_previos(id: int, db: Session = Depends(get_db)):
-    """
-    Busca el historial cruzando el número de documento real del paciente.
-    """
-    # 1. Buscamos el estudio base
     estudio_actual = db.query(Estudio).filter(Estudio.id == id).first()
-    
     if not estudio_actual:
-        raise HTTPException(status_code=404, detail="Estudio base no encontrado.")
-
-    # 2. Rescatamos el documento real del paciente
-    paciente = db.query(Paciente).filter(Paciente.id == estudio_actual.paciente_id).first()
-    
-    if not paciente:
-        print(f"⚠️ [HISTORIAL] El estudio {id} no tiene un paciente válido asociado en la DB.")
         return []
 
-    doc_real = paciente.identificacion
-    print(f"🔍 [HISTORIAL] Buscando previos para Cédula/ID: {doc_real} (Excluyendo estudio {id})")
+    paciente_actual = db.query(Paciente).filter(Paciente.id == estudio_actual.paciente_id).first()
+    if not paciente_actual:
+        return []
 
-    # 3. Buscamos TODOS los estudios vinculados a cualquier paciente que tenga esa misma cédula
+    doc_real = str(getattr(paciente_actual, "identificacion", "")).strip()
+    nombres = str(getattr(paciente_actual, "primer_nombre", "")).strip()
+    apellidos = str(getattr(paciente_actual, "primer_apellido", "")).strip()
+
+    filtros_paciente = []
+    if doc_real and doc_real not in ["", "0", "NONE", "NA"]:
+        filtros_paciente.append(Paciente.identificacion.ilike(f"%{doc_real}%"))
+        
+    if nombres and apellidos:
+        filtros_paciente.append(
+            (Paciente.primer_nombre.ilike(f"%{nombres}%")) &
+            (Paciente.primer_apellido.ilike(f"%{apellidos}%"))
+        )
+
+    if not filtros_paciente:
+        pacientes_similares = [paciente_actual]
+    else:
+        pacientes_similares = db.query(Paciente).filter(or_(*filtros_paciente)).all()
+
+    ids_pacientes = [p.id for p in pacientes_similares]
+
+    # 🔥 CORRECCIÓN: Ordenamos por ID descendente en lugar de hora (evita el Error 500)
     estudios_previos = (
         db.query(Estudio)
-        .join(Paciente, Estudio.paciente_id == Paciente.id)
-        .filter(
-            Paciente.identificacion == doc_real,
-            Estudio.id != id
-        )
-        .order_by(Estudio.fecha_estudio.desc())
+        .filter(Estudio.paciente_id.in_(ids_pacientes))
+        .order_by(Estudio.fecha_estudio.desc(), Estudio.id.desc())
         .all()
     )
 
-    print(f"✅ [HISTORIAL] Encontrados {len(estudios_previos)} estudios previos para {doc_real}.")
-
-    # 4. Enviamos la data empaquetada tal como la tabla de React la necesita
     resultados = []
     for est in estudios_previos:
-        # Aseguramos que la fecha vaya como texto para evitar errores de parseo en JSON
-        fecha_str = est.fecha_estudio.strftime("%Y-%m-%d") if est.fecha_estudio else "Sin fecha"
+        fecha_str = "Sin fecha"
+        if est.fecha_estudio:
+            if hasattr(est.fecha_estudio, "strftime"):
+                fecha_str = est.fecha_estudio.strftime("%Y-%m-%d")
+            else:
+                raw_date = str(est.fecha_estudio).strip()
+                if len(raw_date) == 8 and raw_date.isdigit():
+                    fecha_str = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:]}"
+                else:
+                    fecha_str = raw_date
         
         resultados.append({
             "id": est.id,
             "fecha": fecha_str,
             "modalidad": getattr(est, "modalidad", getattr(est, "tipo_estudio", "DX")),
-            "descripcion": getattr(est, "descripcion", "Estudio de Imagen"),
+            "descripcion": getattr(est, "descripcion", "Estudio Historial"),
             "estado": getattr(est, "estado", "N/A")
         })
 

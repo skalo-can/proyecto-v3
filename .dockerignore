@@ -1,0 +1,16 @@
+# Ignorar sesión corrupta del navegador
+whatsapp_session/
+
+# Ignorar almacenamiento masivo DICOM para que la imagen sea ligera
+backend/dicom_archivados/
+backend/dicom_inbox/
+backend/storage/
+MI_PACS_NAS_EXTERNAL/
+
+# Ignorar entornos virtuales y caché de Python
+venv/
+__pycache__/
+*.pyc
+
+# Ignorar módulos de Node
+frontend/node_modules/

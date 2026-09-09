@@ -3,18 +3,17 @@
  * ---------------------------------------------------------
  * Visor clínico de producción con herramientas premium inyectadas.
  * ✔ Modificado para soportar ROI, Negativo, Flip H/V, Limpiar
- * ✔ Conectado DIRECTAMENTE al CompareViewer (Historial)
+ * ✔ Conectado DIRECTAMENTE al CompareViewer (Historial) sin aplastar series
+ * ✔ Panel de Dictado inferior acoplado sin obstrucción.
  */
 
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 
-
-
-// 🔥 ATENCIÓN: Asegúrate de que esta ruta apunte a tu CompareViewer.
-// Si tu VisorDICOMWrapper está en la carpeta 'pages', esta ruta es correcta:
 import CompareViewer from "./components/DicomViewer/CompareViewer";
+// Asegúrate de que esta ruta apunte a tu componente ModalDictadoHardware
+import ModalDictadoHardware from "./pages/ModalDictadoHardware"; 
 
 import cornerstone from "cornerstone-core";
 import cornerstoneTools from "cornerstone-tools";
@@ -37,10 +36,10 @@ cornerstoneWADOImageLoader.webWorkerManager.initialize({
 
 cornerstoneTools.init({ globalToolSyncEnabled: true, showSVGCursors: true });
 
-// 🎨 CONFIGURACIÓN VISUAL MEJORADA PARA TEXTOS (Color Amarillo)
+// 🎨 CONFIGURACIÓN VISUAL MEJORADA PARA TEXTOS
 cornerstoneTools.textStyle.setFont('16px Arial, Helvetica, sans-serif');
-cornerstoneTools.toolColors.setToolColor('#ffcc00'); // Amarillo para reposo
-cornerstoneTools.toolColors.setActiveColor('#00ff00'); // Verde neón al dibujar
+cornerstoneTools.toolColors.setToolColor('#ffcc00'); 
+cornerstoneTools.toolColors.setActiveColor('#00ff00'); 
 cornerstoneTools.toolStyle.setToolWidth(2);
 
 const API_BASE = window.location.origin;
@@ -90,8 +89,8 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const [indiceActual, setIndiceActual] = useState(0);
   const [loading, setLoading] = useState(true);
   
-  // 📂 NUEVO ESTADO PARA EL HISTORIAL (eFilm)
   const [mostrarComparacion, setMostrarComparacion] = useState(null);
+  const [mostrarPanelDictado, setMostrarPanelDictado] = useState(false);
 
   const [isCinePlaying, setIsCinePlaying] = useState(false);
   const [cineSpeed, setCineSpeed] = useState(15); 
@@ -116,6 +115,19 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
 
   const imagenesActuales = series[serieActiva]?.urls || [];
 
+  // REDIMENSIONAMIENTO AUTOMÁTICO
+  useEffect(() => {
+    const el = dicomElementRef.current;
+    if (el) {
+      setTimeout(() => {
+        try { 
+          cornerstone.resize(el, true); 
+          cornerstone.reset(el); 
+        } catch (e) {}
+      }, 50); 
+    }
+  }, [mostrarPanelDictado]);
+
   useEffect(() => {
     if (!isGuest && cleanLocalToken) {
       cornerstoneWADOImageLoader.configure({
@@ -125,7 +137,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       });
     }
 
-const fetchImagenes = async () => {
+    const fetchImagenes = async () => {
       if (!currentId) {
         setLoading(false);
         return;
@@ -133,10 +145,7 @@ const fetchImagenes = async () => {
 
       try {
         let urlFetch = `${API_BASE}/api/estudios/${currentId}/imagenes`;
-        
-        // 🔥 CORRECCIÓN: Leemos el token directamente de localStorage para asegurar que exista
         const tokenSeguro = localStorage.getItem("token") || activeToken; 
-        
         let headersFetch = { Authorization: `Bearer ${tokenSeguro}` };
 
         if (isGuest) {
@@ -146,7 +155,6 @@ const fetchImagenes = async () => {
 
         const response = await fetch(urlFetch, { headers: headersFetch });
         
-        // ... (El resto de tu código queda exactamente igual hacia abajo)
         if (!response.ok) throw new Error("Error en la autenticación o servidor.");
         
         const data = await response.json();
@@ -158,8 +166,6 @@ const fetchImagenes = async () => {
             if (isGuest) {
               return `wadouri:${API_BASE}/api/secure-links/stream/${imgId}?token=${activeToken}`;
             } else {
-              // 🔥 CORRECCIÓN 2: Asegúrate de que el backend también reciba el token al pedir el binario
-              // (Si FastAPI requiere auth para el stream de la imagen, debes pasarlo por header o query params)
               return `wadouri:${API_BASE}/api/dicom/stream/${imgId}?token=${tokenSeguro}`;
             }
           };
@@ -178,7 +184,7 @@ const fetchImagenes = async () => {
           setSeries(seriesProcesadas);
         }
       } catch (error) {
-        console.error("Error cargando imágenes del estudio:", error);
+        console.error("Error cargando imágenes:", error);
       } finally {
         setLoading(false);
       }
@@ -192,7 +198,7 @@ const fetchImagenes = async () => {
       const element = dicomElementRef.current;
       if (element) {
         try { cornerstone.resize(element, true); } 
-        catch (e) { console.warn("Resize warning:", e); }
+        catch (e) { }
       }
     };
     window.addEventListener("resize", handleResize);
@@ -248,7 +254,7 @@ const fetchImagenes = async () => {
           serie: image.data.string('x0008103e') || 'Sin Descripción de Serie',     
         });
       }
-    }).catch(err => console.error("Error renderizando DICOM:", err));
+    }).catch(err => {});
   }, [indiceActual, imagenesActuales, mostrarComparacion]);
 
   useEffect(() => {
@@ -363,22 +369,19 @@ const fetchImagenes = async () => {
     }
   };
 
-// 📂 LÓGICA INCORPORADA PARA BUSCAR EL HISTORIAL DIRECTAMENTE
+  // 📂 LÓGICA DE HISTORIAL CORREGIDA (NO APLASTA LAS SERIES)
   const abrirHistorialComparativo = async () => {
     try {
-      console.log("MI_PACS → Solicitando estudio previo...");
       const res = await fetch(`${API_BASE}/api/estudios/${currentId}/previo`, {
         headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
       });
-      const data = await res.json(); // ¡Aquí vienen los 8 estudios!
+      const data = await res.json(); 
 
       if (!data || data.length === 0) {
         alert("Este paciente no tiene estudios previos para comparar.");
         return;
       }
 
-      // 🔥 IMPORTANTE: Ahora le pasaremos el arreglo COMPLETO de estudios al estado
-      // pero cargaremos las imágenes del primero para que no arranque en negro.
       const idEstudioPrevioInicial = data[0].id;
       
       const resPrevio = await fetch(`${API_BASE}/api/estudios/${idEstudioPrevioInicial}/imagenes`, {
@@ -386,55 +389,49 @@ const fetchImagenes = async () => {
       });
       const imgsPrevio = await resPrevio.json(); 
 
-      if (!imgsPrevio || imgsPrevio.length === 0 || !imgsPrevio[0].imagenes) {
+      if (!imgsPrevio || imgsPrevio.length === 0) {
         alert("El estudio previo no tiene imágenes legibles.");
         return;
       }
       
-      const listaImagenesPrevio = imgsPrevio[0].imagenes;
       const tokenSeguro = localStorage.getItem("token") || activeToken;
 
-      const urlsPrevioRaw = listaImagenesPrevio.map(img => {
-        if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
-        return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
+      const seriesPreviasFormateadas = imgsPrevio.map(serie => {
+        const urlsNuevas = serie.imagenes.map(img => {
+          if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
+          return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
+        });
+        return { nombre: serie.serie || "Serie Previa", urls: urlsNuevas };
       });
 
-      const urlsActualesRaw = imagenesActuales.map(u => u.includes("wadouri:") ? u : `wadouri:${u}`);
+      const seriesActualesFormateadas = series.map(s => ({
+          nombre: s.nombre,
+          urls: s.urls.map(u => u.includes("wadouri:") ? u : `wadouri:${u}`)
+      }));
 
-      if (urlsActualesRaw.length > 0 && urlsPrevioRaw.length > 0) {
-        console.log("MI_PACS → Partiendo pantalla en dos...");
-        
-        const serieActualFormateada = [{ nombre: "Estudio Actual", urls: urlsActualesRaw }];
-        const seriePreviaFormateada = [{ nombre: "Estudio Previo", urls: urlsPrevioRaw }];
-
-        // 🚀 NUEVO: Enviamos `listaHistorial` con los 8 estudios y un flag para saber cuál es el actual
+      if (seriesActualesFormateadas.length > 0 && seriesPreviasFormateadas.length > 0) {
         setMostrarComparacion({ 
-            actual: serieActualFormateada, 
-            previo: seriePreviaFormateada,
+            actual: seriesActualesFormateadas, 
+            previo: seriesPreviasFormateadas,
             listaHistorial: data,
             estudioSeleccionadoId: idEstudioPrevioInicial
         });
       }
 
     } catch (err) {
-      console.error("Error crítico cargando historial:", err);
       alert("Ocurrió un error al intentar cargar el historial.");
     }
   };
 
-  // =======================================================================
-  // 🎭 RENDERIZADO CONDICIONAL: SI HAY COMPARACIÓN, MUESTRA EL SPLIT SCREEN
-  // =======================================================================
 if (mostrarComparacion) {
     return (
       <div style={{ width: "100%", height: "100vh", backgroundColor: "#000" }}>
         <CompareViewer
           seriesA={mostrarComparacion.actual}
           seriesB={mostrarComparacion.previo}
-          listaHistorial={mostrarComparacion.listaHistorial} // 👈 ¡NUEVO!
-          estudioSeleccionadoId={mostrarComparacion.estudioSeleccionadoId} // 👈 ¡NUEVO!
+          listaHistorial={mostrarComparacion.listaHistorial} 
+          estudioSeleccionadoId={mostrarComparacion.estudioSeleccionadoId} 
           onVolver={() => setMostrarComparacion(null)}
-          // IMPORTANTE: Le pasamos el token y el API_BASE para que CompareViewer pueda buscar otras fechas
           activeToken={activeToken} 
           API_BASE={API_BASE}
           isGuest={isGuest}
@@ -443,9 +440,6 @@ if (mostrarComparacion) {
     );
   }
 
-  // =======================================================================
-  // RENDERIZADO NORMAL DEL VISOR (Una sola pantalla)
-  // =======================================================================
   return (
     <div style={styles.visorContainer}>
       
@@ -497,9 +491,17 @@ if (mostrarComparacion) {
               <button style={styles.btnTool} onClick={toggleFlipH}>↔️ Flip H</button>
               <button style={styles.btnTool} onClick={toggleFlipV}>↕️ Flip V</button>
               
-              {/* 🔗 BOTÓN HISTORIAL DIRECTAMENTE CONECTADO */}
               <button style={styles.btnEfilm} onClick={abrirHistorialComparativo} title="Comparar con historial">
                 📂 Historial
+              </button>
+
+              <div style={styles.divisor} />
+              <button 
+                style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado} 
+                onClick={() => setMostrarPanelDictado(!mostrarPanelDictado)}
+                title="Abrir panel de grabación en la misma ventana"
+              >
+                🎙️ {mostrarPanelDictado ? "Cerrar Dictado" : "Dictar"}
               </button>
             </>
           )}
@@ -619,6 +621,16 @@ if (mostrarComparacion) {
           )}
         </div>
       </div>
+      
+      {/* 🚀 DOCK INFERIOR PARA EL DICTADO */}
+      {mostrarPanelDictado && (
+        <div style={styles.panelDictado}>
+          <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+             {/* Inyectamos el currentId que ya tiene el visor */}
+             <ModalDictadoHardware isWindow={false} estudioIdProps={currentId} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -636,6 +648,11 @@ const styles = {
   
   btnLimpiar: { backgroundColor: "#7f1d1d", color: "#fecaca", border: "1px solid #991b1b", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
   btnEfilm: { backgroundColor: "#b45309", color: "#fef3c7", border: "1px solid #92400e", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
+
+  btnDictado: { backgroundColor: "#4f46e5", color: "#e0e7ff", border: "1px solid #3730a3", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
+  btnDictadoActivo: { backgroundColor: "#6366f1", color: "#fff", border: "1px solid #4338ca", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(99, 102, 241, 0.6)", flexShrink: 0, marginLeft: "5px" },
+  
+  panelDictado: { height: "220px", backgroundColor: "#07080a", borderTop: "2px solid #38bdf8", flexShrink: 0, display: "flex", flexDirection: "column", padding: "5px", overflowY: "auto", transition: "height 0.3s ease" },
 
   btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btn3DActivo: { backgroundColor: "#38bdf8", color: "#000", border: "1px solid #0284c7", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(56, 189, 248, 0.5)", flexShrink: 0 },

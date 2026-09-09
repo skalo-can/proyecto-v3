@@ -73,6 +73,14 @@ export default function CompareViewer({
   const urlsA = seriesA?.[serieLeft]?.urls || [];
   const urlsB = seriesDinamicasB?.[serieRight]?.urls || [];
 
+  // 🚀 NUEVO: Función para formatear fechas DICOM
+  const formatDicomDate = (dateStr) => {
+    if (!dateStr) return 'Fecha Desconocida';
+    const cleanDate = String(dateStr).trim();
+    if (cleanDate.length === 8) return `${cleanDate.substring(0,4)}-${cleanDate.substring(4,6)}-${cleanDate.substring(6,8)}`;
+    return cleanDate;
+  };
+
   useEffect(() => {
       const estudio = listaHistorial.find(e => e.id === idPrevioActivo);
       if (estudio) setFechaEstudioPrevio(estudio.fecha);
@@ -94,7 +102,7 @@ export default function CompareViewer({
     };
   }, []);
 
-  // 🚀 LADO IZQUIERDO: CARGAR IMAGEN Y EXTRAER METADATOS
+  // 🚀 LADO IZQUIERDO: CARGAR IMAGEN Y EXTRAER METADATOS COMPLETOS
   useEffect(() => {
     if (urlsA.length === 0 || !dicomLeftRef.current) return;
     let url = urlsA[indexLeft];
@@ -103,17 +111,20 @@ export default function CompareViewer({
     
     cornerstone.loadAndCacheImage(url).then(img => {
       cornerstone.displayImage(dicomLeftRef.current, img);
-      // Extraemos la información si es la primera imagen de la serie
-      if (img.data && indexLeft === 0) {
+      if (img.data) {
         setTagsLeft({
-          paciente: img.data.string('x00100010') || 'N/A',
-          documento: img.data.string('x00100020') || 'N/A'
+          paciente: img.data.string('x00100010') || 'Sin Nombre',
+          documento: img.data.string('x00100020') || 'Sin ID',
+          modalidad: img.data.string('x00080060') || 'N/A',
+          fecha: img.data.string('x00080020') || '',
+          estudio: img.data.string('x00081030') || 'Sin Descripción',
+          serieDesc: img.data.string('x0008103E') || 'N/A'
         });
       }
     }).catch(e=>{});
-  }, [indexLeft, urlsA]);
+  }, [indexLeft, urlsA, serieLeft]);
 
-  // 🚀 LADO DERECHO: CARGAR IMAGEN Y EXTRAER METADATOS
+  // 🚀 LADO DERECHO: CARGAR IMAGEN Y EXTRAER METADATOS COMPLETOS
   useEffect(() => {
     if (urlsB.length === 0 || !dicomRightRef.current) return;
     let url = urlsB[indexRight];
@@ -122,14 +133,18 @@ export default function CompareViewer({
     
     cornerstone.loadAndCacheImage(url).then(img => {
       cornerstone.displayImage(dicomRightRef.current, img);
-      if (img.data && indexRight === 0) {
+      if (img.data) {
         setTagsRight({
-          paciente: img.data.string('x00100010') || 'N/A',
-          documento: img.data.string('x00100020') || 'N/A'
+          paciente: img.data.string('x00100010') || 'Sin Nombre',
+          documento: img.data.string('x00100020') || 'Sin ID',
+          modalidad: img.data.string('x00080060') || 'N/A',
+          fecha: img.data.string('x00080020') || '',
+          estudio: img.data.string('x00081030') || 'Sin Descripción',
+          serieDesc: img.data.string('x0008103E') || 'N/A'
         });
       }
     }).catch(e=>{});
-  }, [indexRight, urlsB]);
+  }, [indexRight, urlsB, serieRight]);
 
   const moverIzquierda = (delta) => {
     const maxL = Math.max(0, urlsA.length - 1);
@@ -226,18 +241,22 @@ export default function CompareViewer({
             return;
         }
         
-        const listaImagenesPrevio = imgsPrevio[0].imagenes;
         const tokenSeguro = localStorage.getItem("token") || activeToken;
 
-        const urlsNuevas = listaImagenesPrevio.map(img => {
+        // 🚀 SOLUCIÓN: Separar todas las series del estudio previo
+        const nuevasSeries = imgsPrevio.map(serie => {
+          const urlsNuevas = serie.imagenes.map(img => {
             if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
             return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
+          });
+          return { nombre: serie.serie || "Serie Previa", urls: urlsNuevas };
         });
 
-        setSeriesDinamicasB([{ nombre: "Estudio Previo", urls: urlsNuevas }]);
+        setSeriesDinamicasB(nuevasSeries);
         setIdPrevioActivo(id);
         setFechaEstudioPrevio(fecha);
         setIndexRight(0); 
+        setSerieRight(0);
         
       } catch (err) {
           console.error(err);
@@ -263,8 +282,8 @@ export default function CompareViewer({
     dicomBox: { width: "100%", height: "55vh", position: "relative", backgroundColor: "#000", border: "1px solid #334155", borderRadius: "4px", overflow: "hidden" },
     overlayText: { position: "absolute", top: "10px", left: "10px", color: "#fbbf24", fontWeight: "bold", zIndex: 10, pointerEvents: "none", fontSize: "14px" },
     overlayFecha: { position: "absolute", top: "10px", right: "10px", color: "#10b981", backgroundColor: "rgba(0,0,0,0.6)", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", zIndex: 10, pointerEvents: "none", fontSize: "14px", border: "1px solid #10b981" },
-    // 🚀 ESTILO MEJORADO DEL PANEL DE INFO
-    overlayInfo: { position: "absolute", bottom: "10px", right: "10px", color: "#fff", backgroundColor: "rgba(15,23,42,0.9)", padding: "12px", borderRadius: "6px", zIndex: 10, pointerEvents: "none", fontSize: "12px", border: "1px solid #38bdf8", boxShadow: "0 0 10px rgba(0,0,0,0.5)", minWidth: "200px" },
+    // 🚀 Ajuste minWidth para que quepa toda la información nueva sin amontonarse
+    overlayInfo: { position: "absolute", bottom: "10px", right: "10px", color: "#fff", backgroundColor: "rgba(15,23,42,0.9)", padding: "12px", borderRadius: "6px", zIndex: 10, pointerEvents: "none", fontSize: "12px", border: "1px solid #38bdf8", boxShadow: "0 0 10px rgba(0,0,0,0.5)", minWidth: "260px" },
     panelHistorial: { width: "200px", backgroundColor: "#0f172a", borderLeft: "1px solid #334155", padding: "10px", display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto" },
     tarjetaFecha: { backgroundColor: "#1e293b", border: "1px solid #334155", padding: "8px", borderRadius: "4px", cursor: "pointer", transition: "0.2s" },
     tarjetaActiva: { backgroundColor: "#047857", border: "1px solid #10b981", padding: "8px", borderRadius: "4px", cursor: "pointer", boxShadow: "0 0 8px rgba(16, 185, 129, 0.4)" }
@@ -273,8 +292,6 @@ export default function CompareViewer({
   const renderToolbar = (lado) => {
     const isL = lado === 'L';
     return (
-      // 🚀 SOLUCIÓN AL CORTE DE BOTONES: flexWrap: "wrap" permite que si la pantalla es angosta, 
-      // los botones caigan organizadamente a una segunda línea en lugar de esconderse.
       <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", paddingBottom: "5px" }}>
         <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>🌓 Contraste</button>
         <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 Zoom</button>
@@ -337,16 +354,22 @@ export default function CompareViewer({
           <div ref={dicomLeftRef} style={styles.dicomBox} onContextMenu={e => e.preventDefault()} onWheel={e => moverIzquierda(e.deltaY > 0 ? 1 : -1)} onMouseDown={e => handleMouse('L', 'down', e)} onMouseMove={e => handleMouse('L', 'move', e)} onMouseUp={e => handleMouse('L', 'up', e)} onMouseLeave={e => handleMouse('L', 'up', e)}>
             
             <div style={styles.overlayText}>Corte {indexLeft + 1} / {urlsA?.length || 0}</div>
-            <div style={{...styles.overlayFecha, color: "#38bdf8", borderColor: "#38bdf8"}}>ESTUDIO ACTUAL (HOY)</div>
             
-            {/* 🚀 PANEL DE INFO CLÍNICA MEJORADO (IZQUIERDA) */}
+            <div style={{...styles.overlayFecha, color: "#38bdf8", borderColor: "#38bdf8"}}>
+              ACTUAL: {tagsLeft?.fecha ? formatDicomDate(tagsLeft.fecha) : "Cargando..."}
+            </div>
+            
+            {/* 🚀 PANEL DE INFO CLÍNICA COMPLETADO (IZQUIERDA) */}
             {infoLeft && (
               <div style={styles.overlayInfo}>
                 <div style={{ color: "#38bdf8", borderBottom: "1px solid #38bdf8", paddingBottom: "4px", marginBottom: "6px", fontWeight: "bold" }}>DATOS NATIVOS</div>
                 <strong>Paciente:</strong> {tagsLeft?.paciente || "Cargando..."}<br/>
-                <strong>Documento:</strong> {tagsLeft?.documento || "Cargando..."}<br/>
+                <strong>ID Original:</strong> {tagsLeft?.documento || "Cargando..."}<br/>
+                <strong>Modalidad:</strong> {tagsLeft?.modalidad || "Cargando..."}<br/>
+                <strong>Fecha Estudio:</strong> {tagsLeft?.fecha ? formatDicomDate(tagsLeft.fecha) : "Cargando..."}<br/>
+                <strong>Estudio:</strong> {tagsLeft?.estudio || "Cargando..."}<br/>
                 <div style={{ marginTop: "6px", color: "#94a3b8" }}>
-                  Serie: {seriesA?.[serieLeft]?.nombre || 'N/A'}<br/>
+                  Serie: {tagsLeft?.serieDesc || seriesA?.[serieLeft]?.nombre || 'N/A'}<br/>
                   Total Imágenes: {urlsA?.length || 0}
                 </div>
               </div>
@@ -373,16 +396,19 @@ export default function CompareViewer({
           <div ref={dicomRightRef} style={styles.dicomBox} onContextMenu={e => e.preventDefault()} onWheel={e => moverDerecha(e.deltaY > 0 ? 1 : -1)} onMouseDown={e => handleMouse('R', 'down', e)} onMouseMove={e => handleMouse('R', 'move', e)} onMouseUp={e => handleMouse('R', 'up', e)} onMouseLeave={e => handleMouse('R', 'up', e)}>
             
             <div style={styles.overlayText}>Corte {indexRight + 1} / {urlsB?.length || 0}</div>
-            <div style={styles.overlayFecha}>{fechaEstudioPrevio ? `PREVIO: ${fechaEstudioPrevio}` : "PREVIO"}</div>
+            <div style={styles.overlayFecha}>{fechaEstudioPrevio ? `PREVIO: ${fechaEstudioPrevio}` : (tagsRight?.fecha ? `PREVIO: ${formatDicomDate(tagsRight.fecha)}` : "PREVIO")}</div>
 
-            {/* 🚀 PANEL DE INFO CLÍNICA MEJORADO (DERECHA) */}
+            {/* 🚀 PANEL DE INFO CLÍNICA COMPLETADO (DERECHA) */}
             {infoRight && (
               <div style={styles.overlayInfo}>
                 <div style={{ color: "#10b981", borderBottom: "1px solid #10b981", paddingBottom: "4px", marginBottom: "6px", fontWeight: "bold" }}>DATOS NATIVOS</div>
                 <strong>Paciente:</strong> {tagsRight?.paciente || "Cargando..."}<br/>
-                <strong>Documento:</strong> {tagsRight?.documento || "Cargando..."}<br/>
+                <strong>ID Original:</strong> {tagsRight?.documento || "Cargando..."}<br/>
+                <strong>Modalidad:</strong> {tagsRight?.modalidad || "Cargando..."}<br/>
+                <strong>Fecha Estudio:</strong> {tagsRight?.fecha ? formatDicomDate(tagsRight.fecha) : "Cargando..."}<br/>
+                <strong>Estudio:</strong> {tagsRight?.estudio || "Cargando..."}<br/>
                 <div style={{ marginTop: "6px", color: "#94a3b8" }}>
-                  Serie: {seriesDinamicasB?.[serieRight]?.nombre || 'N/A'}<br/>
+                  Serie: {tagsRight?.serieDesc || seriesDinamicasB?.[serieRight]?.nombre || 'N/A'}<br/>
                   Total Imágenes: {urlsB?.length || 0}
                 </div>
               </div>
