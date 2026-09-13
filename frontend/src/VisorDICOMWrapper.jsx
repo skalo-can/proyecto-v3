@@ -5,6 +5,10 @@
  * ✔ Modificado para soportar ROI, Negativo, Flip H/V, Limpiar
  * ✔ Conectado DIRECTAMENTE al CompareViewer (Historial) sin aplastar series
  * ✔ Panel de Dictado inferior acoplado sin obstrucción.
+ * ✔ NUEVO: Layout Grid dinámico (hasta 8 imágenes simultáneas).
+ * ✔ NUEVO: Botón "Siguiente Paciente" para dictado en cadena.
+ * ✔ CORRECCIÓN: Autocentrado y ajuste de escala anti-magnificación.
+ * ✔ EXPANSIÓN: Auto-distribución inteligente de series al dividir pantalla.
  */
 
 import React, { useEffect, useState, useRef } from "react";
@@ -12,7 +16,6 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 
 import CompareViewer from "./components/DicomViewer/CompareViewer";
-// Asegúrate de que esta ruta apunte a tu componente ModalDictadoHardware
 import ModalDictadoHardware from "./pages/ModalDictadoHardware"; 
 
 import cornerstone from "cornerstone-core";
@@ -35,8 +38,6 @@ cornerstoneWADOImageLoader.webWorkerManager.initialize({
 });
 
 cornerstoneTools.init({ globalToolSyncEnabled: true, showSVGCursors: true });
-
-// 🎨 CONFIGURACIÓN VISUAL MEJORADA PARA TEXTOS
 cornerstoneTools.textStyle.setFont('16px Arial, Helvetica, sans-serif');
 cornerstoneTools.toolColors.setToolColor('#ffcc00'); 
 cornerstoneTools.toolColors.setActiveColor('#00ff00'); 
@@ -51,27 +52,23 @@ const SerieThumbnail = ({ url }) => {
     if (!elementRef.current || !url) return;
     const element = elementRef.current;
     
-    try { cornerstone.getEnabledElement(element); } 
-    catch (e) { cornerstone.enable(element); }
+    const tryLoad = () => {
+      try { cornerstone.getEnabledElement(element); } 
+      catch (e) { cornerstone.enable(element); }
 
-    cornerstone.loadAndCacheImage(url).then((image) => {
-      cornerstone.displayImage(element, image);
-    }).catch(e => console.warn("Error cargando miniatura:", e));
+      cornerstone.loadAndCacheImage(url).then((image) => {
+        cornerstone.displayImage(element, image);
+      }).catch(e => console.warn("Error miniatura:", e));
+    };
+    
+    setTimeout(tryLoad, 50);
 
-    return () => {
-      cornerstone.disable(element);
+    return () => { 
+        if(element) { try { cornerstone.disable(element); } catch(e) {} }
     };
   }, [url]);
 
-  return (
-    <div
-      ref={elementRef}
-      style={{
-        width: "100%", height: "60px", backgroundColor: "#000",
-        borderRadius: "4px", marginBottom: "4px", pointerEvents: "none" 
-      }}
-    />
-  );
+  return <div ref={elementRef} style={{ width: "100%", height: "60px", backgroundColor: "#000", borderRadius: "4px", marginBottom: "4px", pointerEvents: "none" }} />;
 };
 
 export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPaciente }) {
@@ -85,23 +82,27 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const { user } = useAuth();
   
   const [series, setSeries] = useState([]);
-  const [serieActiva, setSerieActiva] = useState(0);
-  const [indiceActual, setIndiceActual] = useState(0);
   const [loading, setLoading] = useState(true);
-  
   const [mostrarComparacion, setMostrarComparacion] = useState(null);
   const [mostrarPanelDictado, setMostrarPanelDictado] = useState(false);
 
+  // 🚀 ESTADOS MULTI-VIEWPORT (HASTA 8 PANTALLAS)
+  const MAX_VP = 8;
+  const layoutsDisponibles = ["1x1", "1x2", "2x2", "2x3", "2x4"];
+  const [layout, setLayout] = useState("1x1"); 
+  const [viewportActivo, setViewportActivo] = useState(0); 
+  
+  const [vpSeries, setVpSeries] = useState(Array(MAX_VP).fill(0));
+  const [vpIndices, setVpIndices] = useState(Array(MAX_VP).fill(0));
+  const [vpTags, setVpTags] = useState(Array(MAX_VP).fill(null));
+
+  const dicomRefs = useRef(Array(MAX_VP).fill(null).map(() => React.createRef()));
+  const prevSeriesRefs = useRef(Array(MAX_VP).fill(-1)); // Control anti-magnificación
+
   const [isCinePlaying, setIsCinePlaying] = useState(false);
   const [cineSpeed, setCineSpeed] = useState(15); 
-  
   const [herramientaActiva, setHerramientaActiva] = useState("Wwwc"); 
   const [mostrarMetadatos, setMostrarMetadatos] = useState(false);
-  const [dicomTags, setDicomTags] = useState(null);
-
-  const dicomElementRef = useRef(null);
-  const isDragging3D = useRef(false);
-  const lastMouseX = useRef(0);
 
   const tokenUrl = searchParams.get("token") || tokenPaciente;
   const isGuest = esPortalPaciente || !!tokenUrl;
@@ -113,183 +114,203 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const userRol = String(user?.rol || "").toLowerCase().trim();
   const isRadiologo = !isGuest && (userRol === "radiologo" || userRol.startsWith("medico") || userRol === "superadmin");
 
-  const imagenesActuales = series[serieActiva]?.urls || [];
+  // DETERMINAR NÚMERO DE VIEWPORTS VISIBLES
+  const getNumViewports = () => {
+    if(layout === "1x1") return 1; if(layout === "1x2") return 2;
+    if(layout === "2x2") return 4; if(layout === "2x3") return 6;
+    if(layout === "2x4") return 8; return 1;
+  };
+  const numViewports = getNumViewports();
 
-  // REDIMENSIONAMIENTO AUTOMÁTICO
+  // 🚀 AUTO-DISTRIBUCIÓN INTELIGENTE DE SERIES
   useEffect(() => {
-    const el = dicomElementRef.current;
-    if (el) {
-      setTimeout(() => {
-        try { 
-          cornerstone.resize(el, true); 
-          cornerstone.reset(el); 
-        } catch (e) {}
-      }, 50); 
+    if (series.length > 0) {
+      setVpSeries(prev => {
+        const next = [...prev];
+        const serieBase = next[0] || 0; // Toma la serie que el médico está viendo en la principal
+        for (let i = 1; i < numViewports; i++) {
+           // Distribuye las series secuencialmente a partir de la actual
+           next[i] = (serieBase + i) % series.length;
+        }
+        return next;
+      });
+      
+      setVpIndices(prev => {
+        const next = [...prev];
+        for (let i = 1; i < numViewports; i++) {
+           next[i] = 0; // Asegura que las imágenes nuevas empiecen desde el corte 1
+        }
+        return next;
+      });
     }
-  }, [mostrarPanelDictado]);
+  }, [layout, series.length]);
+
+  const reajustarLienzos = () => {
+    setTimeout(() => {
+      for(let i=0; i < numViewports; i++){
+        const el = dicomRefs.current[i].current;
+        if (el) { try { cornerstone.resize(el, true); cornerstone.reset(el); } catch (e) {} }
+      }
+    }, 100);
+  };
+
+  useEffect(() => { reajustarLienzos(); }, [mostrarPanelDictado, layout]);
 
   useEffect(() => {
     if (!isGuest && cleanLocalToken) {
       cornerstoneWADOImageLoader.configure({
-        beforeSend: function(xhr) {
-          xhr.setRequestHeader('Authorization', `Bearer ${cleanLocalToken}`);
-        }
+        beforeSend: function(xhr) { xhr.setRequestHeader('Authorization', `Bearer ${cleanLocalToken}`); }
       });
     }
 
     const fetchImagenes = async () => {
-      if (!currentId) {
-        setLoading(false);
-        return;
-      }
-
+      if (!currentId) { setLoading(false); return; }
       try {
         let urlFetch = `${API_BASE}/api/estudios/${currentId}/imagenes`;
         const tokenSeguro = localStorage.getItem("token") || activeToken; 
         let headersFetch = { Authorization: `Bearer ${tokenSeguro}` };
 
-        if (isGuest) {
-          urlFetch = `${API_BASE}/api/secure-links/imagenes/${activeToken}`;
-          headersFetch = {}; 
-        }
+        if (isGuest) { urlFetch = `${API_BASE}/api/secure-links/imagenes/${activeToken}`; headersFetch = {}; }
 
         const response = await fetch(urlFetch, { headers: headersFetch });
-        
         if (!response.ok) throw new Error("Error en la autenticación o servidor.");
-        
         const data = await response.json();
         
         if (data && data.length > 0) {
-          let seriesProcesadas = [];
-          
-          const armarUrlDicom = (imgId) => {
-            if (isGuest) {
-              return `wadouri:${API_BASE}/api/secure-links/stream/${imgId}?token=${activeToken}`;
-            } else {
-              return `wadouri:${API_BASE}/api/dicom/stream/${imgId}?token=${tokenSeguro}`;
-            }
-          };
-
-          if (data[0] && data[0].serie) { 
-            seriesProcesadas = data.map(s => ({
-              nombre: s.serie,
-              urls: s.imagenes.map(img => armarUrlDicom(img.id))
-            }));
-          } else { 
-            seriesProcesadas = [{
-              nombre: "SERIE ÚNICA",
-              urls: data.map(img => armarUrlDicom(img?.id || img))
-            }];
-          }
+          const armarUrlDicom = (imgId) => isGuest ? `wadouri:${API_BASE}/api/secure-links/stream/${imgId}?token=${activeToken}` : `wadouri:${API_BASE}/api/dicom/stream/${imgId}?token=${tokenSeguro}`;
+          let seriesProcesadas = data[0] && data[0].serie 
+            ? data.map(s => ({ nombre: s.serie, urls: s.imagenes.map(img => armarUrlDicom(img.id)) }))
+            : [{ nombre: "SERIE ÚNICA", urls: data.map(img => armarUrlDicom(img?.id || img)) }];
           setSeries(seriesProcesadas);
         }
-      } catch (error) {
-        console.error("Error cargando imágenes:", error);
-      } finally {
-        setLoading(false);
-      }
+      } catch (error) { console.error("Error cargando imágenes:", error); } 
+      finally { setLoading(false); }
     };
-        
     fetchImagenes();
   }, [currentId, activeToken, isGuest, cleanLocalToken]);
 
   useEffect(() => {
-    const handleResize = () => {
-      const element = dicomElementRef.current;
-      if (element) {
-        try { cornerstone.resize(element, true); } 
-        catch (e) { }
-      }
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    window.addEventListener("resize", reajustarLienzos);
+    return () => window.removeEventListener("resize", reajustarLienzos);
+  }, [layout]);
 
+  // INICIALIZACIÓN DE HERRAMIENTAS
   useEffect(() => {
-    if (!dicomElementRef.current || imagenesActuales.length === 0) return;
-    const element = dicomElementRef.current;
-    
-    try { cornerstone.getEnabledElement(element); } 
-    catch (e) { cornerstone.enable(element); }
+    for(let i=0; i < numViewports; i++) {
+      const el = dicomRefs.current[i].current;
+      if (!el) continue;
+      try { cornerstone.getEnabledElement(el); } catch (e) { cornerstone.enable(el); }
+      cornerstoneTools.addTool(cornerstoneTools.WwwcTool);
+      cornerstoneTools.addTool(cornerstoneTools.ZoomTool);
+      cornerstoneTools.addTool(cornerstoneTools.PanTool);
+      cornerstoneTools.addTool(cornerstoneTools.RotateTool);
 
-    const WwwcTool = cornerstoneTools.WwwcTool; 
-    const ZoomTool = cornerstoneTools.ZoomTool; 
-    const PanTool = cornerstoneTools.PanTool;   
-    const RotateTool = cornerstoneTools.RotateTool; 
-
-    cornerstoneTools.addTool(WwwcTool);
-    cornerstoneTools.addTool(ZoomTool);
-    cornerstoneTools.addTool(PanTool);
-    cornerstoneTools.addTool(RotateTool);
-
-    if (isRadiologo) {
-      const LengthTool = cornerstoneTools.LengthTool;
-      const AngleTool = cornerstoneTools.AngleTool;
-      const EllipticalRoiTool = cornerstoneTools.EllipticalRoiTool; 
-
-      cornerstoneTools.addTool(LengthTool);
-      cornerstoneTools.addTool(AngleTool);
-      cornerstoneTools.addTool(EllipticalRoiTool);
+      if (isRadiologo) {
+        cornerstoneTools.addTool(cornerstoneTools.LengthTool);
+        cornerstoneTools.addTool(cornerstoneTools.AngleTool);
+        cornerstoneTools.addTool(cornerstoneTools.EllipticalRoiTool);
+      }
+      cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 1 });
     }
+  }, [isRadiologo, layout]); 
 
-    cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 1 });
-
-    return () => cornerstone.disable(element);
-  }, [imagenesActuales.length, isRadiologo, serieActiva, mostrarComparacion]);
-
+  // RENDERIZADO PRINCIPAL DE TODOS LOS VIEWPORTS
   useEffect(() => {
-    if (!dicomElementRef.current || imagenesActuales.length === 0) return;
-    const element = dicomElementRef.current;
+    for(let i=0; i < numViewports; i++) {
+      const el = dicomRefs.current[i].current;
+      const imgs = series[vpSeries[i]]?.urls || [];
+      if (!el || imgs.length === 0) continue;
+      
+      try { cornerstone.getEnabledElement(el); } catch (e) { cornerstone.enable(el); }
 
-    cornerstone.loadAndCacheImage(imagenesActuales[indiceActual]).then((image) => {
-      cornerstone.displayImage(element, image);
+      cornerstone.loadAndCacheImage(imgs[vpIndices[i]]).then((image) => {
+        cornerstone.displayImage(el, image);
+        
+        // 🚀 CORRECCIÓN ANTI-MAGNIFICACIÓN: Solo resetea la escala si se cambió de Serie
+        if (prevSeriesRefs.current[i] !== vpSeries[i]) {
+            cornerstone.reset(el);
+            prevSeriesRefs.current[i] = vpSeries[i];
+        }
 
-      if (image.data && indiceActual === 0) { 
-        setDicomTags({
-          paciente: image.data.string('x00100010') || 'Sin Nombre en DICOM',
-          idPaciente: image.data.string('x00100020') || 'Sin ID en DICOM',
-          modalidad: image.data.string('x00080060') || 'N/A',
-          fecha: image.data.string('x00080020') || 'N/A',
-          estudio: image.data.string('x00081030') || 'Sin Descripción de Estudio', 
-          serie: image.data.string('x0008103e') || 'Sin Descripción de Serie',     
-        });
-      }
-    }).catch(err => {});
-  }, [indiceActual, imagenesActuales, mostrarComparacion]);
+        if (image.data && vpIndices[i] === 0) { 
+          setVpTags(prev => {
+            const next = [...prev];
+            next[i] = {
+              paciente: image.data.string('x00100010') || 'Sin Nombre en DICOM',
+              idPaciente: image.data.string('x00100020') || 'Sin ID',
+              modalidad: image.data.string('x00080060') || 'N/A',
+              fecha: image.data.string('x00080020') || 'N/A',
+              estudio: image.data.string('x00081030') || 'Sin Descripción', 
+              serie: image.data.string('x0008103e') || 'Sin Descripción'     
+            };
+            return next;
+          });
+        }
+      }).catch(err => console.warn(`Error en viewport ${i+1}`, err));
+    }
+  }, [vpIndices, vpSeries, series, layout]);
+
+  // FUNCIONES DE ESTADO DE VIEWPORT
+  const setIndiceActualVp = (vpIndex, newIndice) => {
+    setVpIndices(prev => { const next = [...prev]; next[vpIndex] = newIndice; return next; });
+  };
+
+  const setSerieActivaVp = (vpIndex, newSerie) => {
+    setIsCinePlaying(false);
+    setVpSeries(prev => { const next = [...prev]; next[vpIndex] = newSerie; return next; });
+    setIndiceActualVp(vpIndex, 0);
+  };
 
   useEffect(() => {
     let interval;
-    if (isCinePlaying && imagenesActuales.length > 1) {
+    if (isCinePlaying) {
       interval = setInterval(() => {
-        setIndiceActual(prev => (prev >= imagenesActuales.length - 1 ? 0 : prev + 1)); 
+        setVpIndices(prev => {
+            const next = [...prev];
+            const imgs = series[vpSeries[viewportActivo]]?.urls || [];
+            if(imgs.length > 1) {
+                next[viewportActivo] = next[viewportActivo] >= imgs.length - 1 ? 0 : next[viewportActivo] + 1;
+            }
+            return next;
+        });
       }, 1000 / cineSpeed);
     }
     return () => clearInterval(interval);
-  }, [isCinePlaying, cineSpeed, imagenesActuales.length]);
+  }, [isCinePlaying, cineSpeed, vpSeries, viewportActivo, series]);
 
-  const handleWheel = (e) => {
+  const handleWheel = (e, vp) => {
     setIsCinePlaying(false); 
-    if (e.deltaY > 0) {
-      setIndiceActual(prev => Math.min(prev + 1, imagenesActuales.length - 1));
-    } else {
-      setIndiceActual(prev => Math.max(prev - 1, 0));
-    }
+    setViewportActivo(vp);
+    setVpIndices(prev => {
+        const next = [...prev];
+        const imgs = series[vpSeries[vp]]?.urls || [];
+        if (e.deltaY > 0) next[vp] = Math.min(next[vp] + 1, Math.max(0, imgs.length - 1));
+        else next[vp] = Math.max(next[vp] - 1, 0);
+        return next;
+    });
   };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-        setIsCinePlaying(false); 
-      }
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) setIsCinePlaying(false); 
       if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-        setIndiceActual(prev => Math.min(prev + 1, imagenesActuales.length - 1));
+        setVpIndices(prev => {
+            const next = [...prev];
+            const imgs = series[vpSeries[viewportActivo]]?.urls || [];
+            next[viewportActivo] = Math.min(next[viewportActivo] + 1, Math.max(0, imgs.length - 1));
+            return next;
+        });
       } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-        setIndiceActual(prev => Math.max(prev - 1, 0));
+        setVpIndices(prev => {
+            const next = [...prev];
+            next[viewportActivo] = Math.max(next[viewportActivo] - 1, 0);
+            return next;
+        });
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [imagenesActuales.length]);
+  }, [vpSeries, viewportActivo, series]);
 
   const activarHerramienta = (nombreHerramienta) => {
     setHerramientaActiva(nombreHerramienta);
@@ -303,99 +324,62 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     }
   };
 
-  const handleMouseDown = (e) => {
-    if (herramientaActiva === "Spin3D" && e.button === 0) {
-      isDragging3D.current = true;
-      lastMouseX.current = e.clientX;
-    }
-  };
-
-  const handleMouseMove = (e) => {
-    if (isDragging3D.current && herramientaActiva === "Spin3D") {
-      const deltaX = e.clientX - lastMouseX.current;
-      const sensibilidad = 8; 
-      
-      if (Math.abs(deltaX) > sensibilidad) {
-        setIsCinePlaying(false);
-        setIndiceActual((prev) => {
-          let next = deltaX > 0 ? prev + 1 : prev - 1;
-          if (next >= imagenesActuales.length) next = 0; 
-          if (next < 0) next = imagenesActuales.length - 1;
-          return next;
-        });
-        lastMouseX.current = e.clientX;
+  const aplicarAccion = (accion) => {
+    for(let i=0; i<numViewports; i++){
+      const el = dicomRefs.current[i].current;
+      if(!el) continue;
+      if (accion === 'limpiar') {
+        cornerstoneTools.clearToolState(el, "Length");
+        cornerstoneTools.clearToolState(el, "Angle");
+        cornerstoneTools.clearToolState(el, "EllipticalRoi");
+        cornerstone.updateImage(el);
+      } else {
+        const vp = cornerstone.getViewport(el);
+        if (!vp) continue;
+        if (accion === 'negativo') vp.invert = !vp.invert;
+        if (accion === 'flipH') vp.hflip = !vp.hflip;
+        if (accion === 'flipV') vp.vflip = !vp.vflip;
+        cornerstone.setViewport(el, vp);
       }
     }
   };
 
-  const handleMouseUpOrLeave = () => {
-    isDragging3D.current = false;
+  const irASiguientePaciente = async () => {
+    if (!window.confirm("¿Desea avanzar al siguiente paciente pendiente? Asegúrese de haber guardado (Enter) el dictado actual.")) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/pacientes`, { headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` } });
+      const data = await res.json(); 
+      const list = Array.isArray(data) ? data : (data.items || []);
+      
+      const pendientes = list.filter(e => ["Tomado", "Importado", "Rechazado"].includes(e.estado_pacs));
+      const indexActual = pendientes.findIndex(e => String(e.estudio_interno_id) === String(currentId));
+      
+      if (indexActual !== -1 && indexActual < pendientes.length - 1) {
+        const next = pendientes[indexActual + 1];
+        window.location.href = `/imagenes-estudio/${next.estudio_interno_id}?id_real=${next.id}`;
+      } else {
+        alert("¡Excelente! No hay más estudios pendientes en la lista de trabajo.");
+      }
+    } catch (err) { alert("Error al buscar el siguiente paciente."); }
   };
 
-  const toggleNegativo = () => {
-    const el = dicomElementRef.current;
-    if (el) {
-      const vp = cornerstone.getViewport(el);
-      vp.invert = !vp.invert;
-      cornerstone.setViewport(el, vp);
-    }
+  const alternarLayout = () => {
+    const nextIndex = (layoutsDisponibles.indexOf(layout) + 1) % layoutsDisponibles.length;
+    setLayout(layoutsDisponibles[nextIndex]);
   };
 
-  const toggleFlipH = () => {
-    const el = dicomElementRef.current;
-    if (el) {
-      const vp = cornerstone.getViewport(el);
-      vp.hflip = !vp.hflip;
-      cornerstone.setViewport(el, vp);
-    }
-  };
-
-  const toggleFlipV = () => {
-    const el = dicomElementRef.current;
-    if (el) {
-      const vp = cornerstone.getViewport(el);
-      vp.vflip = !vp.vflip;
-      cornerstone.setViewport(el, vp);
-    }
-  };
-
-  const limpiarTrazos = () => {
-    const el = dicomElementRef.current;
-    if (el) {
-      cornerstoneTools.clearToolState(el, "Length");
-      cornerstoneTools.clearToolState(el, "Angle");
-      cornerstoneTools.clearToolState(el, "EllipticalRoi");
-      cornerstone.updateImage(el);
-    }
-  };
-
-  // 📂 LÓGICA DE HISTORIAL CORREGIDA (NO APLASTA LAS SERIES)
   const abrirHistorialComparativo = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/estudios/${currentId}/previo`, {
-        headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
-      });
+      const res = await fetch(`${API_BASE}/api/estudios/${currentId}/previo`, { headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` } });
       const data = await res.json(); 
-
-      if (!data || data.length === 0) {
-        alert("Este paciente no tiene estudios previos para comparar.");
-        return;
-      }
+      if (!data || data.length === 0) { alert("Este paciente no tiene estudios previos."); return; }
 
       const idEstudioPrevioInicial = data[0].id;
-      
-      const resPrevio = await fetch(`${API_BASE}/api/estudios/${idEstudioPrevioInicial}/imagenes`, {
-        headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
-      });
+      const resPrevio = await fetch(`${API_BASE}/api/estudios/${idEstudioPrevioInicial}/imagenes`, { headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` } });
       const imgsPrevio = await resPrevio.json(); 
-
-      if (!imgsPrevio || imgsPrevio.length === 0) {
-        alert("El estudio previo no tiene imágenes legibles.");
-        return;
-      }
+      if (!imgsPrevio || imgsPrevio.length === 0) { alert("El estudio previo no tiene imágenes."); return; }
       
       const tokenSeguro = localStorage.getItem("token") || activeToken;
-
       const seriesPreviasFormateadas = imgsPrevio.map(serie => {
         const urlsNuevas = serie.imagenes.map(img => {
           if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
@@ -405,52 +389,46 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       });
 
       const seriesActualesFormateadas = series.map(s => ({
-          nombre: s.nombre,
-          urls: s.urls.map(u => u.includes("wadouri:") ? u : `wadouri:${u}`)
+          nombre: s.nombre, urls: s.urls.map(u => u.includes("wadouri:") ? u : `wadouri:${u}`)
       }));
 
       if (seriesActualesFormateadas.length > 0 && seriesPreviasFormateadas.length > 0) {
         setMostrarComparacion({ 
-            actual: seriesActualesFormateadas, 
-            previo: seriesPreviasFormateadas,
-            listaHistorial: data,
-            estudioSeleccionadoId: idEstudioPrevioInicial
+            actual: seriesActualesFormateadas, previo: seriesPreviasFormateadas,
+            listaHistorial: data, estudioSeleccionadoId: idEstudioPrevioInicial
         });
       }
-
-    } catch (err) {
-      alert("Ocurrió un error al intentar cargar el historial.");
-    }
+    } catch (err) { alert("Error al intentar cargar el historial."); }
   };
 
-if (mostrarComparacion) {
+  if (mostrarComparacion) {
     return (
       <div style={{ width: "100%", height: "100vh", backgroundColor: "#000" }}>
         <CompareViewer
-          seriesA={mostrarComparacion.actual}
-          seriesB={mostrarComparacion.previo}
-          listaHistorial={mostrarComparacion.listaHistorial} 
-          estudioSeleccionadoId={mostrarComparacion.estudioSeleccionadoId} 
-          onVolver={() => setMostrarComparacion(null)}
-          activeToken={activeToken} 
-          API_BASE={API_BASE}
-          isGuest={isGuest}
+          seriesA={mostrarComparacion.actual} seriesB={mostrarComparacion.previo}
+          listaHistorial={mostrarComparacion.listaHistorial} estudioSeleccionadoId={mostrarComparacion.estudioSeleccionadoId} 
+          onVolver={() => setMostrarComparacion(null)} activeToken={activeToken} API_BASE={API_BASE} isGuest={isGuest}
         />
       </div>
     );
   }
+
+  // CONFIGURACIÓN CSS GRID DINÁMICA
+  const gridStyles = {
+    "1x1": { gridTemplateColumns: "1fr", gridTemplateRows: "1fr" },
+    "1x2": { gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr" },
+    "2x2": { gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr" },
+    "2x3": { gridTemplateColumns: "1fr 1fr 1fr", gridTemplateRows: "1fr 1fr" },
+    "2x4": { gridTemplateColumns: "1fr 1fr 1fr 1fr", gridTemplateRows: "1fr 1fr" },
+  };
 
   return (
     <div style={styles.visorContainer}>
       
       <div style={styles.toolbar}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
-          {!esPortalPaciente && (
-            <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar</button>
-          )} 
-          <span style={{ color: "#fbbf24", fontWeight: "bold", marginLeft: "10px", fontSize: "0.85rem" }}>
-            Serie Activa
-          </span>
+          {!esPortalPaciente && <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar</button>} 
+          <span style={{ color: "#fbbf24", fontWeight: "bold", marginLeft: "10px", fontSize: "0.85rem" }}>Serie Activa</span>
         </div>
 
         <div style={{ display: "flex", gap: "6px", alignItems: "center", overflowX: "auto", flex: 1, paddingLeft: "10px", whiteSpace: "nowrap", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
@@ -458,175 +436,121 @@ if (mostrarComparacion) {
           <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 Zoom</button>
           <button style={herramientaActiva === "Pan" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Pan")}>🖐️ Mover</button>
           <button style={herramientaActiva === "Rotate" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Rotate")}>🔄 Rotar</button>
-          
-          <button 
-            style={styles.btnTool} 
-            onClick={() => {
-              const element = dicomElementRef.current;
-              if (element) {
-                cornerstone.resize(element, true);
-                cornerstone.reset(element);
-              }
-            }}
-            title="Ajustar imagen a la pantalla"
-          >
-            🏠 Ajustar
-          </button>
+          <button style={styles.btnTool} onClick={reajustarLienzos} title="Ajustar imagen a la pantalla">🏠 Ajustar</button>
 
           {isRadiologo && (
             <>
               <div style={styles.divisor} />
               <button style={herramientaActiva === "Length" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Length")}>📏 Medir</button>
               <button style={herramientaActiva === "Angle" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Angle")}>📐 Ángulo</button>
+              <button style={herramientaActiva === "EllipticalRoi" ? styles.btnPremiumActivo : styles.btnPremium} onClick={() => activarHerramienta("EllipticalRoi")}>🎯 ROI</button>
               
-              <button style={herramientaActiva === "EllipticalRoi" ? styles.btnPremiumActivo : styles.btnPremium} onClick={() => activarHerramienta("EllipticalRoi")} title="Densidad y Área (ROI)">
-                🎯 ROI
-              </button>
-              <button style={styles.btnPremium} onClick={toggleNegativo} title="Invertir Colores">
-                🌗 Negativo
-              </button>
-              <button style={styles.btnLimpiar} onClick={limpiarTrazos} title="Borrar todas las mediciones de la imagen">
-                🧹 Limpiar
-              </button>
-              <button style={styles.btnTool} onClick={toggleFlipH}>↔️ Flip H</button>
-              <button style={styles.btnTool} onClick={toggleFlipV}>↕️ Flip V</button>
+              <button style={styles.btnPremium} onClick={() => aplicarAccion('negativo')}>🌗 Negativo</button>
+              <button style={styles.btnLimpiar} onClick={() => aplicarAccion('limpiar')}>🧹 Limpiar</button>
+              <button style={styles.btnTool} onClick={() => aplicarAccion('flipH')}>↔️ Flip H</button>
+              <button style={styles.btnTool} onClick={() => aplicarAccion('flipV')}>↕️ Flip V</button>
+              <button style={styles.btnEfilm} onClick={abrirHistorialComparativo}>📂 Historial</button>
               
-              <button style={styles.btnEfilm} onClick={abrirHistorialComparativo} title="Comparar con historial">
-                📂 Historial
+              <div style={styles.divisor} />
+              <button style={styles.btn3D} onClick={alternarLayout} title="Cambiar distribución de pantallas">
+                🔲 Cuadrícula: {layout}
+              </button>
+              
+              <button style={styles.btnInfo} onClick={irASiguientePaciente} title="Cargar el próximo paciente pendiente en la lista">
+                ⏭️ Siguiente
               </button>
 
-              <div style={styles.divisor} />
-              <button 
-                style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado} 
-                onClick={() => setMostrarPanelDictado(!mostrarPanelDictado)}
-                title="Abrir panel de grabación en la misma ventana"
-              >
+              <button style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado} onClick={() => setMostrarPanelDictado(!mostrarPanelDictado)}>
                 🎙️ {mostrarPanelDictado ? "Cerrar Dictado" : "Dictar"}
               </button>
             </>
           )}
 
-          {imagenesActuales.length > 1 && (
-            <>
-              <div style={styles.divisor} />
-              <button 
-                style={herramientaActiva === "Spin3D" ? styles.btn3DActivo : styles.btn3D} 
-                onClick={() => activarHerramienta("Spin3D")}
-                title="Girar en 3D"
-              >
-                🧊 Giro 3D
-              </button>
-
-              <button 
-                style={isCinePlaying ? styles.btnCineActivo : styles.btnCine}
-                onClick={() => setIsCinePlaying(!isCinePlaying)}
-              >
-                {isCinePlaying ? "⏸️ Pausa" : "▶️ Cine"}
-              </button>
-              
-              <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#94a3b8", fontSize: "12px", marginLeft: "5px", flexShrink: 0 }}>
-                <span style={{ minWidth: "40px" }}>{cineSpeed} FPS</span>
-                <input 
-                  type="range" min="1" max="60" value={cineSpeed} 
-                  onChange={(e) => setCineSpeed(Number(e.target.value))} 
-                  style={{ width: "60px", cursor: "pointer", accentColor: "#8b5cf6" }}
-                />
-              </div>
-            </>
-          )}
+          <div style={styles.divisor} />
+          <button style={isCinePlaying ? styles.btnCineActivo : styles.btnCine} onClick={() => setIsCinePlaying(!isCinePlaying)}>{isCinePlaying ? "⏸️ Pausa" : "▶️ Cine"}</button>
+          <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#94a3b8", fontSize: "12px", marginLeft: "5px", flexShrink: 0 }}>
+            <span style={{ minWidth: "40px" }}>{cineSpeed} FPS</span>
+            <input type="range" min="1" max="60" value={cineSpeed} onChange={(e) => setCineSpeed(Number(e.target.value))} style={{ width: "60px", cursor: "pointer", accentColor: "#8b5cf6" }} />
+          </div>
 
           <div style={styles.divisor} />
-          <button 
-            style={mostrarMetadatos ? styles.btnToolActivoSeguridad : styles.btnToolSeguridad} 
-            onClick={() => setMostrarMetadatos(!mostrarMetadatos)}
-          >
-            🛡️ Info
-          </button>
+          <button style={mostrarMetadatos ? styles.btnToolActivoSeguridad : styles.btnToolSeguridad} onClick={() => setMostrarMetadatos(!mostrarMetadatos)}>🛡️ Info</button>
         </div>
       </div>
 
       <div style={styles.mainArea}>
-        
         <div style={styles.sidebar}>
-          <p style={{ color: "#94a3b8", textAlign: "center", fontSize: "11px", margin: "10px 0", fontWeight: "bold" }}>
-            SERIES
-          </p>
+          <p style={{ color: "#94a3b8", textAlign: "center", fontSize: "11px", margin: "10px 0", fontWeight: "bold" }}>SERIES</p>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 8px", width: "100%", overflowY: "auto", maxHeight: "60vh" }}>
-            {series.map((s, idx) => (
-              <button 
-                key={idx}
-                onClick={() => { setSerieActiva(idx); setIndiceActual(0); setIsCinePlaying(false); }}
-                style={serieActiva === idx ? styles.serieActiva : styles.serieBtn}
-                title={`Serie ${idx + 1}`}
-              >
-                <SerieThumbnail url={s.urls[0]} />
-                <span style={{ fontSize: "12px", color: serieActiva === idx ? "#111827" : "#cbd5e1", fontWeight: "bold" }}>
-                  {s.urls.length} img
-                </span>
-              </button>
-            ))}
+            {series.map((s, idx) => {
+              const isActivo = vpSeries[viewportActivo] === idx;
+              return (
+                <button 
+                  key={idx}
+                  onClick={() => setSerieActivaVp(viewportActivo, idx)}
+                  style={isActivo ? styles.serieActiva : styles.serieBtn}
+                >
+                  <SerieThumbnail url={s.urls[0]} />
+                  <span style={{ fontSize: "12px", color: isActivo ? "#111827" : "#cbd5e1", fontWeight: "bold" }}>{s.urls.length} img</span>
+                </button>
+              );
+            })}
           </div>
-
-          {imagenesActuales.length > 1 && (
-            <div style={{ display: "flex", flexDirection: "column", flex: 1, alignItems: "center", marginTop: "15px" }}>
-              <input 
-                type="range" min="0" max={imagenesActuales.length - 1} value={indiceActual} 
-                onChange={(e) => {
-                  setIsCinePlaying(false);
-                  setIndiceActual(Number(e.target.value));
-                }}
-                style={styles.verticalSlider}
-              />
-              <p style={{ color: "#fbbf24", textAlign: "center", fontSize: "14px", fontWeight: "bold", marginTop: "15px" }}>
-                #{indiceActual + 1}
-              </p>
-            </div>
-          )}
         </div>
 
         <div style={styles.viewportContainer}>
           {loading ? (
             <h2 style={{ color: "#94a3b8" }}>Cargando Motor Médico...</h2>
-          ) : imagenesActuales.length === 0 ? (
-            <h2 style={{ color: "#ef4444" }}>No se encontraron archivos DICOM para este estudio.</h2>
+          ) : series.length === 0 ? (
+            <h2 style={{ color: "#ef4444" }}>No se encontraron archivos DICOM.</h2>
           ) : (
-            <div 
-              ref={dicomElementRef} 
-              style={styles.dicomElement}
-              onContextMenu={(e) => e.preventDefault()} 
-              onWheel={handleWheel} 
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUpOrLeave}
-              onMouseLeave={handleMouseUpOrLeave}
-            >
-              <div style={styles.overlayTopLeft}>
-                Corte {indiceActual + 1} / {imagenesActuales.length}
-              </div>
+            <div style={{ display: 'grid', width: '100%', height: '100%', gap: '4px', ...gridStyles[layout] }}>
+              
+              {/* RENDERIZADO DINÁMICO DE HASTA 8 VIEWPORTS */}
+              {Array.from({ length: numViewports }).map((_, i) => {
+                 const imgsVp = series[vpSeries[i]]?.urls || [];
+                 const tagsVp = vpTags[i];
+                 return (
+                   <div 
+                     key={i}
+                     style={{ position: 'relative', border: viewportActivo === i ? "2px solid #fbbf24" : "1px solid #1e293b", transition: "0.2s", backgroundColor: "#000", overflow: 'hidden' }}
+                     onClick={() => setViewportActivo(i)}
+                   >
+                     <div ref={dicomRefs.current[i]} style={styles.dicomElement} onContextMenu={(e) => e.preventDefault()} onWheel={(e) => handleWheel(e, i)} />
+                     
+                     {imgsVp.length > 0 && (
+                        <div style={styles.overlayTopLeft}>Corte {vpIndices[i] + 1} / {imgsVp.length}</div>
+                     )}
 
-              {mostrarMetadatos && dicomTags && (
-                <div style={styles.overlayMetadatos}>
-                  <h4 style={{ margin: "0 0 10px 0", color: "#fbbf24", borderBottom: "1px solid #fbbf24", paddingBottom: "5px" }}>
-                    DATOS NATIVOS DEL ARCHIVO
-                  </h4>
-                  <p style={styles.metaText}><strong>Paciente:</strong> {dicomTags.paciente}</p>
-                  <p style={styles.metaText}><strong>ID Original:</strong> {dicomTags.idPaciente}</p>
-                  <p style={styles.metaText}><strong>Modalidad:</strong> {dicomTags.modalidad}</p>
-                  <p style={styles.metaText}><strong>Fecha Estudio:</strong> {dicomTags.fecha}</p>
-                  <p style={styles.metaText}><strong>Estudio:</strong> {dicomTags.estudio}</p>
-                  <p style={styles.metaText}><strong>Serie (Corte):</strong> {dicomTags.serie}</p>
-                </div>
-              )}
+                     {mostrarMetadatos && tagsVp && (
+                       <div style={styles.overlayMetadatos}>
+                         <h4 style={{ margin: "0 0 10px 0", color: "#fbbf24", borderBottom: "1px solid #fbbf24", paddingBottom: "5px" }}>
+                           DATOS NATIVOS DEL ARCHIVO
+                         </h4>
+                         <p style={styles.metaText}><strong>Paciente:</strong> {tagsVp.paciente}</p>
+                         <p style={styles.metaText}><strong>ID Original:</strong> {tagsVp.idPaciente}</p>
+                         <p style={styles.metaText}><strong>Modalidad:</strong> {tagsVp.modalidad}</p>
+                         <p style={styles.metaText}><strong>Fecha Estudio:</strong> {tagsVp.fecha}</p>
+                         <p style={styles.metaText}><strong>Estudio:</strong> {tagsVp.estudio}</p>
+                         <p style={styles.metaText}><strong>Serie (Corte):</strong> {tagsVp.serie}</p>
+                       </div>
+                     )}
+
+                     {numViewports > 1 && imgsVp.length > 1 && (
+                        <input type="range" min="0" max={imgsVp.length - 1} value={vpIndices[i]} onChange={(e) => { setIsCinePlaying(false); setIndiceActualVp(i, Number(e.target.value)); }} style={styles.sliderBottom} />
+                     )}
+                   </div>
+                 );
+              })}
+
             </div>
           )}
         </div>
       </div>
       
-      {/* 🚀 DOCK INFERIOR PARA EL DICTADO */}
       {mostrarPanelDictado && (
         <div style={styles.panelDictado}>
           <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
-             {/* Inyectamos el currentId que ya tiene el visor */}
              <ModalDictadoHardware isWindow={false} estudioIdProps={currentId} />
           </div>
         </div>
@@ -639,37 +563,30 @@ const styles = {
   visorContainer: { display: "flex", flexDirection: "column", height: "100%", width: "100%", backgroundColor: "#000", overflow: "hidden", fontFamily: "system-ui, sans-serif" },
   toolbar: { height: "60px", backgroundColor: "#111418", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0 },
   btnCerrar: { backgroundColor: "#ef4444", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
-  
-  btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", transition: "all 0.2s", flexShrink: 0 },
+  btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
   btnToolActivo: { backgroundColor: "#3b82f6", color: "#fff", border: "1px solid #2563eb", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
-  
-  btnPremium: { backgroundColor: "#064e3b", color: "#d1fae5", border: "1px solid #047857", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0, transition: "0.2s" },
-  btnPremiumActivo: { backgroundColor: "#10b981", color: "#000", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(16, 185, 129, 0.5)", flexShrink: 0 },
-  
+  btnPremium: { backgroundColor: "#064e3b", color: "#d1fae5", border: "1px solid #047857", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
+  btnPremiumActivo: { backgroundColor: "#10b981", color: "#000", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btnLimpiar: { backgroundColor: "#7f1d1d", color: "#fecaca", border: "1px solid #991b1b", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
   btnEfilm: { backgroundColor: "#b45309", color: "#fef3c7", border: "1px solid #92400e", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
-
   btnDictado: { backgroundColor: "#4f46e5", color: "#e0e7ff", border: "1px solid #3730a3", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
-  btnDictadoActivo: { backgroundColor: "#6366f1", color: "#fff", border: "1px solid #4338ca", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(99, 102, 241, 0.6)", flexShrink: 0, marginLeft: "5px" },
-  
+  btnDictadoActivo: { backgroundColor: "#6366f1", color: "#fff", border: "1px solid #4338ca", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
+  btnInfo: { backgroundColor: "#10b981", color: "#fff", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
   panelDictado: { height: "220px", backgroundColor: "#07080a", borderTop: "2px solid #38bdf8", flexShrink: 0, display: "flex", flexDirection: "column", padding: "5px", overflowY: "auto", transition: "height 0.3s ease" },
-
   btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btn3DActivo: { backgroundColor: "#38bdf8", color: "#000", border: "1px solid #0284c7", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(56, 189, 248, 0.5)", flexShrink: 0 },
   btnCine: { backgroundColor: "#4c1d95", color: "#ede9fe", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnCineActivo: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #6d28d9", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(124, 58, 237, 0.5)", flexShrink: 0 },
+  btnCineActivo: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #6d28d9", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btnToolSeguridad: { backgroundColor: "#0f766e", color: "#ccfbf1", border: "1px solid #115e59", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnToolActivoSeguridad: { backgroundColor: "#14b8a6", color: "#000", border: "1px solid #0d9488", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(20, 184, 166, 0.5)", flexShrink: 0 },
-  
+  btnToolActivoSeguridad: { backgroundColor: "#14b8a6", color: "#000", border: "1px solid #0d9488", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   divisor: { width: "1px", backgroundColor: "#475569", margin: "0 5px", height: "24px", flexShrink: 0 },
   mainArea: { display: "flex", flex: 1, overflow: "hidden" },
-  sidebar: { width: "120px", backgroundColor: "#0f172a", borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", padding: "10px 0" },
+  sidebar: { width: "120px", backgroundColor: "#0f172a", borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", padding: "10px 0", zIndex: 30 },
   serieBtn: { display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#1e293b", border: "1px solid #334155", padding: "6px", borderRadius: "4px", cursor: "pointer", transition: "0.2s" },
   serieActiva: { display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#fbbf24", border: "2px solid #f59e0b", padding: "5px", borderRadius: "4px", cursor: "pointer", boxShadow: "0 0 8px rgba(251, 191, 36, 0.6)" },
-  verticalSlider: { WebkitAppearance: "slider-vertical", width: "100%", height: "100%", cursor: "ns-resize", accentColor: "#fbbf24", transform: "rotate(180deg)" },
-  viewportContainer: { flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" },
+  viewportContainer: { flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative", padding: "4px" },
   dicomElement: { width: "100%", height: "100%", position: "absolute", top: 0, left: 0 },
-  overlayTopLeft: { position: "absolute", top: "15px", left: "15px", color: "#fbbf24", fontSize: "14px", fontWeight: "bold", pointerEvents: "none", zIndex: 10 },
-  overlayMetadatos: { position: "absolute", bottom: "20px", left: "20px", backgroundColor: "rgba(15, 23, 42, 0.85)", color: "#fff", padding: "15px", borderRadius: "8px", border: "1px solid #334155", pointerEvents: "none", zIndex: 20, backdropFilter: "blur(4px)", minWidth: "250px" },
-  metaText: { margin: "4px 0", fontSize: "13px", color: "#e2e8f0" }
+  overlayTopLeft: { position: "absolute", top: "15px", left: "15px", color: "#fbbf24", fontSize: "14px", fontWeight: "bold", pointerEvents: "none", zIndex: 10, textShadow: "1px 1px 2px #000" },
+  overlayMetadatos: { position: "absolute", bottom: "35px", left: "15px", backgroundColor: "rgba(15, 23, 42, 0.85)", color: "#fff", padding: "10px", borderRadius: "8px", border: "1px solid #334155", pointerEvents: "none", zIndex: 20, maxWidth: "250px", fontSize: "12px" },
+  metaText: { margin: "2px 0", fontSize: "11px", color: "#e2e8f0" },
+  sliderBottom: { position: "absolute", bottom: "10px", left: "5%", width: "90%", cursor: "pointer", accentColor: "#fbbf24", zIndex: 15 }
 };
