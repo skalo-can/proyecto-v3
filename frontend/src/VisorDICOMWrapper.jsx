@@ -2,13 +2,12 @@
  * VisorDICOMWrapper.jsx — MI_PACS
  * ---------------------------------------------------------
  * Visor clínico de producción con herramientas premium inyectadas.
- * ✔ Modificado para soportar ROI, Negativo, Flip H/V, Limpiar
- * ✔ Conectado DIRECTAMENTE al CompareViewer (Historial) sin aplastar series
- * ✔ Panel de Dictado inferior acoplado sin obstrucción.
- * ✔ NUEVO: Layout Grid dinámico (hasta 8 imágenes simultáneas).
- * ✔ NUEVO: Botón "Siguiente Paciente" para dictado en cadena.
- * ✔ CORRECCIÓN: Autocentrado y ajuste de escala anti-magnificación.
- * ✔ EXPANSIÓN: Auto-distribución inteligente de series al dividir pantalla.
+ * ✔ Layout Grid dinámico (hasta 16 pantallas).
+ * ✔ Panel de Dictado inferior acoplado.
+ * ✔ Herramienta de Lupa (MagnifyTool) y Selector de Presets Clínicos.
+ * ✔ Barra de herramientas en dos líneas (Workflow y Tools).
+ * ✔ CORRECCIÓN: Distribución absoluta de series (1 al N) al abrir cuadrículas.
+ * ✔ CORRECCIÓN: El botón 1x1 "atrapa" la imagen activa seleccionada por el médico.
  */
 
 import React, { useEffect, useState, useRef } from "react";
@@ -86,9 +85,8 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const [mostrarComparacion, setMostrarComparacion] = useState(null);
   const [mostrarPanelDictado, setMostrarPanelDictado] = useState(false);
 
-  // 🚀 ESTADOS MULTI-VIEWPORT (HASTA 8 PANTALLAS)
-  const MAX_VP = 8;
-  const layoutsDisponibles = ["1x1", "1x2", "2x2", "2x3", "2x4"];
+  const MAX_VP = 16;
+  const layoutsDisponibles = ["1x1", "1x2", "2x2", "2x3", "2x4", "3x3", "3x4", "4x4"];
   const [layout, setLayout] = useState("1x1"); 
   const [viewportActivo, setViewportActivo] = useState(0); 
   
@@ -97,7 +95,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const [vpTags, setVpTags] = useState(Array(MAX_VP).fill(null));
 
   const dicomRefs = useRef(Array(MAX_VP).fill(null).map(() => React.createRef()));
-  const prevSeriesRefs = useRef(Array(MAX_VP).fill(-1)); // Control anti-magnificación
+  const prevSeriesRefs = useRef(Array(MAX_VP).fill(-1));
 
   const [isCinePlaying, setIsCinePlaying] = useState(false);
   const [cineSpeed, setCineSpeed] = useState(15); 
@@ -114,34 +112,41 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const userRol = String(user?.rol || "").toLowerCase().trim();
   const isRadiologo = !isGuest && (userRol === "radiologo" || userRol.startsWith("medico") || userRol === "superadmin");
 
-  // DETERMINAR NÚMERO DE VIEWPORTS VISIBLES
   const getNumViewports = () => {
     if(layout === "1x1") return 1; if(layout === "1x2") return 2;
     if(layout === "2x2") return 4; if(layout === "2x3") return 6;
-    if(layout === "2x4") return 8; return 1;
+    if(layout === "2x4") return 8; if(layout === "3x3") return 9;
+    if(layout === "3x4") return 12; if(layout === "4x4") return 16;
+    return 1;
   };
   const numViewports = getNumViewports();
 
-  // 🚀 AUTO-DISTRIBUCIÓN INTELIGENTE DE SERIES
+  // 🚀 DISTRIBUCIÓN ABSOLUTA Y ORDENADA DE SERIES (1 al N)
   useEffect(() => {
     if (series.length > 0) {
-      setVpSeries(prev => {
-        const next = [...prev];
-        const serieBase = next[0] || 0; // Toma la serie que el médico está viendo en la principal
-        for (let i = 1; i < numViewports; i++) {
-           // Distribuye las series secuencialmente a partir de la actual
-           next[i] = (serieBase + i) % series.length;
-        }
-        return next;
-      });
-      
-      setVpIndices(prev => {
-        const next = [...prev];
-        for (let i = 1; i < numViewports; i++) {
-           next[i] = 0; // Asegura que las imágenes nuevas empiecen desde el corte 1
-        }
-        return next;
-      });
+      // Solo redistribuimos automáticamente si el médico ABRE una cuadrícula múltiple.
+      // Si está en 1x1, no tocamos nada para no borrar la imagen que él capturó.
+      if (numViewports > 1) {
+        setVpSeries(prev => {
+          const next = [...prev];
+          for (let i = 0; i < numViewports; i++) {
+             if (i < series.length) {
+                 next[i] = i; // Mapea Viewport 0 -> Serie 0, Viewport 1 -> Serie 1, etc.
+             } else {
+                 next[i] = -1; // Si no hay más series, la celda queda "SIN SERIE ASIGNADA"
+             }
+          }
+          return next;
+        });
+        
+        setVpIndices(prev => {
+          const next = [...prev];
+          for (let i = 0; i < numViewports; i++) next[i] = 0;
+          return next;
+        });
+        
+        setViewportActivo(0); // Resetea el borde amarillo al primer cuadro
+      }
     }
   }, [layout, series.length]);
 
@@ -194,7 +199,6 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     return () => window.removeEventListener("resize", reajustarLienzos);
   }, [layout]);
 
-  // INICIALIZACIÓN DE HERRAMIENTAS
   useEffect(() => {
     for(let i=0; i < numViewports; i++) {
       const el = dicomRefs.current[i].current;
@@ -204,6 +208,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       cornerstoneTools.addTool(cornerstoneTools.ZoomTool);
       cornerstoneTools.addTool(cornerstoneTools.PanTool);
       cornerstoneTools.addTool(cornerstoneTools.RotateTool);
+      cornerstoneTools.addTool(cornerstoneTools.MagnifyTool);
 
       if (isRadiologo) {
         cornerstoneTools.addTool(cornerstoneTools.LengthTool);
@@ -214,11 +219,14 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     }
   }, [isRadiologo, layout]); 
 
-  // RENDERIZADO PRINCIPAL DE TODOS LOS VIEWPORTS
   useEffect(() => {
     for(let i=0; i < numViewports; i++) {
       const el = dicomRefs.current[i].current;
-      const imgs = series[vpSeries[i]]?.urls || [];
+      const serieIndex = vpSeries[i];
+      
+      if (serieIndex === -1 || !series[serieIndex]) continue;
+      
+      const imgs = series[serieIndex].urls;
       if (!el || imgs.length === 0) continue;
       
       try { cornerstone.getEnabledElement(el); } catch (e) { cornerstone.enable(el); }
@@ -226,10 +234,9 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       cornerstone.loadAndCacheImage(imgs[vpIndices[i]]).then((image) => {
         cornerstone.displayImage(el, image);
         
-        // 🚀 CORRECCIÓN ANTI-MAGNIFICACIÓN: Solo resetea la escala si se cambió de Serie
-        if (prevSeriesRefs.current[i] !== vpSeries[i]) {
+        if (prevSeriesRefs.current[i] !== serieIndex) {
             cornerstone.reset(el);
-            prevSeriesRefs.current[i] = vpSeries[i];
+            prevSeriesRefs.current[i] = serieIndex;
         }
 
         if (image.data && vpIndices[i] === 0) { 
@@ -250,7 +257,6 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     }
   }, [vpIndices, vpSeries, series, layout]);
 
-  // FUNCIONES DE ESTADO DE VIEWPORT
   const setIndiceActualVp = (vpIndex, newIndice) => {
     setVpIndices(prev => { const next = [...prev]; next[vpIndex] = newIndice; return next; });
   };
@@ -267,7 +273,10 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       interval = setInterval(() => {
         setVpIndices(prev => {
             const next = [...prev];
-            const imgs = series[vpSeries[viewportActivo]]?.urls || [];
+            const serieIdx = vpSeries[viewportActivo];
+            if (serieIdx === -1 || !series[serieIdx]) return next;
+            
+            const imgs = series[serieIdx].urls;
             if(imgs.length > 1) {
                 next[viewportActivo] = next[viewportActivo] >= imgs.length - 1 ? 0 : next[viewportActivo] + 1;
             }
@@ -281,9 +290,13 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const handleWheel = (e, vp) => {
     setIsCinePlaying(false); 
     setViewportActivo(vp);
+    
+    const serieIdx = vpSeries[vp];
+    if (serieIdx === -1 || !series[serieIdx]) return; 
+    
     setVpIndices(prev => {
         const next = [...prev];
-        const imgs = series[vpSeries[vp]]?.urls || [];
+        const imgs = series[serieIdx].urls;
         if (e.deltaY > 0) next[vp] = Math.min(next[vp] + 1, Math.max(0, imgs.length - 1));
         else next[vp] = Math.max(next[vp] - 1, 0);
         return next;
@@ -296,13 +309,17 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       if (e.key === "ArrowDown" || e.key === "ArrowRight") {
         setVpIndices(prev => {
             const next = [...prev];
-            const imgs = series[vpSeries[viewportActivo]]?.urls || [];
+            const serieIdx = vpSeries[viewportActivo];
+            if (serieIdx === -1 || !series[serieIdx]) return next;
+            const imgs = series[serieIdx].urls;
             next[viewportActivo] = Math.min(next[viewportActivo] + 1, Math.max(0, imgs.length - 1));
             return next;
         });
       } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
         setVpIndices(prev => {
             const next = [...prev];
+            const serieIdx = vpSeries[viewportActivo];
+            if (serieIdx === -1 || !series[serieIdx]) return next;
             next[viewportActivo] = Math.max(next[viewportActivo] - 1, 0);
             return next;
         });
@@ -319,8 +336,22 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       cornerstoneTools.setToolActive("Pan", { mouseButtonMask: 0 });
       cornerstoneTools.setToolActive("Zoom", { mouseButtonMask: 0 });
       cornerstoneTools.setToolActive("Rotate", { mouseButtonMask: 0 });
+      cornerstoneTools.setToolActive("Magnify", { mouseButtonMask: 0 });
     } else {
       cornerstoneTools.setToolActive(nombreHerramienta, { mouseButtonMask: 1 });
+    }
+  };
+
+  const aplicarPresetVentana = (ww, wc) => {
+    if(!ww || !wc) return;
+    for(let i=0; i<numViewports; i++){
+      const el = dicomRefs.current[i].current;
+      if(!el) continue;
+      const vp = cornerstone.getViewport(el);
+      if (!vp) continue;
+      vp.voi.windowWidth = ww;
+      vp.voi.windowCenter = wc;
+      cornerstone.setViewport(el, vp);
     }
   };
 
@@ -368,6 +399,27 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     setLayout(layoutsDisponibles[nextIndex]);
   };
 
+  // 🚀 ATRAPAR IMAGEN Y VOLVER A 1x1
+  const restaurarAVistaUnica = () => {
+    const serieAtrapada = vpSeries[viewportActivo];
+    const indiceAtrapado = vpIndices[viewportActivo];
+    
+    setLayout("1x1");
+    
+    // Inyectamos la serie seleccionada directamente en el Cuadro 0
+    setVpSeries(prev => {
+        const next = [...prev];
+        next[0] = serieAtrapada !== -1 ? serieAtrapada : 0;
+        return next;
+    });
+    setVpIndices(prev => {
+        const next = [...prev];
+        next[0] = indiceAtrapado !== -1 ? indiceAtrapado : 0;
+        return next;
+    });
+    setViewportActivo(0);
+  };
+
   const abrirHistorialComparativo = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/estudios/${currentId}/previo`, { headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` } });
@@ -413,30 +465,72 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     );
   }
 
-  // CONFIGURACIÓN CSS GRID DINÁMICA
   const gridStyles = {
     "1x1": { gridTemplateColumns: "1fr", gridTemplateRows: "1fr" },
     "1x2": { gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr" },
     "2x2": { gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr" },
     "2x3": { gridTemplateColumns: "1fr 1fr 1fr", gridTemplateRows: "1fr 1fr" },
     "2x4": { gridTemplateColumns: "1fr 1fr 1fr 1fr", gridTemplateRows: "1fr 1fr" },
+    "3x3": { gridTemplateColumns: "1fr 1fr 1fr", gridTemplateRows: "1fr 1fr 1fr" },
+    "3x4": { gridTemplateColumns: "1fr 1fr 1fr 1fr", gridTemplateRows: "1fr 1fr 1fr" },
+    "4x4": { gridTemplateColumns: "1fr 1fr 1fr 1fr", gridTemplateRows: "1fr 1fr 1fr 1fr" },
   };
 
   return (
     <div style={styles.visorContainer}>
       
-      <div style={styles.toolbar}>
-        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
-          {!esPortalPaciente && <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar</button>} 
-          <span style={{ color: "#fbbf24", fontWeight: "bold", marginLeft: "10px", fontSize: "0.85rem" }}>Serie Activa</span>
+      <div style={styles.toolbarWrapper}>
+        
+        {/* FILA 1: Workflow, Navegación y Flujo de Trabajo */}
+        <div style={styles.toolbarRow}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0, marginRight: "10px" }}>
+            {!esPortalPaciente && <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar</button>} 
+            <span style={{ color: "#fbbf24", fontWeight: "bold", fontSize: "0.85rem" }}>Serie Activa</span>
+          </div>
+
+          <select style={styles.selectPreset} onChange={(e) => {
+            const val = e.target.value;
+            if(val) { const [ww, wl] = val.split(','); aplicarPresetVentana(Number(ww), Number(wl)); }
+          }}>
+            <option value="">⚙️ Filtros TAC</option>
+            <option value="400,40">🥩 Tejidos Blandos</option>
+            <option value="1500,300">🦴 Hueso</option>
+            <option value="80,40">🧠 Cerebro</option>
+            <option value="1500,-600">🫁 Pulmón</option>
+            <option value="600,150">💉 Contraste/Angio</option>
+          </select>
+          
+          <div style={styles.divisor} />
+          
+          {isRadiologo && (
+            <>
+              <button style={styles.btn3D} onClick={alternarLayout} title="Cambiar distribución de pantallas">🔲 Cuadrícula: {layout}</button>
+              
+              {/* 🚀 NUEVO BOTÓN 1x1 INTELIGENTE */}
+              {layout !== "1x1" && (
+                <button style={styles.btnToolActivoSeguridad} onClick={restaurarAVistaUnica} title="Atrapar imagen seleccionada y verla en pantalla completa">
+                  ⏹️ 1x1
+                </button>
+              )}
+              
+              <button style={styles.btnEfilm} onClick={abrirHistorialComparativo}>📂 Historial</button>
+              <button style={styles.btnInfo} onClick={irASiguientePaciente}>⏭️ Siguiente</button>
+              <button style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado} onClick={() => setMostrarPanelDictado(!mostrarPanelDictado)}>🎙️ {mostrarPanelDictado ? "Cerrar Dictado" : "Dictar"}</button>
+            </>
+          )}
+
+          <div style={styles.divisor} />
+          <button style={mostrarMetadatos ? styles.btnToolActivoSeguridad : styles.btnToolSeguridad} onClick={() => setMostrarMetadatos(!mostrarMetadatos)}>🛡️ Info</button>
         </div>
 
-        <div style={{ display: "flex", gap: "6px", alignItems: "center", overflowX: "auto", flex: 1, paddingLeft: "10px", whiteSpace: "nowrap", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+        {/* FILA 2: Herramientas Físicas de Imagen */}
+        <div style={styles.toolbarRowBottom}>
           <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>🌓 Contraste</button>
           <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 Zoom</button>
+          <button style={herramientaActiva === "Magnify" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Magnify")}>🔎 Lupa</button>
           <button style={herramientaActiva === "Pan" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Pan")}>🖐️ Mover</button>
           <button style={herramientaActiva === "Rotate" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Rotate")}>🔄 Rotar</button>
-          <button style={styles.btnTool} onClick={reajustarLienzos} title="Ajustar imagen a la pantalla">🏠 Ajustar</button>
+          <button style={styles.btnTool} onClick={reajustarLienzos}>🏠 Ajustar</button>
 
           {isRadiologo && (
             <>
@@ -449,20 +543,6 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
               <button style={styles.btnLimpiar} onClick={() => aplicarAccion('limpiar')}>🧹 Limpiar</button>
               <button style={styles.btnTool} onClick={() => aplicarAccion('flipH')}>↔️ Flip H</button>
               <button style={styles.btnTool} onClick={() => aplicarAccion('flipV')}>↕️ Flip V</button>
-              <button style={styles.btnEfilm} onClick={abrirHistorialComparativo}>📂 Historial</button>
-              
-              <div style={styles.divisor} />
-              <button style={styles.btn3D} onClick={alternarLayout} title="Cambiar distribución de pantallas">
-                🔲 Cuadrícula: {layout}
-              </button>
-              
-              <button style={styles.btnInfo} onClick={irASiguientePaciente} title="Cargar el próximo paciente pendiente en la lista">
-                ⏭️ Siguiente
-              </button>
-
-              <button style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado} onClick={() => setMostrarPanelDictado(!mostrarPanelDictado)}>
-                🎙️ {mostrarPanelDictado ? "Cerrar Dictado" : "Dictar"}
-              </button>
             </>
           )}
 
@@ -472,10 +552,8 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
             <span style={{ minWidth: "40px" }}>{cineSpeed} FPS</span>
             <input type="range" min="1" max="60" value={cineSpeed} onChange={(e) => setCineSpeed(Number(e.target.value))} style={{ width: "60px", cursor: "pointer", accentColor: "#8b5cf6" }} />
           </div>
-
-          <div style={styles.divisor} />
-          <button style={mostrarMetadatos ? styles.btnToolActivoSeguridad : styles.btnToolSeguridad} onClick={() => setMostrarMetadatos(!mostrarMetadatos)}>🛡️ Info</button>
         </div>
+
       </div>
 
       <div style={styles.mainArea}>
@@ -506,10 +584,13 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
           ) : (
             <div style={{ display: 'grid', width: '100%', height: '100%', gap: '4px', ...gridStyles[layout] }}>
               
-              {/* RENDERIZADO DINÁMICO DE HASTA 8 VIEWPORTS */}
               {Array.from({ length: numViewports }).map((_, i) => {
-                 const imgsVp = series[vpSeries[i]]?.urls || [];
+                 const serieIdx = vpSeries[i];
+                 const isVacia = serieIdx === -1 || !series[serieIdx];
+                 
+                 const imgsVp = isVacia ? [] : series[serieIdx].urls;
                  const tagsVp = vpTags[i];
+                 
                  return (
                    <div 
                      key={i}
@@ -518,11 +599,17 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
                    >
                      <div ref={dicomRefs.current[i]} style={styles.dicomElement} onContextMenu={(e) => e.preventDefault()} onWheel={(e) => handleWheel(e, i)} />
                      
-                     {imgsVp.length > 0 && (
+                     {isVacia && (
+                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#07080a', zIndex: 25, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                            <span style={{ color: '#1e293b', fontWeight: 'bold', fontSize: '1rem', letterSpacing: '2px' }}>SIN SERIE ASIGNADA</span>
+                        </div>
+                     )}
+
+                     {!isVacia && imgsVp.length > 0 && (
                         <div style={styles.overlayTopLeft}>Corte {vpIndices[i] + 1} / {imgsVp.length}</div>
                      )}
 
-                     {mostrarMetadatos && tagsVp && (
+                     {!isVacia && mostrarMetadatos && tagsVp && (
                        <div style={styles.overlayMetadatos}>
                          <h4 style={{ margin: "0 0 10px 0", color: "#fbbf24", borderBottom: "1px solid #fbbf24", paddingBottom: "5px" }}>
                            DATOS NATIVOS DEL ARCHIVO
@@ -536,7 +623,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
                        </div>
                      )}
 
-                     {numViewports > 1 && imgsVp.length > 1 && (
+                     {!isVacia && numViewports > 1 && imgsVp.length > 1 && (
                         <input type="range" min="0" max={imgsVp.length - 1} value={vpIndices[i]} onChange={(e) => { setIsCinePlaying(false); setIndiceActualVp(i, Number(e.target.value)); }} style={styles.sliderBottom} />
                      )}
                    </div>
@@ -561,17 +648,20 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
 
 const styles = {
   visorContainer: { display: "flex", flexDirection: "column", height: "100%", width: "100%", backgroundColor: "#000", overflow: "hidden", fontFamily: "system-ui, sans-serif" },
-  toolbar: { height: "60px", backgroundColor: "#111418", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0 },
+  toolbarWrapper: { display: "flex", flexDirection: "column", backgroundColor: "#111418", borderBottom: "1px solid #1e293b", flexShrink: 0 },
+  toolbarRow: { height: "55px", display: "flex", alignItems: "center", padding: "0 20px", gap: "10px", overflowX: "auto", whiteSpace: "nowrap", scrollbarWidth: "none" },
+  toolbarRowBottom: { height: "50px", display: "flex", alignItems: "center", padding: "0 20px", gap: "6px", overflowX: "auto", whiteSpace: "nowrap", scrollbarWidth: "none", borderTop: "1px solid #1e293b", backgroundColor: "#0f172a" },
   btnCerrar: { backgroundColor: "#ef4444", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
+  selectPreset: { backgroundColor: "#1e293b", color: "#fbbf24", border: "1px solid #334155", padding: "8px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", outline: "none", flexShrink: 0 },
   btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
   btnToolActivo: { backgroundColor: "#3b82f6", color: "#fff", border: "1px solid #2563eb", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
   btnPremium: { backgroundColor: "#064e3b", color: "#d1fae5", border: "1px solid #047857", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
   btnPremiumActivo: { backgroundColor: "#10b981", color: "#000", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btnLimpiar: { backgroundColor: "#7f1d1d", color: "#fecaca", border: "1px solid #991b1b", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
-  btnEfilm: { backgroundColor: "#b45309", color: "#fef3c7", border: "1px solid #92400e", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
-  btnDictado: { backgroundColor: "#4f46e5", color: "#e0e7ff", border: "1px solid #3730a3", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
-  btnDictadoActivo: { backgroundColor: "#6366f1", color: "#fff", border: "1px solid #4338ca", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
-  btnInfo: { backgroundColor: "#10b981", color: "#fff", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px" },
+  btnEfilm: { backgroundColor: "#b45309", color: "#fef3c7", border: "1px solid #92400e", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btnDictado: { backgroundColor: "#4f46e5", color: "#e0e7ff", border: "1px solid #3730a3", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btnDictadoActivo: { backgroundColor: "#6366f1", color: "#fff", border: "1px solid #4338ca", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btnInfo: { backgroundColor: "#10b981", color: "#fff", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   panelDictado: { height: "220px", backgroundColor: "#07080a", borderTop: "2px solid #38bdf8", flexShrink: 0, display: "flex", flexDirection: "column", padding: "5px", overflowY: "auto", transition: "height 0.3s ease" },
   btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btnCine: { backgroundColor: "#4c1d95", color: "#ede9fe", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
