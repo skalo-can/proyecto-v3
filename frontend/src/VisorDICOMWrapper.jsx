@@ -199,11 +199,17 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     return () => window.removeEventListener("resize", reajustarLienzos);
   }, [layout]);
 
+  // 🚀 FIX: INICIALIZACIÓN DE HERRAMIENTAS SINCRONIZADA
   useEffect(() => {
+    // Evita inicializar si los contenedores aún están cargando o no hay imágenes
+    if (loading || series.length === 0) return;
+
     for(let i=0; i < numViewports; i++) {
       const el = dicomRefs.current[i].current;
       if (!el) continue;
+      
       try { cornerstone.getEnabledElement(el); } catch (e) { cornerstone.enable(el); }
+      
       cornerstoneTools.addTool(cornerstoneTools.WwwcTool);
       cornerstoneTools.addTool(cornerstoneTools.ZoomTool);
       cornerstoneTools.addTool(cornerstoneTools.PanTool);
@@ -215,9 +221,18 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
         cornerstoneTools.addTool(cornerstoneTools.AngleTool);
         cornerstoneTools.addTool(cornerstoneTools.EllipticalRoiTool);
       }
-      cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 1 });
+      
+      // Reactiva inmediatamente la herramienta que el usuario tenía seleccionada
+      cornerstoneTools.setToolActive(herramientaActiva, { mouseButtonMask: 1 });
     }
-  }, [isRadiologo, layout]); 
+  }, [isRadiologo, layout, loading, series.length, herramientaActiva, numViewports]);
+  
+  
+  
+  useEffect(() => {
+    window.addEventListener("resize", reajustarLienzos);
+    return () => window.removeEventListener("resize", reajustarLienzos);
+  }, [layout]);
 
   useEffect(() => {
     for(let i=0; i < numViewports; i++) {

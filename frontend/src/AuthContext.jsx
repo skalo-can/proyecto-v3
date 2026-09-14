@@ -45,41 +45,44 @@ export function AuthProvider({ children }) {
   };
 
   // =========================================================================
-  // 🛡️ MOTOR DE SEGURIDAD: CIERRE AUTOMÁTICO POR INACTIVIDAD (5 MINUTOS)
+  // 🛡️ MOTOR DE SEGURIDAD: CIERRE AUTOMÁTICO ROBUSTO (5 MINUTOS)
   // =========================================================================
   useEffect(() => {
-    // Si no hay token activo, no iniciamos el rastreo de inactividad
+    // Si no hay token activo, no hay necesidad de vigilar
     if (!token) return;
 
+    // Aqui ajustamos los minutos para cerrar la secion
     const TIEMPO_INACTIVIDAD_MS = 5 * 60 * 1000; 
 
-    const cerrarSesionPorInactividad = () => {
-      console.warn("🔒 Inactividad detectada. Cerrando sesión...");
-      logout(); 
-      alert("🔒 Por seguridad, su sesión se ha cerrado tras 5 minutos de inactividad.");
-      window.location.href = "/login"; 
+    // Guardamos la hora de la última interacción como tiempo absoluto
+    const actualizarActividad = () => {
+      localStorage.setItem("ultimaActividadPacs", Date.now().toString());
     };
 
-    const reiniciarTemporizador = () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(cerrarSesionPorInactividad, TIEMPO_INACTIVIDAD_MS);
-    };
+    actualizarActividad();
 
-    const eventosActividad = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+    // { passive: true } evita que la vigilancia ralentice el mouse del médico
+    const eventos = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+    eventos.forEach(evento => window.addEventListener(evento, actualizarActividad, { passive: true }));
 
-    reiniciarTemporizador();
-
-    eventosActividad.forEach(evento => {
-      window.addEventListener(evento, reiniciarTemporizador);
-    });
+    // Un vigilante independiente revisa el reloj cada 10 segundos
+    const intervalId = setInterval(() => {
+      const ultimaActividad = parseInt(localStorage.getItem("ultimaActividadPacs") || "0", 10);
+      
+      if (Date.now() - ultimaActividad > TIEMPO_INACTIVIDAD_MS) {
+        console.warn("🔒 Inactividad absoluta detectada. Cerrando sesión...");
+        clearInterval(intervalId);
+        logout(); 
+        alert("🔒 Por seguridad, su sesión se ha cerrado tras 5 minutos de inactividad.");  // esta es la alerta visual de los minutos para que se cierre la secion
+      }
+    }, 10000);
 
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      eventosActividad.forEach(evento => {
-        window.removeEventListener(evento, reiniciarTemporizador);
-      });
+      clearInterval(intervalId);
+      eventos.forEach(evento => window.removeEventListener(evento, actualizarActividad));
     };
-  }, [token]); 
+  }, [token]);
+
   // =========================================================================
 
   return (
