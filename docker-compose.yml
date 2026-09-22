@@ -24,21 +24,16 @@ services:
       - db
     volumes:
       - .:/app 
-      # 🔥 AQUÍ ESTÁ LA MAGIA: Conectamos tus discos físicos de Windows al contenedor Linux
-      #- "H:/:/mnt/nas_externo"  # <-- Usar comillas y barra normal
-      #- "D:/:/mnt/replica_segura"
-      #- "E:/:/mnt/usb_e" 
-      - "D:/MI_PACS_NAS_EXTERNAL:/mnt/nas_externo"    
+      # 🔥 Conectamos tus discos físicos al contenedor Linux
+      - "D:/MI_PACS_NAS_EXTERNAL:/mnt/nas_externo"     
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.frontend
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    restart: always
 
 volumes:
   postgres_data:

@@ -23,10 +23,11 @@ export default defineConfig({
     watch: {
       usePolling: true, // 🔥 Obliga a Vite a buscar cambios, solucionando el bloqueo de Ctrl+S
     },
-    // Agregamos esto para permitir que Ngrok se conecte sin bloqueos
+    // Agregamos esto para permitir que Ngrok y Cloudflare se conecten sin bloqueos
     allowedHosts: [
       'erratic-irritable-occupier.ngrok-free.dev',
-      '.ngrok-free.dev'
+      '.ngrok-free.dev',
+      'portal.mipacs.net' // <-- Tu dominio público agregado aquí
     ],
     proxy: {
       // Todo lo que empiece con /api será redirigido internamente a FastAPI

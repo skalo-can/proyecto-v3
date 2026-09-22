@@ -866,19 +866,22 @@ def asistencia_ia(
     estudio = resolver_estudio(db, estudio_id, paciente_id)
     if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
     
+    img = None
     try:
+        # 1. Intentamos buscar la imagen de forma segura sin lanzar errores si no existe
         imagen_db = db.query(EstudioImagen).filter(EstudioImagen.estudio_id == estudio.id).first()
-        if not imagen_db or not imagen_db.thumbnail: raise HTTPException(status_code=404, detail="Imagen miniatura del estudio no encontrada.")
+        if imagen_db and imagen_db.thumbnail:
+            nombre_archivo = imagen_db.thumbnail.split("/")[-1]
+            ruta_base = os.path.join(str(STATIC_DIR), "thumbnails")
+            if os.path.exists(ruta_base):
+                for root, dirs, files in os.walk(ruta_base):
+                    if nombre_archivo in files:
+                        img = Image.open(os.path.join(root, nombre_archivo))
+                        break
+    except Exception as e:
+        print(f"⚠️ Aviso interno: No se pudo cargar la miniatura visual: {e}")
 
-        ruta_relativa = imagen_db.thumbnail.lstrip("/")
-        imagen_a_usar = Path(STATIC_DIR).parent / ruta_relativa
-
-        if not imagen_a_usar.exists(): raise HTTPException(status_code=404, detail="Archivo físico de la imagen no encontrado.")
-        img = Image.open(imagen_a_usar)
-        
-    except HTTPException as he: raise he
-    except Exception as e: raise HTTPException(status_code=500, detail=f"Fallo técnico al cargar la imagen: {str(e)}")
-
+    # 2. Invocamos a la IA de forma adaptativa (Con imagen o Solo texto)
     try:
         load_dotenv()
         api_key_gemini = os.getenv("GEMINI_API_KEY")
@@ -886,38 +889,57 @@ def asistencia_ia(
         
         modalidad_esperada = estudio.tipo_estudio or "No especificada"
         descripcion_esperada = estudio.descripcion or "No especificada"
-        
-        # Determinamos la orden estricta para el LLM
-        idioma_salida = "INGLÉS (ENGLISH)" if lang == "en" else "ESPAÑOL (SPANISH)"
+        idioma_salida = "BILINGÜE: Primero responde en INGLÉS y luego agrega la traducción exacta al ESPAÑOL"
 
-        prompt = f"""
-        INSTRUCCIÓN CRÍTICA DE SEGURIDAD MÉDICA — TOLERANCIA CERO A ERRORES DE IDENTIDAD.
-        Eres un radiólogo experto encargado de la auditoría final de calidad. Antes de evaluar el texto del informe, debes ejecutar de forma obligatoria un protocolo estricto de correspondencia anatómica.
+        if img:
+            # FLUJO A: Tenemos imagen (Validación Visual + Clínica)
+            prompt = f"""
+            INSTRUCCIÓN CRÍTICA DE SEGURIDAD MÉDICA — TOLERANCIA CERO A ERRORES DE IDENTIDAD.
+            Eres un radiólogo experto encargado de la auditoría final de calidad. Antes de evaluar el texto del informe, debes ejecutar de forma obligatoria un protocolo estricto de correspondencia anatómica.
 
-        DATOS REGISTRADOS EN LA BASE DE DATOS DEL SISTEMA:
-        - Modalidad técnica configurada: {modalidad_esperada}
-        - Región anatómica declarada: {descripcion_esperada}
-        
-        INFORME PRELIMINAR DEL TRANSCRIPTOR:
-        "{datos.texto_actual}"
+            DATOS REGISTRADOS EN LA BASE DE DATOS DEL SISTEMA:
+            - Modalidad técnica configurada: {modalidad_esperada}
+            - Región anatómica declarada: {descripcion_esperada}
+            
+            INFORME PRELIMINAR DEL TRANSCRIPTOR:
+            "{datos.texto_actual}"
 
-        PROTOCOLOS DE CONTROL DE RIESGO:
-        1. VALIDACIÓN VISUAL OBLIGATORIA: Analiza los píxeles de la imagen proporcionada. Si la estructura anatómica visible NO coincide con la región declarada en el sistema ({descripcion_esperada}), debes asumir inmediatamente que hay un cruce de archivos o un error de indexación en el servidor.
-        
-        2. ACCIÓN ANTE MISMATCH (ABORTAR): Si la validación anatómica falla (por ejemplo, ves un cráneo/columna pero el estudio dice ser un Tórax), tienes estrictamente prohibido realizar cualquier análisis clínico. Debes responder única y exclusivamente con este mensaje de alerta estructurado, traducido al {idioma_salida}:
-            "[💡 SUGERENCIA IA: 🚨 ERROR CRÍTICO DE SEGURIDAD: Se ha detectado una falta de correspondencia anatómica. La imagen visualizada en el servidor no coincide con la descripción de '{descripcion_esperada}' registrada para este estudio. Por favor, suspenda la firma y reporte este caso al administrador del PACS para verificar la integridad del archivo DICOM.]"
-        
-        3. ACCIÓN ANTE COINCIDENCIA (PROCESAR): Si la imagen coincide plenamente con la región anatómica declarada, procede a evaluar el informe preliminar del transcriptor de forma normal. Comienza tu respuesta con "[💡 SUGERENCIA IA: " y ciérrala con "]". Sé conciso y directo.
+            PROTOCOLOS DE CONTROL DE RIESGO:
+            1. VALIDACIÓN VISUAL OBLIGATORIA: Analiza los píxeles de la imagen. Si la anatomía NO coincide con '{descripcion_esperada}', asume un cruce de archivos.
+            2. ACCIÓN ANTE MISMATCH: Responde SOLO con "[💡 SUGERENCIA IA: 🚨 ERROR CRÍTICO: La imagen visualizada no coincide con '{descripcion_esperada}'. Verifique integridad DICOM.]"
+            3. ACCIÓN ANTE COINCIDENCIA: Evalúa el informe preliminar de forma normal. Comienza tu respuesta con "[💡 SUGERENCIA IA: " y ciérrala con "]".
 
-        REGLA DE IDIOMA ESTRICTA: 
-        Escribe absolutamente toda tu respuesta (análisis, sugerencias o alertas) ESTRICTAMENTE EN {idioma_salida}. No utilices ningún otro idioma para comunicarte con el médico.
-        """
-        response = client.models.generate_content(model='gemini-3.5-flash', contents=[img, prompt])
+            REGLA DE IDIOMA: Responde ESTRICTAMENTE EN {idioma_salida}.
+            """
+            response = client.models.generate_content(model='gemini-3.5-flash', contents=[img, prompt])
+            
+        
+        else:
+            # FLUJO B: Degradación Elegante (Solo Validación Clínica a prueba de fallos)
+            prompt = f"""
+            INSTRUCCIÓN CLÍNICA:
+            Eres un radiólogo experto encargado de la auditoría final de calidad.
+            
+            DATOS REGISTRADOS EN EL SISTEMA:
+            - Modalidad: {modalidad_esperada}
+            - Región anatómica: {descripcion_esperada}
+            
+            INFORME PRELIMINAR DEL TRANSCRIPTOR:
+            "{datos.texto_actual}"
+            
+            ACCIÓN: Analiza el informe preliminar buscando errores médicos, omisiones o incongruencias basadas en la modalidad y región declaradas. 
+            Como el sistema no dispone de imagen en este momento, asume que la anatomía es correcta y céntrate exclusivamente en auditar la redacción médica.
+            Comienza tu respuesta con "[💡 SUGERENCIA IA: " y ciérrala con "]". Sé conciso y directo.
+            
+            REGLA DE IDIOMA: Responde ESTRICTAMENTE EN {idioma_salida}.
+            """
+            response = client.models.generate_content(model='gemini-3.5-flash', contents=[prompt])
+            
         return {"sugerencia": response.text}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Fallo en el motor de análisis clínico automatizado: {str(e)}")
-    
+        raise HTTPException(status_code=500, detail=f"Fallo en el motor de análisis clínico automatizado: {str(e)}")  
+      
 class RechazoImagenInput(BaseModel):
     nota_rechazo: str
 

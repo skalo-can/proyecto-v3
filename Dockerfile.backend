@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# Instalar Chromium, Drivers para Selenium y dependencias pesadas
+# Instalar Chromium, Drivers para Selenium, FFmpeg (Whisper) y dependencias pesadas
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     tk \
     unixodbc-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
