@@ -11,10 +11,11 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
-    "@cornerstonejs/core": "^5.6.9",
-    "@cornerstonejs/dicom-image-loader": "^5.6.9",
+    "@cornerstonejs/core": "^5.10.8",
+    "@cornerstonejs/dicom-image-loader": "^5.10.8",
+    "@cornerstonejs/metadata": "^5.10.8",
     "@cornerstonejs/streaming-image-volume-loader": "^1.86.1",
-    "@cornerstonejs/tools": "^5.6.9",
+    "@cornerstonejs/tools": "^5.10.8",
     "@vitejs/plugin-react": "^6.0.4",
     "antd": "^6.5.1",
     "axios": "^1.18.1",
@@ -37,6 +38,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "vite": "^8.1.5"
+    "vite": "^8.1.5",
+    "vite-plugin-node-polyfills": "^0.28.0"
   }
 }

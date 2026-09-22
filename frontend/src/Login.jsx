@@ -6,6 +6,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import "./Login.css"; 
+import { useTranslation } from "react-i18next";
 
 function Login() {
   const [identifier, setIdentifier] = useState(""); 
@@ -15,6 +16,8 @@ function Login() {
 
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  const { t, i18n } = useTranslation();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -102,9 +105,21 @@ function Login() {
         }
       `}</style>
 
+
+
       {/* =====================================================================
           🌌 LAS 8 ÓRBITAS DE FONDO ESTÁTICAS EN LAS ESQUINAS (Suaves)
           ===================================================================== */}
+     {/* 🌐 BOTÓN DE IDIOMA EN LA ESQUINA */}
+      <div style={{ position: "absolute", top: "20px", right: "20px", zIndex: 100 }}>
+        <button 
+          onClick={() => i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es')}
+          style={{ background: "rgba(17, 20, 24, 0.8)", color: "#fbbf24", border: "1px solid rgba(251, 191, 36, 0.4)", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", backdropFilter: "blur(4px)", fontSize: "0.8rem", letterSpacing: "1px" }}
+        >
+          {i18n.language === 'es' ? 'EN / ENGLISH' : 'ES / ESPAÑOL'}
+        </button>
+      </div>
+     
       <div style={{ position: "absolute", top: "-200px", right: "-200px", width: "700px", height: "700px", border: "2px solid rgba(217, 119, 6, 0.6)", borderRadius: "50%", pointerEvents: "none", animation: "pulseGlow 4s ease-in-out infinite, rotateLines 30s linear infinite" }} />
       <div style={{ position: "absolute", top: "-140px", right: "-140px", width: "580px", height: "580px", border: "1.5px solid rgba(251, 191, 36, 0.4)", borderRadius: "50%", pointerEvents: "none", animation: "pulseGlow 3s ease-in-out infinite reverse, rotateLines 20s linear infinite reverse" }} />
 
@@ -174,13 +189,13 @@ function Login() {
           zIndex: 10
         }}>
 
-          {/* Tipografía Profesional */}
+{/* Tipografía Profesional */}
           <div style={{ textAlign: "center", marginBottom: "25px" }}>
             <h2 style={{ margin: "0 0 8px 0", fontFamily: "'Times New Roman', Times, serif", fontSize: "32px", fontWeight: "400", letterSpacing: "3px", background: "linear-gradient(135deg, #d4af37 30%, #f3e5ab 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              PROFESSIONAL SERVICES
+              {t("login.prof_services")}
             </h2>
             <p style={{ margin: 0, fontFamily: "'Inter', sans-serif", fontSize: "13px", color: "#a3a3a3", letterSpacing: "4px", textTransform: "uppercase" }}>
-              MI PACS / VISUALIZATION & LENS FOCUS
+              {t("login.lens_focus")}
             </p>
           </div>
 
@@ -200,20 +215,20 @@ function Login() {
             boxSizing: "border-box"
           }}>
             
-            <div style={{ textAlign: "center", marginBottom: "4px" }}>
+          <div style={{ textAlign: "center", marginBottom: "4px" }}>
               <h1 className="login-title" style={{ fontSize: "40px", margin: "0 0 6px 0", background: "linear-gradient(135deg, #ffffff 30%, #fbbf24 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>
                 MI_PACS
               </h1>
               <p style={{ fontSize: "0.7rem", color: "#94a3b8", letterSpacing: "2px", textTransform: "uppercase", margin: 0, fontWeight: "500" }}>
-                Enterprise Radiology Ecosystem
+                {t("login.ecosystem")}
               </p>
             </div>
 
             <form onSubmit={handleLogin} className="login-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <input type="text" placeholder="Usuario o Correo clínico" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="login-input" required />
+              <input type="text" placeholder={t("login.ph_usuario")} value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="login-input" required />
 
               <div style={{ position: "relative", width: "100%" }}>
-                <input type={showPassword ? "text" : "password"} placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} className="login-input" style={{ paddingRight: "45px", width: "100%" }} required />
+                <input type={showPassword ? "text" : "password"} placeholder={t("login.ph_password")} value={password} onChange={(e) => setPassword(e.target.value)} className="login-input" style={{ paddingRight: "45px", width: "100%" }} required />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "#fbbf24", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", justifyContent: "center", opacity: showPassword ? 1 : 0.7, transition: "opacity 0.2s ease" }} title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}>
                   {showPassword ? (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2"></path></svg>
@@ -224,7 +239,7 @@ function Login() {
               </div>
 
               <button type="submit" className="login-button" style={{ marginTop: "4px" }}>
-                Ingresar al Sistema
+                {t("login.btn_ingresar")}
               </button>
             </form>
 
@@ -252,12 +267,12 @@ function Login() {
             width: "max-content"
           }}>
             <p style={{ color: "#d97706", fontSize: "0.7rem", letterSpacing: "1px", margin: "0 0 3px 0", textTransform: "uppercase", fontWeight: "600" }}>
-              Seguridad de Grado Hospitalario • Sault Ste. Marie, Ontario
+              {t("login.footer_seguridad")}
             </p>
             <p style={{ color: "#fbbf24", opacity: 0.9, fontSize: "0.65rem", letterSpacing: "0.5px", margin: 0, fontWeight: "400" }}>
               © 2026 MI_PACS. All Rights Reserved. Developed by Sadat Karim Luna Osorio.
             </p>
-          </div>
+          </div>          
         </div>
 
       </div>

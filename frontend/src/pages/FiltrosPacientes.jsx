@@ -106,9 +106,14 @@ export default function FiltrosPacientes({
           <label style={lStyle}>{t('filtros.modalidad')}</label>
           <select name="modalidad" style={sStyle} value={filtros.modalidad} onChange={handleFiltroChange}>
             <option value="">{t('filtros.todas')}</option>
-            {MODALIDADES_MASTER.map(m => (
-              <option key={m} value={m.split(' ')[0]}>{m}</option>
-            ))}
+            {MODALIDADES_MASTER.map(m => {
+              const prefijo = m.split(' ')[0]; // Extrae "CT", "MR", "CR", etc.
+              return (
+                <option key={m} value={prefijo}>
+                  {t(`modalidades.${prefijo.toLowerCase()}`)}
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -116,18 +121,18 @@ export default function FiltrosPacientes({
           <label style={lStyle}>{t('filtros.estado')}</label>
           <select name="estado" style={{ ...sStyle, minWidth: '135px' }} value={filtros.estado} onChange={handleFiltroChange}>
             <option value="">{t('filtros.todos')}</option>
-            <option value="Tomado">🔵 Tomado</option>
-            <option value="Importado">⚪ Importado</option>
-            <option value="Urgencia">🚨 Urgencia</option>
-            <option value="Dictado">🟠 Dictado</option>
-            <option value="Transcrito">🟣 Transcrito</option>
-            <option value="Firmado">🟢 Firmado</option>
-            <option value="Entregado">🔮 Entregado</option>
-            <option value="Rechazado">🛑 Rechazado</option>
-            <option value="Cancelado">⚫ Cancelado</option>
+            <option value="Tomado">🔵 {t("estados.tomado")}</option>
+            <option value="Importado">⚪ {t("estados.importado")}</option>
+            <option value="Urgencia">🚨 {t("estados.urgencia")}</option>
+            <option value="Dictado">🟠 {t("estados.dictado")}</option>
+            <option value="Transcrito">🟣 {t("estados.transcrito")}</option>
+            <option value="Firmado">🟢 {t("estados.firmado")}</option>
+            <option value="Entregado">🔮 {t("estados.entregado")}</option>
+            <option value="Rechazado">🛑 {t("estados.rechazado")}</option>
+            <option value="Cancelado">⚫ {t("estados.cancelado")}</option>
           </select>
-        </div>
-        
+        </div>   
+             
         <div style={{ ...fGroup, flex: 1 }}>
           <label style={{...lStyle, color: busquedaProfunda ? '#0ea5e9' : '#fbbf24'}}>{t('filtros.predictiva')}</label>
           <input 

@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@cornerstonejs/core": "^5.10.8",
+    "@cornerstonejs/streaming-image-volume-loader": "^1.86.1",
+    "@cornerstonejs/tools": "^5.10.8",
+    "cornerstone-wado-image-loader": "^4.13.2",
+    "dicom-parser": "^1.8.21"
+  }
+}

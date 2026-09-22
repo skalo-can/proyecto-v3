@@ -10,12 +10,12 @@ import {
   volumeLoader,
   imageLoader,
   metaData,
+  cornerstoneStreamingImageVolumeLoader 
 } from "@cornerstonejs/core";
 
 import * as csTools from "@cornerstonejs/tools";
-
-import * as dicomImageLoader from "@cornerstonejs/dicom-image-loader";
-import * as streamingImageVolumeLoader from "@cornerstonejs/streaming-image-volume-loader";
+// 🚀 FIX: Importación por defecto para evitar problemas de desestructuración
+import cornerstoneDICOMImageLoader from "@cornerstonejs/dicom-image-loader";
 
 export async function initCornerstone() {
   console.log("MI_PACS → Inicializando Cornerstone3D...");
@@ -55,19 +55,28 @@ export async function initCornerstone() {
   });
 
   // -------------------------------
-  // 2. Registrar loaders
+  // 2. Extraer el loader seguro (Protección contra Vite)
   // -------------------------------
-  imageLoader.registerImageLoader("dicom", dicomImageLoader);
+  const dicomLoader = cornerstoneDICOMImageLoader.default || cornerstoneDICOMImageLoader;
+
+  // -------------------------------
+  // 3. Registrar loaders
+  // -------------------------------
+  imageLoader.registerImageLoader("dicom", dicomLoader);
 
   volumeLoader.registerVolumeLoader(
     "cornerstoneStreamingImageVolume",
-    streamingImageVolumeLoader
+    cornerstoneStreamingImageVolumeLoader
   );
+  volumeLoader.registerUnknownVolumeLoader(cornerstoneStreamingImageVolumeLoader);
 
   // -------------------------------
-  // 3. Registrar metadatos
+  // 4. Registrar metadatos (Blindado contra errores undefined)
   // -------------------------------
-  metaData.addProvider(dicomImageLoader.metaDataProvider);
+  if (dicomLoader.wadouri && typeof dicomLoader.wadouri.metaDataProvider === 'function') {
+    // Para conexiones WADO-URI clásicas
+    metaData.addProvider(dicomLoader.wadouri.metaDataProvider, 9999);
+  }
 
   console.log("MI_PACS → Cornerstone3D cargado correctamente.");
 }

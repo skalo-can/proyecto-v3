@@ -3,6 +3,8 @@ import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import axios from "axios"; // 🚀 IMPORTACIÓN AÑADIDA PARA EL INTERCEPTOR
+import VisorMPR3D from './pages/VisorMPR3D'; // 🚀 IMPORTACIÓN NUEVA DEL VISOR 3D
+
 
 // =====================================================================
 // 🛡️ ESCUDO INTERCEPTOR GLOBAL DE SEGURIDAD
@@ -17,13 +19,17 @@ axios.interceptors.response.use(
       console.warn("🔒 Seguridad: Sesión inválida o expirada. Redirigiendo al Login...");
       localStorage.removeItem("token");
       
-      if (window.location.pathname !== "/login") {
+      // 🚀 FIX: Destruir ventana si es un visor flotante
+      if (window.opener && window.opener !== window) {
+        window.close();
+      } else if (window.location.pathname !== "/login") {
         window.location.href = "/login";
       }
     }
     return Promise.reject(error);
   }
 );
+
 // =====================================================================
 
 // Componentes y Páginas
@@ -187,6 +193,12 @@ export default function App() {
           </ProtectedRoute>
         } />
 
+      <Route path="/mpr/:id" element={
+          <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'invitado']}>
+            <VisorMPR3D />
+          </ProtectedRoute>
+        } />
+
         {/* ======================================================== */}
 
         <Route path="/pacientes" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'recepcion', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo', 'it_biomedica']}><Pacientes /></ProtectedRoute></Layout>} />
@@ -245,4 +257,4 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   );
-} 
+}

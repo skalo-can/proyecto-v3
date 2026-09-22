@@ -73,7 +73,15 @@ export function AuthProvider({ children }) {
         console.warn("🔒 Inactividad absoluta detectada. Cerrando sesión...");
         clearInterval(intervalId);
         logout(); 
-        alert("🔒 Por seguridad, su sesión se ha cerrado tras 5 minutos de inactividad.");  // esta es la alerta visual de los minutos para que se cierre la secion
+        
+        alert("🔒 Por seguridad, su sesión se ha cerrado tras 5 minutos de inactividad.");
+        
+        // 🚀 FIX: Si es una ventana flotante (visor), se autodestruye. Si es la principal, va al login.
+        if (window.opener && window.opener !== window) {
+          window.close();
+        } else {
+          window.location.href = "/login"; 
+        }
       }
     }, 10000);
 

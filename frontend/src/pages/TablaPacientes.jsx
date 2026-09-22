@@ -283,7 +283,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={estaSeleccionado} onChange={() => toggleSeleccionarPaciente(p.estudio_interno_id)} />
                 </td>
-                <td style={styles.tdStyle}><span style={{ ...styles.badge, backgroundColor: p.estado_pacs === "Cancelado" ? "#171717" : p.estado_pacs === "Urgencia" ? "#f97316" : p.estado_pacs === "Rechazado" ? "#ef4444" : p.estado_pacs === "Entregado" ? "#a855f7" : p.estado_pacs === "Firmado" ? "#10b981" : p.estado_pacs === "Transcrito" ? "#2563eb" : p.estado_pacs === "Dictado" ? "#d97706" : p.estado_pacs === "Tomado" ? "#3b82f6" : "#475569", border: p.estado_pacs === "Cancelado" ? "1px solid #475569" : "none" }}>{p.estado_pacs || "Importado"}</span></td>
+                <td style={styles.tdStyle}><span style={{ ...styles.badge, backgroundColor: p.estado_pacs === "Cancelado" ? "#171717" : p.estado_pacs === "Urgencia" ? "#f97316" : p.estado_pacs === "Rechazado" ? "#ef4444" : p.estado_pacs === "Entregado" ? "#a855f7" : p.estado_pacs === "Firmado" ? "#10b981" : p.estado_pacs === "Transcrito" ? "#2563eb" : p.estado_pacs === "Dictado" ? "#d97706" : p.estado_pacs === "Tomado" ? "#3b82f6" : "#475569", border: p.estado_pacs === "Cancelado" ? "1px solid #475569" : "none" }}>{t(`estados.${(p.estado_pacs || "Importado").toLowerCase()}`)}</span></td>
                 <td style={styles.tdStyle}>{idReal}</td>
                 <td style={styles.tdStyle}><strong>{primerApellido}</strong></td>
                 <td style={styles.tdStyle}>{segundoApellido}</td>
@@ -311,7 +311,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}><span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }}>🚨 Urgencia</span><button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>🎙️ Oficial</button></div>
                     )}
                     {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && canUseHerramientasMedicas && (
-                      <button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: estaDesbloqueado ? "#10b981" : "#ef4444", backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", cursor: estaDesbloqueado ? "pointer" : "not-allowed", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>{estaDesbloqueado ? "🎙️ Grabar" : "🔒 Bloqueado"}</button>
+                      <button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: estaDesbloqueado ? "#10b981" : "#ef4444", backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", cursor: estaDesbloqueado ? "pointer" : "not-allowed", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>{estaDesbloqueado ? `🎙️ ${t("btn_grabar")}` : "🔒 Bloqueado"}</button>
                     )}
                     {p.estado_pacs === "Dictado" && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -370,7 +370,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                 </td>
                 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-                  <button style={styles.btnVisor} onClick={() => abrirVisorMedico(p.estudio_interno_id, idReal)}>ABRIR</button>
+                  <button style={styles.btnVisor} onClick={() => abrirVisorMedico(p.estudio_interno_id, idReal)}>{t("btn_abrir")}</button>
                 </td>
               </tr>
             );

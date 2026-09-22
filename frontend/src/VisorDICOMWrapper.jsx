@@ -13,6 +13,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { useTranslation } from "react-i18next"; 
 
 import CompareViewer from "./components/DicomViewer/CompareViewer";
 import ModalDictadoHardware from "./pages/ModalDictadoHardware"; 
@@ -71,6 +72,8 @@ const SerieThumbnail = ({ url }) => {
 };
 
 export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPaciente }) {
+  const { t } = useTranslation();
+  
   const { id: paramId } = useParams(); 
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -496,18 +499,18 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
       
       <div style={styles.toolbarWrapper}>
         
-        {/* FILA 1: Workflow, Navegación y Flujo de Trabajo */}
+{/* FILA 1: Workflow, Navegación y Flujo de Trabajo */}
         <div style={styles.toolbarRow}>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0, marginRight: "10px" }}>
-            {!esPortalPaciente && <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar</button>} 
-            <span style={{ color: "#fbbf24", fontWeight: "bold", fontSize: "0.85rem" }}>Serie Activa</span>
+            {!esPortalPaciente && <button style={styles.btnCerrar} onClick={() => window.close()}>{t("visor.topbar.cerrar")}</button>} 
+            <span style={{ color: "#fbbf24", fontWeight: "bold", fontSize: "0.85rem" }}>{t("visor.topbar.serie_activa")}</span>
           </div>
 
           <select style={styles.selectPreset} onChange={(e) => {
             const val = e.target.value;
             if(val) { const [ww, wl] = val.split(','); aplicarPresetVentana(Number(ww), Number(wl)); }
           }}>
-            <option value="">⚙️ Filtros TAC</option>
+            <option value="">⚙️ {t("visor.topbar.filtros_tac")}</option>
             <option value="400,40">🥩 Tejidos Blandos</option>
             <option value="1500,300">🦴 Hueso</option>
             <option value="80,40">🧠 Cerebro</option>
@@ -519,61 +522,67 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
           
           {isRadiologo && (
             <>
-              <button style={styles.btn3D} onClick={alternarLayout} title="Cambiar distribución de pantallas">🔲 Cuadrícula: {layout}</button>
+              <button style={styles.btn3D} onClick={alternarLayout} title="Cambiar distribución de pantallas">🔲 {t("visor.topbar.cuadricula")}: {layout}</button>
               
-              {/* 🚀 NUEVO BOTÓN 1x1 INTELIGENTE */}
               {layout !== "1x1" && (
                 <button style={styles.btnToolActivoSeguridad} onClick={restaurarAVistaUnica} title="Atrapar imagen seleccionada y verla en pantalla completa">
                   ⏹️ 1x1
                 </button>
               )}
-              
-              <button style={styles.btnEfilm} onClick={abrirHistorialComparativo}>📂 Historial</button>
-              <button style={styles.btnInfo} onClick={irASiguientePaciente}>⏭️ Siguiente</button>
-              <button style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado} onClick={() => setMostrarPanelDictado(!mostrarPanelDictado)}>🎙️ {mostrarPanelDictado ? "Cerrar Dictado" : "Dictar"}</button>
+
+              <button 
+                style={styles.btnMPR} 
+                onClick={() => window.open(`/mpr/${currentId}?id_real=${idReal}`, '_blank')} 
+                title="Abrir Reconstrucción Multiplanar 3D en nueva ventana"
+              >
+                🧊 {t("visor.topbar.mpr_3d")}
+              </button>
+
+              <button style={styles.btnEfilm} onClick={abrirHistorialComparativo}>📂 {t("visor.topbar.historial")}</button>
+              <button style={styles.btnInfo} onClick={irASiguientePaciente}>⏭️ {t("visor.topbar.siguiente")}</button>
+              <button style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado} onClick={() => setMostrarPanelDictado(!mostrarPanelDictado)}>🎙️ {mostrarPanelDictado ? `${t("visor.topbar.cerrar")} ${t("visor.topbar.dictar")}` : t("visor.topbar.dictar")}</button>
             </>
           )}
 
           <div style={styles.divisor} />
-          <button style={mostrarMetadatos ? styles.btnToolActivoSeguridad : styles.btnToolSeguridad} onClick={() => setMostrarMetadatos(!mostrarMetadatos)}>🛡️ Info</button>
+          <button style={mostrarMetadatos ? styles.btnToolActivoSeguridad : styles.btnToolSeguridad} onClick={() => setMostrarMetadatos(!mostrarMetadatos)}>🛡️ {t("visor.topbar.info")}</button>
         </div>
 
-        {/* FILA 2: Herramientas Físicas de Imagen */}
+{/* FILA 2: Herramientas Físicas de Imagen */}
         <div style={styles.toolbarRowBottom}>
-          <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>🌓 Contraste</button>
-          <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 Zoom</button>
-          <button style={herramientaActiva === "Magnify" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Magnify")}>🔎 Lupa</button>
-          <button style={herramientaActiva === "Pan" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Pan")}>🖐️ Mover</button>
-          <button style={herramientaActiva === "Rotate" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Rotate")}>🔄 Rotar</button>
-          <button style={styles.btnTool} onClick={reajustarLienzos}>🏠 Ajustar</button>
+          <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>🌓 {t("visor.herramientas.contraste")}</button>
+          <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 {t("visor.herramientas.zoom")}</button>
+          <button style={herramientaActiva === "Magnify" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Magnify")}>🔎 {t("visor.herramientas.lupa")}</button>
+          <button style={herramientaActiva === "Pan" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Pan")}>🖐️ {t("visor.herramientas.mover")}</button>
+          <button style={herramientaActiva === "Rotate" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Rotate")}>🔄 {t("visor.herramientas.rotar")}</button>
+          <button style={styles.btnTool} onClick={reajustarLienzos}>🏠 {t("visor.herramientas.ajustar")}</button>
 
           {isRadiologo && (
             <>
               <div style={styles.divisor} />
-              <button style={herramientaActiva === "Length" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Length")}>📏 Medir</button>
-              <button style={herramientaActiva === "Angle" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Angle")}>📐 Ángulo</button>
-              <button style={herramientaActiva === "EllipticalRoi" ? styles.btnPremiumActivo : styles.btnPremium} onClick={() => activarHerramienta("EllipticalRoi")}>🎯 ROI</button>
+              <button style={herramientaActiva === "Length" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Length")}>📏 {t("visor.herramientas.medir")}</button>
+              <button style={herramientaActiva === "Angle" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Angle")}>📐 {t("visor.herramientas.angulo")}</button>
+              <button style={herramientaActiva === "EllipticalRoi" ? styles.btnPremiumActivo : styles.btnPremium} onClick={() => activarHerramienta("EllipticalRoi")}>🎯 {t("visor.herramientas.roi")}</button>
               
-              <button style={styles.btnPremium} onClick={() => aplicarAccion('negativo')}>🌗 Negativo</button>
-              <button style={styles.btnLimpiar} onClick={() => aplicarAccion('limpiar')}>🧹 Limpiar</button>
-              <button style={styles.btnTool} onClick={() => aplicarAccion('flipH')}>↔️ Flip H</button>
-              <button style={styles.btnTool} onClick={() => aplicarAccion('flipV')}>↕️ Flip V</button>
+              <button style={styles.btnPremium} onClick={() => aplicarAccion('negativo')}>🌗 {t("visor.herramientas.negativo")}</button>
+              <button style={styles.btnLimpiar} onClick={() => aplicarAccion('limpiar')}>🧹 {t("visor.herramientas.limpiar")}</button>
+              <button style={styles.btnTool} onClick={() => aplicarAccion('flipH')}>↔️ {t("visor.herramientas.flip_h")}</button>
+              <button style={styles.btnTool} onClick={() => aplicarAccion('flipV')}>↕️ {t("visor.herramientas.flip_v")}</button>
             </>
           )}
 
           <div style={styles.divisor} />
-          <button style={isCinePlaying ? styles.btnCineActivo : styles.btnCine} onClick={() => setIsCinePlaying(!isCinePlaying)}>{isCinePlaying ? "⏸️ Pausa" : "▶️ Cine"}</button>
+          <button style={isCinePlaying ? styles.btnCineActivo : styles.btnCine} onClick={() => setIsCinePlaying(!isCinePlaying)}>{isCinePlaying ? "⏸️" : `▶️ ${t("visor.herramientas.cine")}`}</button>
           <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#94a3b8", fontSize: "12px", marginLeft: "5px", flexShrink: 0 }}>
             <span style={{ minWidth: "40px" }}>{cineSpeed} FPS</span>
             <input type="range" min="1" max="60" value={cineSpeed} onChange={(e) => setCineSpeed(Number(e.target.value))} style={{ width: "60px", cursor: "pointer", accentColor: "#8b5cf6" }} />
           </div>
         </div>
-
       </div>
 
       <div style={styles.mainArea}>
         <div style={styles.sidebar}>
-          <p style={{ color: "#94a3b8", textAlign: "center", fontSize: "11px", margin: "10px 0", fontWeight: "bold" }}>SERIES</p>
+          <p style={{ color: "#94a3b8", textAlign: "center", fontSize: "11px", margin: "10px 0", fontWeight: "bold" }}>{t("visor.lateral.series")}</p>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 8px", width: "100%", overflowY: "auto", maxHeight: "60vh" }}>
             {series.map((s, idx) => {
               const isActivo = vpSeries[viewportActivo] === idx;
@@ -621,7 +630,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
                      )}
 
                      {!isVacia && imgsVp.length > 0 && (
-                        <div style={styles.overlayTopLeft}>Corte {vpIndices[i] + 1} / {imgsVp.length}</div>
+                        <div style={styles.overlayTopLeft}>{t("visor.lateral.corte")} {vpIndices[i] + 1} / {imgsVp.length}</div>
                      )}
 
                      {!isVacia && mostrarMetadatos && tagsVp && (
@@ -679,6 +688,7 @@ const styles = {
   btnInfo: { backgroundColor: "#10b981", color: "#fff", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   panelDictado: { height: "280px", backgroundColor: "#07080a", borderTop: "2px solid #38bdf8", flexShrink: 0, display: "flex", flexDirection: "column", padding: "5px", overflowY: "hidden", transition: "height 0.3s ease" },
   btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btnMPR: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px", marginRight: "5px" },
   btnCine: { backgroundColor: "#4c1d95", color: "#ede9fe", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btnCineActivo: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #6d28d9", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
   btnToolSeguridad: { backgroundColor: "#0f766e", color: "#ccfbf1", border: "1px solid #115e59", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },

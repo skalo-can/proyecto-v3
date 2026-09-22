@@ -15,7 +15,36 @@ i18n
           "btn_enviar_dicom": "📤 Send DICOM",
           "btn_productividad": "📊 PRODUCTIVITY DASHBOARD",
           "lbl_estudios_pantalla": "STUDIES ON SCREEN:",
+          "btn_grabar": "Record",
+          "btn_abrir": "Open",
           
+          "estados": {
+            "tomado": "Acquired",
+            "importado": "Imported",
+            "urgencia": "STAT",
+            "transcrito": "Transcribed",
+            "firmado": "Signed",
+            "redictado": "Re-dictated",
+            "cancelado": "Canceled",
+            "dictado": "Dictated",
+            "entregado": "Delivered",
+            "rechazado": "Rejected"
+          },
+
+          "modalidades": {
+            "todas": "All",
+            "ct": "CT - Computed Tomography",
+            "mr": "MR - Magnetic Resonance",
+            "dx": "DX - Digital Radiography (Panel)",
+            "cr": "CR - Computed Radiography (Cassette)",
+            "us": "US - Ultrasound",
+            "mg": "MG - Mammography",
+            "dxa": "DEXA - Bone Densitometry",
+            "pet": "PET - PET Scan",
+            "rf": "RF - C-Arm (Fluoroscopy)",
+            "xa": "XA - C-Arm (Vascular)"
+          },
+
           "sidebar": {
             "pacientes": "Patients",
             "plantillas": "Template Manager",
@@ -755,6 +784,51 @@ i18n
             "prompt_token": "🔒 SYSTEM BLOCKED\n\nThis action requires Master Level authorization.\nContact Support (SKALO) to get today's Dynamic Token:\n\nEnter Authorization Token:",
             "token_invalido": "❌ ACCESS DENIED: Invalid or expired token. The incident has been logged.",
             "error_conexion": "❌ Connection failure with the server when trying to clear the system."
+          },
+
+          "visor": {
+            "topbar": {
+              "cerrar": "Close",
+              "serie_activa": "Active Series",
+              "filtros_tac": "CT Filters",
+              "cuadricula": "Grid",
+              "mpr_3d": "MPR 3D",
+              "historial": "History",
+              "siguiente": "Next",
+              "dictar": "Dictate",
+              "info": "Info"
+            },
+
+            "herramientas": {
+              "contraste": "W/L",
+              "zoom": "Zoom",
+              "lupa": "Magnify",
+              "mover": "Pan",
+              "rotar": "Rotate",
+              "ajustar": "Fit",
+              "medir": "Measure",
+              "angulo": "Angle",
+              "roi": "ROI",
+              "negativo": "Invert",
+              "limpiar": "Clear",
+              "flip_h": "Flip H",
+              "flip_v": "Flip V",
+              "cine": "Cine"
+            },
+            "lateral": {
+              "series": "SERIES",
+              "corte": "Slice"
+            }
+          },
+
+          "login": {
+            "prof_services": "PROFESSIONAL SERVICES",
+            "lens_focus": "MI PACS / VISUALIZATION & LENS FOCUS",
+            "ecosystem": "ENTERPRISE RADIOLOGY ECOSYSTEM",
+            "ph_usuario": "User or Clinical Email",
+            "ph_password": "Password",
+            "btn_ingresar": "LOGIN TO SYSTEM",
+            "footer_seguridad": "HOSPITAL GRADE SECURITY - SAULT STE. MARIE, ONTARIO"
           }
         }
       },
@@ -766,6 +840,35 @@ i18n
           "btn_enviar_dicom": "📤 Enviar DICOM",
           "btn_productividad": "📊 PANEL DE PRODUCTIVIDAD",
           "lbl_estudios_pantalla": "ESTUDIOS EN PANTALLA:",
+          "btn_grabar": "Grabar",
+          "btn_abrir": "Abrir",
+          
+          "estados": {
+            "tomado": "Tomado",
+            "importado": "Importado",
+            "urgencia": "Urgencia",
+            "transcrito": "Transcrito",
+            "firmado": "Firmado",
+            "redictado": "Re-dictado",
+            "cancelado": "Cancelado",
+            "dictado": "Dictado",
+            "entregado": "Entregado",
+            "rechazado": "Rechazado"
+          },
+
+          "modalidades": {
+            "todas": "Todas",
+            "ct": "CT - Tomografía",
+            "mr": "MR - Resonancia",
+            "dx": "DX - Rx Panel (Directo)",
+            "cr": "CR - Chasis (Computarizado)",
+            "us": "US - Ecografía",
+            "mg": "MG - Mamografía",
+            "dxa": "DEXA - Densitometría Ósea",
+            "pet": "PET - PET Scan",
+            "rf": "RF - Arco en C (Fluoroscopía)",
+            "xa": "XA - Arco en C (Vascular)"
+          },
           
           "sidebar": {
             "pacientes": "Pacientes",
@@ -1506,6 +1609,50 @@ i18n
             "prompt_token": "🔒 SISTEMA BLOQUEADO\n\nEsta acción requiere autorización de Nivel Maestro.\nComunícate con Soporte (SKALO) para obtener el Token Dinámico de hoy:\n\nIngrese el Token de Autorización:",
             "token_invalido": "❌ ACCESO DENEGADO: Token inválido o expirado. El incidente ha sido registrado.",
             "error_conexion": "❌ Fallo de conexión con el servidor al intentar limpiar el sistema."
+          },
+
+          "visor": {
+            "topbar": {
+              "cerrar": "Cerrar",
+              "serie_activa": "Serie Activa",
+              "filtros_tac": "Filtros TAC",
+              "cuadricula": "Cuadrícula",
+              "mpr_3d": "MPR 3D",
+              "historial": "Historial",
+              "siguiente": "Siguiente",
+              "dictar": "Dictar",
+              "info": "Info"
+            },
+            "herramientas": {
+              "contraste": "Contraste",
+              "zoom": "Zoom",
+              "lupa": "Lupa",
+              "mover": "Mover",
+              "rotar": "Rotar",
+              "ajustar": "Ajustar",
+              "medir": "Medir",
+              "angulo": "Ángulo",
+              "roi": "ROI",
+              "negativo": "Negativo",
+              "limpiar": "Limpiar",
+              "flip_h": "Flip H",
+              "flip_v": "Flip V",
+              "cine": "Cine"
+            },
+            "lateral": {
+              "series": "SERIES",
+              "corte": "Corte"
+            }
+          },
+
+          "login": {
+            "prof_services": "SERVICIOS PROFESIONALES",
+            "lens_focus": "MI PACS / VISUALIZACIÓN Y ENFOQUE",
+            "ecosystem": "ECOSISTEMA EMPRESARIAL DE RADIOLOGÍA",
+            "ph_usuario": "Usuario o Correo Clínico",
+            "ph_password": "Contraseña",
+            "btn_ingresar": "INGRESAR AL SISTEMA",
+            "footer_seguridad": "SEGURIDAD DE GRADO HOSPITALARIO - SAULT STE. MARIE, ONTARIO"
           }
         }
       }
