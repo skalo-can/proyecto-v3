@@ -15,21 +15,35 @@ router = APIRouter(prefix="/dicom", tags=["DICOM Stream"])
 SECRET_COMPARTIR = "Asotrauma_Clinica_Segura_2026_Compartir"
 
 # =========================================================
-# TRADUCTOR DE RUTAS WINDOWS -> LINUX (DOCKER)
+# TRADUCTOR DE RUTAS BIDIRECCIONAL (WINDOWS <-> DOCKER)
 # =========================================================
-def normalizar_ruta_docker(ruta_windows: str) -> str:
-    if not ruta_windows: return ""
-    # 1. Unificar barras
-    ruta = ruta_windows.replace("\\", "/")
+def normalizar_ruta_docker(ruta_original: str) -> str:
+    if not ruta_original:
+        return ""
     
-    # 2. Traducir volumen principal del proyecto
-    if "D:/proyecto v3" in ruta or "d:/proyecto v3" in ruta:
-        ruta = ruta.replace("D:/proyecto v3", "/app").replace("d:/proyecto v3", "/app")
-        
-    # 3. Traducir volumen del NAS Externo
-    elif "D:/MI_PACS_NAS_EXTERNAL" in ruta or "d:/MI_PACS_NAS_EXTERNAL" in ruta:
-        ruta = ruta.replace("D:/MI_PACS_NAS_EXTERNAL", "/mnt/nas_externo").replace("d:/MI_PACS_NAS_EXTERNAL", "/mnt/nas_externo")
-        
+    # 1. Unificar barras
+    ruta = ruta_original.replace("\\", "/")
+    
+    # 2. Si estamos ejecutando en Windows Local (venv)
+    if os.name == "nt":
+        if ruta.startswith("/app"):
+            ruta = ruta.replace("/app", "D:/proyecto v3", 1)
+        elif ruta.startswith("/mnt/nas_externo"):
+            ruta = ruta.replace("/mnt/nas_externo", "D:/MI_PACS_NAS_EXTERNAL", 1)
+            
+        # Respaldo por si el archivo está dentro de la subcarpeta backend
+        if not os.path.exists(ruta) and "D:/proyecto v3/" in ruta and "D:/proyecto v3/backend/" not in ruta:
+            ruta_alt = ruta.replace("D:/proyecto v3/", "D:/proyecto v3/backend/", 1)
+            if os.path.exists(ruta_alt):
+                return ruta_alt
+
+    # 3. Si estamos ejecutando dentro del contenedor Docker (Linux)
+    else:
+        if "D:/proyecto v3" in ruta or "d:/proyecto v3" in ruta:
+            ruta = ruta.replace("D:/proyecto v3", "/app").replace("d:/proyecto v3", "/app")
+        elif "D:/MI_PACS_NAS_EXTERNAL" in ruta or "d:/MI_PACS_NAS_EXTERNAL" in ruta:
+            ruta = ruta.replace("D:/MI_PACS_NAS_EXTERNAL", "/mnt/nas_externo").replace("d:/MI_PACS_NAS_EXTERNAL", "/mnt/nas_externo")
+            
     return ruta
 
 # =========================================================
