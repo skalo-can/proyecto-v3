@@ -121,6 +121,15 @@ export default function Pacientes() {
           });
 
           setPacientes(datos);
+          try {
+            const colaTrabajo = datos.map((item) => ({
+              estudio_interno_id: item.estudio_interno_id,
+              id_real: item.identificacion || item.id_paciente || item.id,
+              estado_pacs: item.estado_pacs,
+            }));
+            localStorage.setItem("mipacs_cola_trabajo", JSON.stringify(colaTrabajo));
+          } catch (e) {}
+          setLoading(false);
           setLoading(false);
         })
         .catch((err) => {
@@ -274,6 +283,13 @@ export default function Pacientes() {
   const abrirModalTranscriptor = (estudioId) => window.open(`/visor-transcriptor/${estudioId}`, `Transcriptor_${estudioId}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
   const abrirModalFirma = (estudioId) => window.open(`/visor-firma/${estudioId}`, `Firma_${estudioId}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
 
+  const abrirDictadoDirectoFirma = (estudioId) => {
+    const pac = pacientes.find(p => p.estudio_interno_id === estudioId);
+    if (!pac) return;
+    if (!(!!estudiosAutorizados[estudioId] || pac.estado_pacs === "Tomado")) return alert("🔒 Estudio Bloqueado.");
+    window.open(`/visor-firma/${estudioId}?modo=autodictado`, `AutoDictadoFirma_${estudioId}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
+  };
+
   // 🔥 SOLUCIÓN INFALIBLE: Autocrea el reproductor si no existe en el DOM
   const ejecutarPlayAudioTabla = (estudioId) => {
     let reproductor = reproductorGlobalRef.current;
@@ -379,6 +395,7 @@ export default function Pacientes() {
             abrirModuloDictado={abrirModuloDictado} abrirEditorPaciente={abrirEditorPaciente} 
             handleReabrirFlujoEstudio={handleReabrirFlujoEstudio} abrirModalTranscriptor={abrirModalTranscriptor}
             abrirModalFirma={abrirModalFirma}
+            abrirDictadoDirectoFirma={abrirDictadoDirectoFirma}
             
             // 🔥 PASAMOS LAS HERRAMIENTAS NUEVAS A LA TABLA
             handleMarcarTomado={handleMarcarTomado}

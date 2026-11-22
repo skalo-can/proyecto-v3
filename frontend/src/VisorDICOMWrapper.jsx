@@ -16,7 +16,8 @@ import { useAuth } from "./AuthContext";
 import { useTranslation } from "react-i18next"; 
 
 import CompareViewer from "./components/DicomViewer/CompareViewer";
-import ModalDictadoHardware from "./pages/ModalDictadoHardware"; 
+import ModalDictadoHardware from "./pages/ModalDictadoHardware";
+import ModalFirma from "./components/Modals/ModalFirma";
 
 import cornerstone from "cornerstone-core";
 import cornerstoneTools from "cornerstone-tools";
@@ -72,7 +73,8 @@ const SerieThumbnail = ({ url }) => {
 };
 
 export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPaciente }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
   
   const { id: paramId } = useParams(); 
   const location = useLocation();
@@ -87,6 +89,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const [loading, setLoading] = useState(true);
   const [mostrarComparacion, setMostrarComparacion] = useState(null);
   const [mostrarPanelDictado, setMostrarPanelDictado] = useState(false);
+  const [mostrarPanelAutoDictado, setMostrarPanelAutoDictado] = useState(false);
 
   const MAX_VP = 16;
   const layoutsDisponibles = ["1x1", "1x2", "2x2", "2x3", "2x4", "3x3", "3x4", "4x4"];
@@ -162,7 +165,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     }, 100);
   };
 
-  useEffect(() => { reajustarLienzos(); }, [mostrarPanelDictado, layout]);
+  useEffect(() => { reajustarLienzos(); }, [mostrarPanelDictado, mostrarPanelAutoDictado, layout]);
 
   useEffect(() => {
     if (!isGuest && cleanLocalToken) {
@@ -321,8 +324,18 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     });
   };
 
-  useEffect(() => {
+useEffect(() => {
     const handleKeyDown = (e) => {
+      // Abrir estación de dictado directo con F2 o Ctrl+Espacio si está cerrada
+      if (isRadiologo && !mostrarPanelAutoDictado && (e.key === "F2" || (e.code === "Space" && e.ctrlKey))) {
+        e.preventDefault();
+        setMostrarPanelDictado(false);
+        setMostrarPanelAutoDictado(true);
+        return;
+      }
+
+      if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
+      
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) setIsCinePlaying(false); 
       if (e.key === "ArrowDown" || e.key === "ArrowRight") {
         setVpIndices(prev => {
@@ -345,7 +358,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [vpSeries, viewportActivo, series]);
+  }, [vpSeries, viewportActivo, series, isRadiologo, mostrarPanelAutoDictado]);
 
   const activarHerramienta = (nombreHerramienta) => {
     setHerramientaActiva(nombreHerramienta);
@@ -394,22 +407,45 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   };
 
   const irASiguientePaciente = async () => {
-    if (!window.confirm("¿Desea avanzar al siguiente paciente pendiente? Asegúrese de haber guardado (Enter) el dictado actual.")) return;
+    if (!window.confirm(isEn ? "Advance to the next pending study?" : "¿Desea avanzar al siguiente paciente pendiente?")) return;
     try {
-      const res = await fetch(`${API_BASE}/api/pacientes`, { headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` } });
-      const data = await res.json(); 
-      const list = Array.isArray(data) ? data : (data.items || []);
-      
-      const pendientes = list.filter(e => ["Tomado", "Importado", "Rechazado"].includes(e.estado_pacs));
-      const indexActual = pendientes.findIndex(e => String(e.estudio_interno_id) === String(currentId));
-      
-      if (indexActual !== -1 && indexActual < pendientes.length - 1) {
-        const next = pendientes[indexActual + 1];
-        window.location.href = `/imagenes-estudio/${next.estudio_interno_id}?id_real=${next.id}`;
-      } else {
-        alert("¡Excelente! No hay más estudios pendientes en la lista de trabajo.");
+      // 1. Intentar avanzar respetando la cola filtrada del Panel de Pacientes
+      const colaGuardada = localStorage.getItem("mipacs_cola_trabajo");
+      if (colaGuardada) {
+        const cola = JSON.parse(colaGuardada);
+        const idxEnCola = cola.findIndex((e) => String(e.estudio_interno_id) === String(currentId));
+        if (idxEnCola !== -1) {
+          const siguientesEnCola = cola
+            .slice(idxEnCola + 1)
+            .filter((e) => ["Tomado", "Importado", "Rechazado"].includes(e.estado_pacs));
+          if (siguientesEnCola.length > 0) {
+            const next = siguientesEnCola[0];
+            window.location.href = `/imagenes-estudio/${next.estudio_interno_id}?id_real=${next.id_real}`;
+            return;
+          }
+        }
       }
-    } catch (err) { alert("Error al buscar el siguiente paciente."); }
+
+      // 2. Respaldo desde API si se abrió el visor directamente sin pasar por la tabla
+      const res = await fetch(`${API_BASE}/api/pacientes`, { headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` } });
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data.items || []);
+
+      const pendientes = list.filter((e) => ["Tomado", "Importado", "Rechazado"].includes(e.estado_pacs));
+      const indexActual = pendientes.findIndex((e) => String(e.estudio_interno_id) === String(currentId));
+
+      // Si el estudio actual ya fue firmado (indexActual === -1), tomamos el primer pendiente disponible
+      const next = indexActual === -1 ? pendientes[0] : pendientes[indexActual + 1];
+
+      if (next) {
+        const idPacienteReal = next.identificacion || next.id_paciente || next.id;
+        window.location.href = `/imagenes-estudio/${next.estudio_interno_id}?id_real=${idPacienteReal}`;
+      } else {
+        alert(isEn ? "Excellent! No more pending studies in the worklist." : "¡Excelente! No hay más estudios pendientes en la lista de trabajo.");
+      }
+    } catch (err) {
+      alert(isEn ? "Error finding next patient." : "Error al buscar el siguiente paciente.");
+    }
   };
 
   const alternarLayout = () => {
@@ -540,7 +576,29 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
 
               <button style={styles.btnEfilm} onClick={abrirHistorialComparativo}>📂 {t("visor.topbar.historial")}</button>
               <button style={styles.btnInfo} onClick={irASiguientePaciente}>⏭️ {t("visor.topbar.siguiente")}</button>
-              <button style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado} onClick={() => setMostrarPanelDictado(!mostrarPanelDictado)}>🎙️ {mostrarPanelDictado ? `${t("visor.topbar.cerrar")} ${t("visor.topbar.dictar")}` : t("visor.topbar.dictar")}</button>
+              <button
+                style={mostrarPanelDictado ? styles.btnDictadoActivo : styles.btnDictado}
+                onClick={() => {
+                  setMostrarPanelAutoDictado(false);
+                  setMostrarPanelDictado(!mostrarPanelDictado);
+                }}
+              >
+                🎙️ {mostrarPanelDictado ? `${t("visor.topbar.cerrar")} ${t("visor.topbar.dictar")}` : t("visor.topbar.dictar")}
+              </button>
+              <button
+                style={mostrarPanelAutoDictado ? styles.btnAutoDictadoActivo : styles.btnAutoDictado}
+                onClick={() => {
+                  setMostrarPanelDictado(false);
+                  setMostrarPanelAutoDictado(!mostrarPanelAutoDictado);
+                }}
+                title="Auto-transcribir dictado, respaldar audio y firmar en esta misma pantalla"
+              >
+                ⚡ {mostrarPanelAutoDictado
+                  ? `${t("visor.topbar.cerrar")} ${isEn ? "Dictate & Sign" : "Dictar y Firmar"}`
+                  : isEn
+                  ? "Dictate & Sign"
+                  : "Dictar y Firmar"}
+              </button>
             </>
           )}
 
@@ -666,6 +724,19 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
           </div>
         </div>
       )}
+
+      {mostrarPanelAutoDictado && (
+        <div style={styles.panelAutoDictado}>
+          <div style={{ width: "100%", height: "100%", overflowY: "auto" }}>
+            <ModalFirma
+              isEmbedded={true}
+              estudioIdProps={currentId}
+              modoProps="autodictado"
+              onCerrar={() => setMostrarPanelAutoDictado(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -703,5 +774,8 @@ const styles = {
   overlayTopLeft: { position: "absolute", top: "15px", left: "15px", color: "#fbbf24", fontSize: "14px", fontWeight: "bold", pointerEvents: "none", zIndex: 10, textShadow: "1px 1px 2px #000" },
   overlayMetadatos: { position: "absolute", bottom: "35px", left: "15px", backgroundColor: "rgba(15, 23, 42, 0.85)", color: "#fff", padding: "10px", borderRadius: "8px", border: "1px solid #334155", pointerEvents: "none", zIndex: 20, maxWidth: "250px", fontSize: "12px" },
   metaText: { margin: "2px 0", fontSize: "11px", color: "#e2e8f0" },
-  sliderBottom: { position: "absolute", bottom: "10px", left: "5%", width: "90%", cursor: "pointer", accentColor: "#fbbf24", zIndex: 15 }
+  sliderBottom: { position: "absolute", bottom: "10px", left: "5%", width: "90%", cursor: "pointer", accentColor: "#fbbf24", zIndex: 15 },
+  btnAutoDictado: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #38bdf8", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btnAutoDictadoActivo: { backgroundColor: "#0ea5e9", color: "#0f172a", border: "1px solid #7dd3fc", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  panelAutoDictado: { height: "44vh", minHeight: "340px", backgroundColor: "#07080a", borderTop: "2px solid #38bdf8", flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden", transition: "height 0.3s ease" },
 };

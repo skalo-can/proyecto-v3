@@ -55,6 +55,32 @@ from app.core.config import STATIC_DIR, THUMBNAILS_DIR, PDF_REPORTS_DIR, DICOM_A
 
 # 🚀 DEFINICIÓN DEL ROUTER Y DIRECTORIOS
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
+@router.get("/perfil-medico-actual")
+def obtener_perfil_medico_actual(usuario=Depends(obtener_usuario_actual)):
+    p_nombre = getattr(usuario, "primer_nombre", None) or ""
+    p_apellido = getattr(usuario, "primer_apellido", None) or ""
+    nombre_bd = f"{p_nombre} {p_apellido}".strip()
+
+    if not nombre_bd:
+        nombre_bd = (
+            getattr(usuario, "nombre_completo", None)
+            or getattr(usuario, "nombre", None)
+            or getattr(usuario, "username", None)
+            or ""
+        )
+
+    rm_bd = (
+        getattr(usuario, "registro_medico", None)
+        or getattr(usuario, "rm", None)
+        or getattr(usuario, "registro", None)
+        or getattr(usuario, "matricula", None)
+        or ""
+    )
+
+    return {
+        "nombre_medico": str(nombre_bd).strip(),
+        "registro_medico": str(rm_bd).strip(),
+    }
 security = HTTPBearer()
 
 STATIC_THUMBNAILS_PATH = THUMBNAILS_DIR
@@ -498,6 +524,17 @@ def obtener_audio_dictado(
     # 3. Despachamos el archivo de audio directamente al reproductor de React
     return FileResponse(str(ruta_fisica), media_type="audio/wav", headers={"Accept-Ranges": "bytes"})    
 
+@router.get("/perfil-medico-actual")
+def obtener_perfil_medico_actual(usuario=Depends(obtener_usuario_actual)):
+    nombre_bd = f"{getattr(usuario, 'primer_nombre', '')} {getattr(usuario, 'primer_apellido', '')}".strip()
+    if not nombre_bd:
+        nombre_bd = getattr(usuario, 'nombre_completo', getattr(usuario, 'nombre', getattr(usuario, 'username', '')))
+    rm_bd = getattr(usuario, 'registro_medico', getattr(usuario, 'rm', getattr(usuario, 'matricula', '')))
+    return {
+        "nombre_medico": nombre_bd or "",
+        "registro_medico": rm_bd or ""
+    }
+
 @router.get("/estudio/{estudio_id}/obtener-transcripcion")
 @router.get("/{paciente_id}/obtener-transcripcion")
 def obtener_transcripcion(
@@ -551,7 +588,7 @@ def firmar_informe(
     paciente_id: int = None, 
     usuario=Depends(obtener_usuario_actual), 
     db: Session = Depends(get_db)
-):
+    ):
     estudio = resolver_estudio(db, estudio_id, paciente_id)
     if not estudio: raise HTTPException(status_code=404, detail="Estudio no localizado")
     
@@ -889,7 +926,11 @@ def asistencia_ia(
         
         modalidad_esperada = estudio.tipo_estudio or "No especificada"
         descripcion_esperada = estudio.descripcion or "No especificada"
-        idioma_salida = "BILINGÜE: Primero responde en INGLÉS y luego agrega la traducción exacta al ESPAÑOL"
+        idioma_salida = (
+            "INGLÉS MÉDICO PROFESIONAL (English)"
+            if str(lang).lower().startswith("en")
+            else "ESPAÑOL MÉDICO PROFESIONAL (Spanish)"
+        )
 
         if img:
             # FLUJO A: Tenemos imagen (Validación Visual + Clínica)
@@ -1153,3 +1194,130 @@ def auto_transcribir_con_ia(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fallo crítico: {str(e)}")
+
+# =====================================================================
+# ⚡ DICTADO DIRECTO DEL RADIÓLOGO (RESPALDO DE AUDIO + TRANSCRIPCIÓN/TRADUCCIÓN IA)
+# =====================================================================
+@router.post("/estudio/{estudio_id}/dictado-directo-ia")
+def dictado_directo_radiologo(
+    estudio_id: int,
+    audio: UploadFile = File(...),
+    idioma_dictado: str = "auto",
+    idioma_reporte: str = "es",
+    lang: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    estudio_actual = db.query(Estudio).filter(Estudio.id == estudio_id).first()
+    if not estudio_actual:
+        raise HTTPException(status_code=404, detail="Estudio no localizado")
+
+    paciente_db = estudio_actual.paciente
+
+    # Compatibilidad si llega solo 'lang'
+    if lang and not idioma_reporte:
+        idioma_reporte = lang
+
+    origen = (idioma_dictado or "auto").lower().strip()
+    destino = (idioma_reporte or "es").lower().strip()
+
+    try:
+        # 1. GUARDAR AUDIO ORIGINAL POR SEGURIDAD MÉDICO-LEGAL
+        fecha_referencia = estudio_actual.fecha_estudio if estudio_actual.fecha_estudio else datetime.now()
+        año = str(fecha_referencia.year)
+        mes = f"{fecha_referencia.month:02d}"
+        dia = f"{fecha_referencia.day:02d}"
+
+        ruta_jerarquica = Path(STATIC_DIR) / "audios_dictado" / año / mes / dia
+        ruta_jerarquica.mkdir(parents=True, exist_ok=True)
+
+        consecutivo = estudio_actual.id
+        identificacion = paciente_db.identificacion if paciente_db else estudio_actual.paciente_id
+        nombre_limpio = f"dictado_{identificacion}_estudio_{consecutivo}.wav"
+        file_path = ruta_jerarquica / nombre_limpio
+
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(audio.file, buffer)
+
+        ruta_relativa = f"/static/audios_dictado/{año}/{mes}/{dia}/{nombre_limpio}"
+        estudio_actual.audio_path = ruta_relativa
+
+        # 2. TRANSCRIPCIÓN Y TRADUCCIÓN RADIOLÓGICA PROFESIONAL (Gemini Multimodal + Respaldo Whisper)
+        texto_medico = ""
+        nombre_destino = "INGLÉS (English)" if destino.startswith("en") else "ESPAÑOL (Spanish)"
+        nombre_origen = (
+            "INGLÉS" if origen.startswith("en")
+            else "ESPAÑOL" if origen.startswith("es")
+            else "el idioma en que hable el médico (detectado automáticamente)"
+        )
+
+        mismo_idioma = (origen.startswith("en") and destino.startswith("en")) or (
+            origen.startswith("es") and destino.startswith("es")
+        )
+
+        try:
+            from google.genai import types
+            load_dotenv()
+            api_key = os.getenv("GEMINI_API_KEY")
+            if api_key:
+                client = genai.Client(api_key=api_key)
+                audio_bytes = file_path.read_bytes()
+                mime_audio = (audio.content_type or "audio/webm").split(";")[0].strip()
+
+                if mismo_idioma:
+                    prompt_voz = (
+                        f"Eres un transcriptor médico radiológico experto. El médico está dictando en {nombre_origen}. "
+                        f"Transcribe el audio de forma fiel y profesional en {nombre_destino}, aplicando puntuación clínica adecuada, "
+                        "mayúsculas anatómicas y terminología radiológica exacta (sin inventar hallazgos ni agregar comentarios). "
+                        "Devuelve ÚNICAMENTE el texto del informe transcrito."
+                    )
+                else:
+                    prompt_voz = (
+                        f"Eres un médico radiólogo bilingüe (Español/Inglés) experto en informes diagnósticos internacionales. "
+                        f"Escucha este dictado médico hablado en {nombre_origen}. "
+                        f"1) Comprende con precisión clínica todo el dictado original. "
+                        f"2) Redacta y entrega el informe final EXCLUSIVAMENTE en {nombre_destino}, utilizando terminología "
+                        "radiológica médica formal, precisa y natural para especialistas (conservando exactamente medidas, lateralidad y hallazgos). "
+                        "Devuelve ÚNICAMENTE el texto final en el idioma solicitado, sin notas, saludos ni explicaciones."
+                    )
+
+                resp = client.models.generate_content(
+                    model="gemini-3.5-flash",
+                    contents=[
+                        types.Part.from_bytes(data=audio_bytes, mime_type=mime_audio),
+                        prompt_voz
+                    ]
+                )
+                texto_medico = (resp.text or "").strip()
+        except Exception as e_gemini:
+            print(f"⚠️ Gemini Audio fallback a Whisper local por: {e_gemini}")
+
+        # Respaldo local con Whisper si Gemini no estuvo disponible
+        if not texto_medico and modelo_ia_voz is not None:
+            whisper_lang = None if origen == "auto" else ("en" if origen.startswith("en") else "es")
+            resultado = modelo_ia_voz.transcribe(str(file_path), language=whisper_lang)
+            texto_medico = resultado.get("text", "").strip()
+
+        if not texto_medico:
+            raise HTTPException(status_code=400, detail="No se detectó voz clara en la grabación.")
+
+        # 3. ACTUALIZAR ESTADO DIRECTO A TRANSCRITO (SALTANDO COLA HUMANA)
+        texto_previo = (estudio_actual.informe_texto or "").strip()
+        estudio_actual.informe_texto = f"{texto_previo}\n\n{texto_medico}".strip() if texto_previo else texto_medico
+        estudio_actual.estado_pacs = "Transcrito"
+        if hasattr(estudio_actual, "tiene_transcripcion"):
+            setattr(estudio_actual, "tiene_transcripcion", True)
+        if hasattr(estudio_actual, "tiene_dictado"):
+            setattr(estudio_actual, "tiene_dictado", False)
+
+        db.commit()
+        return {
+            "status": "success",
+            "texto": texto_medico,
+            "audio_url": ruta_relativa
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error en dictado directo: {str(e)}")

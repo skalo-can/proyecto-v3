@@ -8,8 +8,9 @@ export default function TablaPacientes({
   pacientes, seleccionados, setSeleccionados, toggleSeleccionarPaciente, solicitarOrdenamiento,
   renderIconoOrden, audiosClinicos, audioActualJugando, ejecutarPlayAudioTabla, estudiosAutorizados,
   abrirModuloDictado, abrirEditorPaciente, handleReabrirFlujoEstudio, abrirModalTranscriptor, abrirModalFirma,
-  handleMarcarTomado 
-}) {
+  abrirDictadoDirectoFirma, handleMarcarTomado 
+}) {  
+
   const { t } = useTranslation();
   const { user } = useAuth();
 
@@ -310,9 +311,32 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                     {p.estado_pacs === "Urgencia" && canUseHerramientasMedicas && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}><span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }}>🚨 Urgencia</span><button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>🎙️ Oficial</button></div>
                     )}
+
                     {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && canUseHerramientasMedicas && (
-                      <button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: estaDesbloqueado ? "#10b981" : "#ef4444", backgroundColor: estaDesbloqueado ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.1)", border: estaDesbloqueado ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(239, 68, 68, 0.4)", cursor: estaDesbloqueado ? "pointer" : "not-allowed", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>{estaDesbloqueado ? `🎙️ ${t("btn_grabar")}` : "🔒 Bloqueado"}</button>
+                      estaDesbloqueado ? (
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <button
+                            onClick={() => abrirModuloDictado(p.estudio_interno_id)}
+                            title="Dictar para enviar a transcriptor humano"
+                            style={{ ...styles.iconFlujoBase, color: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.4)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}
+                          >
+                            🎙️ {t("btn_grabar")}
+                          </button>
+                          <button
+                            onClick={() => abrirDictadoDirectoFirma(p.estudio_interno_id)}
+                            title="Auto-transcribir dictado, respaldar audio y firmar directamente"
+                            style={{ ...styles.iconFlujoBase, color: "#38bdf8", backgroundColor: "rgba(14, 165, 233, 0.18)", border: "1px solid rgba(56, 189, 248, 0.5)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
+                          >
+                            ⚡ {String(localStorage.getItem("i18nextLng") || "").startsWith("en") ? "Dictate & Sign" : "Dictar y Firmar"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.1)", border: "1px dashed rgba(239, 68, 68, 0.4)", cursor: "not-allowed", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+                          🔒 Bloqueado
+                        </button>
+                      )
                     )}
+
                     {p.estado_pacs === "Dictado" && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                         <button onClick={() => ejecutarPlayAudioTabla(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: "#3b82f6", backgroundColor: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", gap: "6px" }}>🔊 Play</button>
@@ -379,4 +403,4 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
       </tbody>
     </table>
   );
-}
+} 
