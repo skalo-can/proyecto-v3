@@ -106,7 +106,7 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   const [isCinePlaying, setIsCinePlaying] = useState(false);
   const [cineSpeed, setCineSpeed] = useState(15); 
   const [herramientaActiva, setHerramientaActiva] = useState("Wwwc"); 
-  const [mostrarMetadatos, setMostrarMetadatos] = useState(false);
+  const [mostrarMetadatos, setMostrarMetadatos] = useState(true);
 
   const tokenUrl = searchParams.get("token") || tokenPaciente;
   const isGuest = esPortalPaciente || !!tokenUrl;
@@ -166,6 +166,24 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
   };
 
   useEffect(() => { reajustarLienzos(); }, [mostrarPanelDictado, mostrarPanelAutoDictado, layout]);
+
+  // 🖥️ AUTO-AJUSTE AL 60 % DEL ANCHO DE PANTALLA
+  useEffect(() => {
+    if (window.opener && window.opener !== window) {
+      try {
+        const anchoPantalla = window.screen.availWidth;
+        const altoPantalla = window.screen.availHeight;
+        const anchoVisor = Math.round(anchoPantalla * 0.60);
+        const altoVisor = Math.round(altoPantalla * 0.90);
+        const posLeft = Math.max(0, anchoPantalla - anchoVisor);
+        const posTop = Math.max(0, Math.round((altoPantalla - altoVisor) / 2));
+
+        window.resizeTo(anchoVisor, altoVisor);
+        window.moveTo(posLeft, posTop);
+        reajustarLienzos();
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     if (!isGuest && cleanLocalToken) {
@@ -744,26 +762,30 @@ useEffect(() => {
 const styles = {
   visorContainer: { display: "flex", flexDirection: "column", height: "100%", width: "100%", backgroundColor: "#000", overflow: "hidden", fontFamily: "system-ui, sans-serif" },
   toolbarWrapper: { display: "flex", flexDirection: "column", backgroundColor: "#111418", borderBottom: "1px solid #1e293b", flexShrink: 0 },
-  toolbarRow: { height: "55px", display: "flex", alignItems: "center", padding: "0 20px", gap: "10px", overflowX: "auto", whiteSpace: "nowrap", scrollbarWidth: "none" },
-  toolbarRowBottom: { height: "50px", display: "flex", alignItems: "center", padding: "0 20px", gap: "6px", overflowX: "auto", whiteSpace: "nowrap", scrollbarWidth: "none", borderTop: "1px solid #1e293b", backgroundColor: "#0f172a" },
-  btnCerrar: { backgroundColor: "#ef4444", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
-  selectPreset: { backgroundColor: "#1e293b", color: "#fbbf24", border: "1px solid #334155", padding: "8px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", outline: "none", flexShrink: 0 },
-  btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
-  btnToolActivo: { backgroundColor: "#3b82f6", color: "#fff", border: "1px solid #2563eb", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
-  btnPremium: { backgroundColor: "#064e3b", color: "#d1fae5", border: "1px solid #047857", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
-  btnPremiumActivo: { backgroundColor: "#10b981", color: "#000", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnLimpiar: { backgroundColor: "#7f1d1d", color: "#fecaca", border: "1px solid #991b1b", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0 },
-  btnEfilm: { backgroundColor: "#b45309", color: "#fef3c7", border: "1px solid #92400e", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnDictado: { backgroundColor: "#4f46e5", color: "#e0e7ff", border: "1px solid #3730a3", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnDictadoActivo: { backgroundColor: "#6366f1", color: "#fff", border: "1px solid #4338ca", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnInfo: { backgroundColor: "#10b981", color: "#fff", border: "1px solid #059669", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+
+  toolbarRow: { minHeight: "48px", display: "flex", alignItems: "center", flexWrap: "wrap", padding: "6px 14px", gap: "6px" },
+  toolbarRowBottom: { minHeight: "44px", display: "flex", alignItems: "center", flexWrap: "wrap", padding: "6px 14px", gap: "5px", borderTop: "1px solid #1e293b", backgroundColor: "#0f172a" },
+
+  btnCerrar: { backgroundColor: "#ef4444", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "0.85rem" },
+  selectPreset: { backgroundColor: "#1e293b", color: "#fbbf24", border: "1px solid #334155", padding: "6px 8px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", outline: "none", flexShrink: 0, fontSize: "0.85rem" },
+  btnTool: { backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0, fontSize: "0.85rem" },
+  btnToolActivo: { backgroundColor: "#3b82f6", color: "#fff", border: "1px solid #2563eb", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0, fontSize: "0.85rem" },
+  btnPremium: { backgroundColor: "#064e3b", color: "#d1fae5", border: "1px solid #047857", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0, fontSize: "0.85rem" },
+  btnPremiumActivo: { backgroundColor: "#10b981", color: "#000", border: "1px solid #059669", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+  btnLimpiar: { backgroundColor: "#7f1d1d", color: "#fecaca", border: "1px solid #991b1b", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "600", flexShrink: 0, fontSize: "0.85rem" },
+  btnEfilm: { backgroundColor: "#b45309", color: "#fef3c7", border: "1px solid #92400e", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+  btnDictado: { backgroundColor: "#4f46e5", color: "#e0e7ff", border: "1px solid #3730a3", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+  btnDictadoActivo: { backgroundColor: "#6366f1", color: "#fff", border: "1px solid #4338ca", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+  btnInfo: { backgroundColor: "#10b981", color: "#fff", border: "1px solid #059669", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
   panelDictado: { height: "280px", backgroundColor: "#07080a", borderTop: "2px solid #38bdf8", flexShrink: 0, display: "flex", flexDirection: "column", padding: "5px", overflowY: "hidden", transition: "height 0.3s ease" },
-  btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnMPR: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "5px", marginRight: "5px" },
-  btnCine: { backgroundColor: "#4c1d95", color: "#ede9fe", border: "1px solid #5b21b6", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnCineActivo: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #6d28d9", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnToolSeguridad: { backgroundColor: "#0f766e", color: "#ccfbf1", border: "1px solid #115e59", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
-  btnToolActivoSeguridad: { backgroundColor: "#14b8a6", color: "#000", border: "1px solid #0d9488", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0 },
+  btn3D: { backgroundColor: "#0284c7", color: "#e0f2fe", border: "1px solid #0369a1", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+  btnMPR: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #5b21b6", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, marginLeft: "4px", marginRight: "4px", fontSize: "0.85rem" },
+  btnCine: { backgroundColor: "#4c1d95", color: "#ede9fe", border: "1px solid #5b21b6", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+  btnCineActivo: { backgroundColor: "#7c3aed", color: "#fff", border: "1px solid #6d28d9", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+  btnToolSeguridad: { backgroundColor: "#0f766e", color: "#ccfbf1", border: "1px solid #115e59", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+  btnToolActivoSeguridad: { backgroundColor: "#14b8a6", color: "#000", border: "1px solid #0d9488", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", flexShrink: 0, fontSize: "0.85rem" },
+
+
   divisor: { width: "1px", backgroundColor: "#475569", margin: "0 5px", height: "24px", flexShrink: 0 },
   mainArea: { display: "flex", flex: 1, overflow: "hidden" },
   sidebar: { width: "120px", backgroundColor: "#0f172a", borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", padding: "10px 0", zIndex: 30 },

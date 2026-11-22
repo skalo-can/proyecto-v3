@@ -53,10 +53,19 @@ export default function TablaPacientes({
   const abrirPDF = (estudioId) => window.open(`${apiBase}/api/pacientes/estudio/${estudioId}/descargar-pdf`, "_blank");
 
   const abrirVisorMedico = (estudioId, idReal) => {
+    const anchoPantalla = window.screen.availWidth || 1560;
+    const altoPantalla = window.screen.availHeight || 950;
+
+    // 60 % del ancho y 90 % del alto, alineado a la derecha para dejar el 40 % izquierdo libre
+    const anchoVisor = Math.round(anchoPantalla * 0.60);
+    const altoVisor = Math.round(altoPantalla * 0.90);
+    const posLeft = Math.max(0, anchoPantalla - anchoVisor);
+    const posTop = Math.max(0, Math.round((altoPantalla - altoVisor) / 2));
+
     window.open(
-      `/imagenes-estudio/${estudioId}?id_real=${idReal}`, 
-      `Visor_${estudioId}`, 
-      `width=1200,height=900,top=50,left=100,resizable=yes`
+      `/imagenes-estudio/${estudioId}?id_real=${idReal}`,
+      `Visor_${estudioId}`,
+      `width=${anchoVisor},height=${altoVisor},top=${posTop},left=${posLeft},resizable=yes`
     );
   };
 
