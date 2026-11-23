@@ -21,6 +21,7 @@ i18n
           "estados": {
             "tomado": "Acquired",
             "importado": "Imported",
+            "pendiente": "Pending",
             "urgencia": "STAT",
             "transcrito": "Transcribed",
             "firmado": "Signed",
@@ -846,6 +847,7 @@ i18n
           "estados": {
             "tomado": "Tomado",
             "importado": "Importado",
+            "pendiente": "Pendiente",
             "urgencia": "Urgencia",
             "transcrito": "Transcrito",
             "firmado": "Firmado",
@@ -1657,6 +1659,9 @@ i18n
         }
       }
     },
+    
+    supportedLngs: ["en", "es"],
+    load: "languageOnly",
     fallbackLng: "es",
     interpolation: { escapeValue: false }
   });

@@ -3,7 +3,8 @@ import { useAuth } from "../AuthContext";
 import { useTranslation } from "react-i18next";
 
 export default function ConfiguracionPACS() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
   const { user } = useAuth();
   const token = user?.token || localStorage.getItem("token");
   
@@ -11,7 +12,7 @@ export default function ConfiguracionPACS() {
   const [isScanning, setIsScanning] = useState(false); 
   const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
 
-  // 🚀 CAMBIO: client_ae ahora por defecto es MIPACS_VISOR
+  // client_ae por defecto es MIPACS_VISOR
   const [dicomConfig, setDicomConfig] = useState({ ae_title: "MI_PACS", ip: "0.0.0.0", port: "11112", client_ae: "MIPACS_VISOR" });
   
   const [nodosDestino, setNodosDestino] = useState([]);
@@ -28,6 +29,8 @@ export default function ConfiguracionPACS() {
   }, [logs]);
 
   useEffect(() => {
+    const enIngles = (localStorage.getItem("i18nextLng") || i18n.language || "").startsWith("en");
+
     // 1. Cargar Configuración del Servidor Local
     fetch(`${window.API_URL}/api/dicom/config`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
@@ -44,13 +47,14 @@ export default function ConfiguracionPACS() {
       .then(data => {
         if (Array.isArray(data)) {
           setNodosDestino(data);
-          agregarLog(`[SISTEMA] ${data.length}${t('configuracion_pacs.log_estaciones_cargadas')}`);
+          const prefijo = enIngles ? "[SYSTEM]" : "[SISTEMA]";
+          agregarLog(`${prefijo} ${data.length}${t('configuracion_pacs.log_estaciones_cargadas')}`);
         }
       })
       .catch(() => {
         agregarLog(t('configuracion_pacs.log_error_cargar_estaciones'));
       });
-  }, [token, t]);
+  }, [token, t, i18n.language]);
 
   const agregarLog = (linea) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${linea}`]);
 
@@ -135,6 +139,10 @@ export default function ConfiguracionPACS() {
 
   const toggleActivo = async (nodoActual) => {
     const estadoNuevo = !nodoActual.activo;
+    const prefijoLog = estadoNuevo
+      ? t('configuracion_pacs.log_trafico_habilitado')
+      : t('configuracion_pacs.log_trafico_bloqueado');
+
     try {
       await fetch(`${window.API_URL}/api/dicom/nodos/${nodoActual.id}`, {
         method: "PUT",
@@ -142,10 +150,10 @@ export default function ConfiguracionPACS() {
         body: JSON.stringify({ ...nodoActual, activo: estadoNuevo })
       });
       setNodosDestino(nodosDestino.map(n => n.id === nodoActual.id ? { ...n, activo: estadoNuevo } : n));
-      const textHabilitado = estadoNuevo ? "HABILITADO" : "BLOQUEADO";
-      agregarLog(`[ROUTER] Tráfico hacia '${nodoActual.nombre}' ha sido ${textHabilitado} en BD.`);
+      agregarLog(`${prefijoLog}'${nodoActual.nombre}'`);
     } catch (error) {
       setNodosDestino(nodosDestino.map(n => n.id === nodoActual.id ? { ...n, activo: estadoNuevo } : n));
+      agregarLog(`${prefijoLog}'${nodoActual.nombre}'`);
     }
   };
 
@@ -174,7 +182,14 @@ export default function ConfiguracionPACS() {
     agregarLog(t('configuracion_pacs.log_scanner_inicio'));
     setTimeout(() => {
       agregarLog(t('configuracion_pacs.log_scanner_detectado'));
-      if(!editandoId) setNuevoNodo({ ...nuevoNodo, ip: "192.168.1.105", puerto: "104", ae_title: "DESCONOCIDO_AET" });
+      if(!editandoId) {
+        setNuevoNodo({
+          ...nuevoNodo,
+          ip: "192.168.1.105",
+          puerto: "104",
+          ae_title: isEn ? "UNKNOWN_AET" : "DESCONOCIDO_AET"
+        });
+      }
       setIsScanning(false);
     }, 3000);
   };

@@ -72,10 +72,19 @@ export function AuthProvider({ children }) {
       if (Date.now() - ultimaActividad > TIEMPO_INACTIVIDAD_MS) {
         console.warn("🔒 Inactividad absoluta detectada. Cerrando sesión...");
         clearInterval(intervalId);
-        logout(); 
-        
-        alert("🔒 Por seguridad, su sesión se ha cerrado tras 5 minutos de inactividad.");
-        
+
+        const idiomaActual = localStorage.getItem("i18nextLng") || "";
+        const enIngles = idiomaActual.startsWith("en");
+
+        logout();
+        if (idiomaActual) localStorage.setItem("i18nextLng", idiomaActual);
+
+        alert(
+          enIngles
+            ? "🔒 For security, your session has been closed after 5 minutes of inactivity."
+            : "🔒 Por seguridad, su sesión se ha cerrado tras 5 minutos de inactividad."
+        );
+                      
         // 🚀 FIX: Si es una ventana flotante (visor), se autodestruye. Si es la principal, va al login.
         if (window.opener && window.opener !== window) {
           window.close();
@@ -100,4 +109,4 @@ export function AuthProvider({ children }) {
   );
 }
 
-export function useAuth() { return useContext(AuthContext); }
+export function useAuth() { return useContext(AuthContext); } 

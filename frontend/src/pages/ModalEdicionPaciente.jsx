@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 export default function ModalEdicionPaciente({
   isOpen,
@@ -7,6 +8,9 @@ export default function ModalEdicionPaciente({
   onCancelar,
   onGuardar
 }) {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
+
   if (!isOpen) return null;
 
   const modalOverlay = { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 };
@@ -25,46 +29,58 @@ export default function ModalEdicionPaciente({
   return (
     <div style={modalOverlay}>
       <div style={modalContentExpanded}>
-        <h3 style={modalTitle}>📝 Modificación Completa de Registro PACS</h3>
-        <p style={modalSubtitle}>Modo Maestro</p>
+        <h3 style={modalTitle}>
+          {isEn ? "📝 Full PACS Record Modification" : "📝 Modificación Completa de Registro PACS"}
+        </h3>
+        <p style={modalSubtitle}>{isEn ? "Master Mode" : "Modo Maestro"}</p>
         <form onSubmit={onGuardar} style={formStyle}>
           <div style={gridFields}>
             <div style={inputGroup}>
-              <label style={labelModal}>CÉDULA / ID PACIENTE</label>
+              <label style={labelModal}>{isEn ? "PATIENT ID / NATIONAL ID" : "CÉDULA / ID PACIENTE"}</label>
               <input type="text" style={inputModal} value={formEdit.identificacion} onChange={(e) => setFormEdit({...formEdit, identificacion: e.target.value})} required />
             </div>
             <div style={inputGroup}>
-              <label style={labelModal}>FECHA DE NACIMIENTO</label>
+              <label style={labelModal}>{isEn ? "DATE OF BIRTH" : "FECHA DE NACIMIENTO"}</label>
               <input type="date" style={inputModal} value={formEdit.fecha_nacimiento} onChange={(e) => setFormEdit({...formEdit, fecha_nacimiento: e.target.value})} required />
             </div>
             <div style={inputGroup}>
-              <label style={labelModal}>PRIMER NOMBRE</label>
+              <label style={labelModal}>{isEn ? "FIRST NAME" : "PRIMER NOMBRE"}</label>
               <input type="text" style={inputModal} value={formEdit.primer_nombre} onChange={(e) => setFormEdit({...formEdit, primer_nombre: e.target.value})} required />
             </div>
             <div style={inputGroup}>
-              <label style={labelModal}>SEGUNDO NOMBRE</label>
+              <label style={labelModal}>{isEn ? "MIDDLE NAME" : "SEGUNDO NOMBRE"}</label>
               <input type="text" style={inputModal} value={formEdit.segundo_nombre} onChange={(e) => setFormEdit({...formEdit, segundo_nombre: e.target.value})} />
             </div>
             <div style={inputGroup}>
-              <label style={labelModal}>PRIMER APELLIDO</label>
+              <label style={labelModal}>{isEn ? "1ST LAST NAME" : "PRIMER APELLIDO"}</label>
               <input type="text" style={inputModal} value={formEdit.primer_apellido} onChange={(e) => setFormEdit({...formEdit, primer_apellido: e.target.value})} required />
             </div>
             <div style={inputGroup}>
-              <label style={labelModal}>SEGUNDO APELLIDO</label>
+              <label style={labelModal}>{isEn ? "2ND LAST NAME" : "SEGUNDO APELLIDO"}</label>
               <input type="text" style={inputModal} value={formEdit.segundo_apellido} onChange={(e) => setFormEdit({...formEdit, segundo_apellido: e.target.value})} />
             </div>
             <div style={inputGroup}>
-              <label style={labelModal}>CORREO ELECTRÓNICO (EMAIL)</label>
+              <label style={labelModal}>{isEn ? "EMAIL ADDRESS" : "CORREO ELECTRÓNICO (EMAIL)"}</label>
               <input type="email" style={inputModal} value={formEdit.email} onChange={(e) => setFormEdit({...formEdit, email: e.target.value})} />
             </div>
             <div style={inputGroup}>
-              <label style={labelModal}>TELÉFONO MÓVIL</label>
-              <input type="text" style={inputModal} value={formEdit.telefono} placeholder="+573001234567" onChange={(e) => setFormEdit({...formEdit, telefono: e.target.value})} />
+              <label style={labelModal}>{isEn ? "MOBILE PHONE" : "TELÉFONO MÓVIL"}</label>
+              <input
+                type="text"
+                style={inputModal}
+                value={formEdit.telefono}
+                placeholder={isEn ? "+15551234567" : "+573001234567"}
+                onChange={(e) => setFormEdit({...formEdit, telefono: e.target.value})}
+              />
             </div>
           </div>
           <div style={modalActions}>
-            <button type="button" onClick={onCancelar} style={btnCancelarModal}>CANCELAR</button>
-            <button type="submit" style={btnGuardarModal}>APLICAR EN TABLA</button>
+            <button type="button" onClick={onCancelar} style={btnCancelarModal}>
+              {isEn ? "CANCEL" : "CANCELAR"}
+            </button>
+            <button type="submit" style={btnGuardarModal}>
+              {isEn ? "SAVE CHANGES" : "APLICAR EN TABLA"}
+            </button>
           </div>
         </form>
       </div>

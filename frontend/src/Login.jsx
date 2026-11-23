@@ -1,5 +1,5 @@
 /**
- * Login.jsx — MI_PACS (Versión Definitiva: Órbitas del Logo Ultra Brillantes y Centrado Perfecto)
+- Login.jsx — MI_PACS (Versión Definitiva: Órbitas del Logo Ultra Brillantes y Centrado Perfecto)
  */
 
 import React, { useState } from "react"; 
@@ -18,6 +18,7 @@ function Login() {
   const { login } = useAuth();
 
   const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -33,7 +34,7 @@ function Login() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.detail || "Credenciales inválidas.");
+        setError(data.detail || (isEn ? "Invalid credentials." : "Credenciales inválidas."));
         return;
       }
 
@@ -52,11 +53,11 @@ function Login() {
         }
         
       } else {
-        setError("Error en el formato de respuesta del servidor.");
+        setError(isEn ? "Server response format error." : "Error en el formato de respuesta del servidor.");
       }
 
     } catch (err) {
-      setError("Error de conexión o respuesta inválida.");
+      setError(isEn ? "Connection error or invalid response." : "Error de conexión o respuesta inválida.");
       console.error(err);
     }
   };
@@ -76,13 +77,11 @@ function Login() {
       
       {/* 🌟 ESTILOS ANIMADOS */}
       <style>{`
-        /* Animación suave para el fondo */
         @keyframes pulseGlow {
           0% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
           50% { transform: scale(1.03); opacity: 0.9; filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6)); }
           100% { transform: scale(1); opacity: 0.2; filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.2)); }
         }
-        /* 🌟 NUEVA ANIMACIÓN: Brillo Intenso exclusivo para los aros del logo */
         @keyframes pulseGlowIntense {
           0% { transform: scale(1); opacity: 0.6; filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.6)); }
           50% { transform: scale(1.02); opacity: 1; filter: drop-shadow(0 0 30px rgba(251, 191, 36, 1)); }
@@ -105,18 +104,13 @@ function Login() {
         }
       `}</style>
 
-
-
-      {/* =====================================================================
-          🌌 LAS 8 ÓRBITAS DE FONDO ESTÁTICAS EN LAS ESQUINAS (Suaves)
-          ===================================================================== */}
-     {/* 🌐 BOTÓN DE IDIOMA EN LA ESQUINA */}
+      {/* 🌐 BOTÓN DE IDIOMA EN LA ESQUINA */}
       <div style={{ position: "absolute", top: "20px", right: "20px", zIndex: 100 }}>
         <button 
-          onClick={() => i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es')}
+          onClick={() => i18n.changeLanguage(isEn ? 'es' : 'en')}
           style={{ background: "rgba(17, 20, 24, 0.8)", color: "#fbbf24", border: "1px solid rgba(251, 191, 36, 0.4)", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", backdropFilter: "blur(4px)", fontSize: "0.8rem", letterSpacing: "1px" }}
         >
-          {i18n.language === 'es' ? 'EN / ENGLISH' : 'ES / ESPAÑOL'}
+          {isEn ? 'ES / ESPAÑOL' : 'EN / ENGLISH'}
         </button>
       </div>
      
@@ -132,9 +126,7 @@ function Login() {
       <div style={{ position: "absolute", bottom: "-300px", right: "-300px", width: "950px", height: "950px", border: "2px solid rgba(217, 119, 6, 0.4)", borderRadius: "50%", pointerEvents: "none", animation: "pulseGlow 6s ease-in-out infinite reverse, rotateLines 45s linear infinite reverse" }} />
       <div style={{ position: "absolute", bottom: "-220px", right: "-220px", width: "750px", height: "750px", border: "1.5px solid rgba(251, 191, 36, 0.3)", borderRadius: "50%", pointerEvents: "none", animation: "pulseGlow 5s ease-in-out infinite, rotateLines 35s linear infinite" }} />
 
-      {/* =====================================================================
-          📦 CONTENEDOR MAESTRO (Desplazado a la izquierda)
-          ===================================================================== */}
+      {/* 📦 CONTENEDOR MAESTRO */}
       <div style={{
         position: "absolute",
         top: 0,
@@ -149,7 +141,7 @@ function Login() {
         zIndex: 10
       }}>
 
-        {/* 👁️ BLOQUE 1: LOGO Y SUS ÓRBITAS LOCALES (Ahora con luz intensa) */}
+        {/* 👁️ BLOQUE 1: LOGO Y SUS ÓRBITAS LOCALES */}
         <div style={{
           position: "relative",
           display: "flex", 
@@ -159,15 +151,13 @@ function Login() {
           height: "450px",
           zIndex: 5
         }}>
-          {/* 🌟 Aros del logo: Bordes más gruesos, sombras de neón brillantes y animación "pulseGlowIntense" */}
           <div style={{ position: "absolute", width: "800px", height: "800px", border: "2px solid rgba(251, 191, 36, 0.4)", borderRadius: "50%", boxShadow: "0 0 20px rgba(251, 191, 36, 0.2), inset 0 0 20px rgba(251, 191, 36, 0.2)", pointerEvents: "none", animation: "pulseGlowIntense 5s ease-in-out infinite, rotateLines 40s linear infinite" }} />
           <div style={{ position: "absolute", width: "650px", height: "650px", border: "2px solid rgba(217, 119, 6, 0.6)", borderRadius: "50%", boxShadow: "0 0 25px rgba(217, 119, 6, 0.3), inset 0 0 25px rgba(217, 119, 6, 0.3)", pointerEvents: "none", animation: "pulseGlowIntense 4s ease-in-out infinite reverse, rotateLines 30s linear infinite reverse" }} />
           <div style={{ position: "absolute", width: "500px", height: "500px", border: "2.5px solid rgba(251, 191, 36, 0.5)", borderRadius: "50%", boxShadow: "0 0 30px rgba(251, 191, 36, 0.4), inset 0 0 30px rgba(251, 191, 36, 0.4)", pointerEvents: "none", animation: "pulseGlowIntense 6s ease-in-out infinite, rotateLines 20s linear infinite" }} />
 
-          {/* Logo Vivo */}
           <img 
             src="/logo-simbolo.png" 
-            alt="Símbolo MI_PACS" 
+            alt={isEn ? "MI_PACS Symbol" : "Símbolo MI_PACS"} 
             style={{
               position: "relative",
               width: "100%",
@@ -176,7 +166,6 @@ function Login() {
             }}
           />
         </div>
-
 
         {/* 🏢 BLOQUE 2: LOGIN, TÍTULOS Y FOOTER CENTRADOS */}
         <div style={{
@@ -189,7 +178,6 @@ function Login() {
           zIndex: 10
         }}>
 
-{/* Tipografía Profesional */}
           <div style={{ textAlign: "center", marginBottom: "25px" }}>
             <h2 style={{ margin: "0 0 8px 0", fontFamily: "'Times New Roman', Times, serif", fontSize: "32px", fontWeight: "400", letterSpacing: "3px", background: "linear-gradient(135deg, #d4af37 30%, #f3e5ab 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               {t("login.prof_services")}
@@ -215,7 +203,7 @@ function Login() {
             boxSizing: "border-box"
           }}>
             
-          <div style={{ textAlign: "center", marginBottom: "4px" }}>
+            <div style={{ textAlign: "center", marginBottom: "4px" }}>
               <h1 className="login-title" style={{ fontSize: "40px", margin: "0 0 6px 0", background: "linear-gradient(135deg, #ffffff 30%, #fbbf24 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>
                 MI_PACS
               </h1>
@@ -229,7 +217,12 @@ function Login() {
 
               <div style={{ position: "relative", width: "100%" }}>
                 <input type={showPassword ? "text" : "password"} placeholder={t("login.ph_password")} value={password} onChange={(e) => setPassword(e.target.value)} className="login-input" style={{ paddingRight: "45px", width: "100%" }} required />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "#fbbf24", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", justifyContent: "center", opacity: showPassword ? 1 : 0.7, transition: "opacity 0.2s ease" }} title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "#fbbf24", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", justifyContent: "center", opacity: showPassword ? 1 : 0.7, transition: "opacity 0.2s ease" }}
+                  title={isEn ? (showPassword ? "Hide password" : "Show password") : (showPassword ? "Ocultar contraseña" : "Ver contraseña")}
+                >
                   {showPassword ? (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2"></path></svg>
                   ) : (

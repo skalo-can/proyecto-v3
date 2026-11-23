@@ -282,12 +282,12 @@ export default function VisorDICOMWrapper({ estudioId, tokenPaciente, esPortalPa
           setVpTags(prev => {
             const next = [...prev];
             next[i] = {
-              paciente: image.data.string('x00100010') || 'Sin Nombre en DICOM',
-              idPaciente: image.data.string('x00100020') || 'Sin ID',
+              paciente: image.data.string('x00100010') || (isEn ? 'No Name in DICOM' : 'Sin Nombre en DICOM'),
+              idPaciente: image.data.string('x00100020') || (isEn ? 'No ID' : 'Sin ID'),
               modalidad: image.data.string('x00080060') || 'N/A',
               fecha: image.data.string('x00080020') || 'N/A',
-              estudio: image.data.string('x00081030') || 'Sin Descripción', 
-              serie: image.data.string('x0008103e') || 'Sin Descripción'     
+              estudio: image.data.string('x00081030') || (isEn ? 'No Description' : 'Sin Descripción'), 
+              serie: image.data.string('x0008103e') || (isEn ? 'No Description' : 'Sin Descripción')     
             };
             return next;
           });
@@ -496,12 +496,18 @@ useEffect(() => {
     try {
       const res = await fetch(`${API_BASE}/api/estudios/${currentId}/previo`, { headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` } });
       const data = await res.json(); 
-      if (!data || data.length === 0) { alert("Este paciente no tiene estudios previos."); return; }
+      if (!data || data.length === 0) {
+        alert(isEn ? "This patient has no prior studies." : "Este paciente no tiene estudios previos.");
+        return;
+      }
 
       const idEstudioPrevioInicial = data[0].id;
       const resPrevio = await fetch(`${API_BASE}/api/estudios/${idEstudioPrevioInicial}/imagenes`, { headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` } });
       const imgsPrevio = await resPrevio.json(); 
-      if (!imgsPrevio || imgsPrevio.length === 0) { alert("El estudio previo no tiene imágenes."); return; }
+      if (!imgsPrevio || imgsPrevio.length === 0) {
+        alert(isEn ? "The prior study has no images." : "El estudio previo no tiene imágenes.");
+        return;
+      }
       
       const tokenSeguro = localStorage.getItem("token") || activeToken;
       const seriesPreviasFormateadas = imgsPrevio.map(serie => {
@@ -509,7 +515,7 @@ useEffect(() => {
           if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
           return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
         });
-        return { nombre: serie.serie || "Serie Previa", urls: urlsNuevas };
+        return { nombre: serie.serie || (isEn ? "Prior Series" : "Serie Previa"), urls: urlsNuevas };
       });
 
       const seriesActualesFormateadas = series.map(s => ({
@@ -522,7 +528,9 @@ useEffect(() => {
             listaHistorial: data, estudioSeleccionadoId: idEstudioPrevioInicial
         });
       }
-    } catch (err) { alert("Error al intentar cargar el historial."); }
+    } catch (err) {
+      alert(isEn ? "Error loading study history." : "Error al intentar cargar el historial.");
+    }
   };
 
   if (mostrarComparacion) {
@@ -560,26 +568,26 @@ useEffect(() => {
             <span style={{ color: "#fbbf24", fontWeight: "bold", fontSize: "0.85rem" }}>{t("visor.topbar.serie_activa")}</span>
           </div>
 
-          <select style={styles.selectPreset} onChange={(e) => {
+<select style={styles.selectPreset} onChange={(e) => {
             const val = e.target.value;
             if(val) { const [ww, wl] = val.split(','); aplicarPresetVentana(Number(ww), Number(wl)); }
           }}>
             <option value="">⚙️ {t("visor.topbar.filtros_tac")}</option>
-            <option value="400,40">🥩 Tejidos Blandos</option>
-            <option value="1500,300">🦴 Hueso</option>
-            <option value="80,40">🧠 Cerebro</option>
-            <option value="1500,-600">🫁 Pulmón</option>
-            <option value="600,150">💉 Contraste/Angio</option>
+            <option value="400,40">{isEn ? "🥩 Soft Tissue" : "🥩 Tejidos Blandos"}</option>
+            <option value="1500,300">{isEn ? "🦴 Bone" : "🦴 Hueso"}</option>
+            <option value="80,40">{isEn ? "🧠 Brain" : "🧠 Cerebro"}</option>
+            <option value="1500,-600">{isEn ? "🫁 Lung" : "🫁 Pulmón"}</option>
+            <option value="600,150">{isEn ? "💉 Contrast/Angio" : "💉 Contraste/Angio"}</option>
           </select>
           
           <div style={styles.divisor} />
           
           {isRadiologo && (
             <>
-              <button style={styles.btn3D} onClick={alternarLayout} title="Cambiar distribución de pantallas">🔲 {t("visor.topbar.cuadricula")}: {layout}</button>
+              <button style={styles.btn3D} onClick={alternarLayout} title={isEn ? "Change screen grid layout" : "Cambiar distribución de pantallas"}>🔲 {t("visor.topbar.cuadricula")}: {layout}</button>
               
               {layout !== "1x1" && (
-                <button style={styles.btnToolActivoSeguridad} onClick={restaurarAVistaUnica} title="Atrapar imagen seleccionada y verla en pantalla completa">
+                <button style={styles.btnToolActivoSeguridad} onClick={restaurarAVistaUnica} title={isEn ? "Capture selected image in full view" : "Atrapar imagen seleccionada y verla en pantalla completa"}>
                   ⏹️ 1x1
                 </button>
               )}
@@ -587,7 +595,7 @@ useEffect(() => {
               <button 
                 style={styles.btnMPR} 
                 onClick={() => window.open(`/mpr/${currentId}?id_real=${idReal}`, '_blank')} 
-                title="Abrir Reconstrucción Multiplanar 3D en nueva ventana"
+                title={isEn ? "Open 3D Multiplanar Reconstruction in new window" : "Abrir Reconstrucción Multiplanar 3D en nueva ventana"}
               >
                 🧊 {t("visor.topbar.mpr_3d")}
               </button>
@@ -609,7 +617,7 @@ useEffect(() => {
                   setMostrarPanelDictado(false);
                   setMostrarPanelAutoDictado(!mostrarPanelAutoDictado);
                 }}
-                title="Auto-transcribir dictado, respaldar audio y firmar en esta misma pantalla"
+                title={isEn ? "Auto-transcribe dictation, back up audio, and sign on this screen" : "Auto-transcribir dictado, respaldar audio y firmar en esta misma pantalla"}
               >
                 ⚡ {mostrarPanelAutoDictado
                   ? `${t("visor.topbar.cerrar")} ${isEn ? "Dictate & Sign" : "Dictar y Firmar"}`
@@ -678,9 +686,9 @@ useEffect(() => {
 
         <div style={styles.viewportContainer}>
           {loading ? (
-            <h2 style={{ color: "#94a3b8" }}>Cargando Motor Médico...</h2>
+            <h2 style={{ color: "#94a3b8" }}>{isEn ? "Loading Medical Engine..." : "Cargando Motor Médico..."}</h2>
           ) : series.length === 0 ? (
-            <h2 style={{ color: "#ef4444" }}>No se encontraron archivos DICOM.</h2>
+            <h2 style={{ color: "#ef4444" }}>{isEn ? "No DICOM files found." : "No se encontraron archivos DICOM."}</h2>
           ) : (
             <div style={{ display: 'grid', width: '100%', height: '100%', gap: '4px', ...gridStyles[layout] }}>
               
@@ -701,7 +709,9 @@ useEffect(() => {
                      
                      {isVacia && (
                         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#07080a', zIndex: 25, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <span style={{ color: '#1e293b', fontWeight: 'bold', fontSize: '1rem', letterSpacing: '2px' }}>SIN SERIE ASIGNADA</span>
+                            <span style={{ color: '#1e293b', fontWeight: 'bold', fontSize: '1rem', letterSpacing: '2px' }}>
+                              {isEn ? "NO SERIES ASSIGNED" : "SIN SERIE ASIGNADA"}
+                            </span>
                         </div>
                      )}
 
@@ -712,16 +722,16 @@ useEffect(() => {
                      {!isVacia && mostrarMetadatos && tagsVp && (
                        <div style={styles.overlayMetadatos}>
                          <h4 style={{ margin: "0 0 10px 0", color: "#fbbf24", borderBottom: "1px solid #fbbf24", paddingBottom: "5px" }}>
-                           DATOS NATIVOS DEL ARCHIVO
+                           {isEn ? "NATIVE FILE METADATA" : "DATOS NATIVOS DEL ARCHIVO"}
                          </h4>
-                         <p style={styles.metaText}><strong>Paciente:</strong> {tagsVp.paciente}</p>
-                         <p style={styles.metaText}><strong>ID Original:</strong> {tagsVp.idPaciente}</p>
-                         <p style={styles.metaText}><strong>Modalidad:</strong> {tagsVp.modalidad}</p>
-                         <p style={styles.metaText}><strong>Fecha Estudio:</strong> {tagsVp.fecha}</p>
-                         <p style={styles.metaText}><strong>Estudio:</strong> {tagsVp.estudio}</p>
-                         <p style={styles.metaText}><strong>Serie (Corte):</strong> {tagsVp.serie}</p>
+                         <p style={styles.metaText}><strong>{isEn ? "Patient:" : "Paciente:"}</strong> {tagsVp.paciente}</p>
+                         <p style={styles.metaText}><strong>{isEn ? "Original ID:" : "ID Original:"}</strong> {tagsVp.idPaciente}</p>
+                         <p style={styles.metaText}><strong>{isEn ? "Modality:" : "Modalidad:"}</strong> {tagsVp.modalidad}</p>
+                         <p style={styles.metaText}><strong>{isEn ? "Study Date:" : "Fecha Estudio:"}</strong> {tagsVp.fecha}</p>
+                         <p style={styles.metaText}><strong>{isEn ? "Study:" : "Estudio:"}</strong> {tagsVp.estudio}</p>
+                         <p style={styles.metaText}><strong>{isEn ? "Series (Slice):" : "Serie (Corte):"}</strong> {tagsVp.serie}</p>
                        </div>
-                     )}
+                     )}    
 
                      {!isVacia && numViewports > 1 && imgsVp.length > 1 && (
                         <input type="range" min="0" max={imgsVp.length - 1} value={vpIndices[i]} onChange={(e) => { setIsCinePlaying(false); setIndiceActualVp(i, Number(e.target.value)); }} style={styles.sliderBottom} />

@@ -24,7 +24,8 @@ export default function FiltrosPacientes({
   busquedaProfunda,
   setBusquedaProfunda
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
   
   const filtrosBox = { background: '#1a1d21', padding: '15px', borderRadius: '10px', marginTop: '10px', border: '1px solid #222' };
   const filtrosFlex = { display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' };
@@ -64,7 +65,11 @@ export default function FiltrosPacientes({
             type="button" 
             onClick={() => setBusquedaProfunda(!busquedaProfunda)} 
             style={btnDeepSearch}
-            title="Al activar, el sistema ignorará los límites de tiempo y buscará en toda la historia de la Base de Datos."
+            title={
+              isEn
+                ? "When enabled, the system ignores date limits and searches the entire database history."
+                : "Al activar, el sistema ignorará los límites de tiempo y buscará en toda la historia de la Base de Datos."
+            }
           >
             {busquedaProfunda ? "🌌 " + t('filtros.busqueda_profunda') + ": ON" : "🔦 " + t('filtros.busqueda_profunda') + ": OFF"}
           </button>
@@ -72,7 +77,9 @@ export default function FiltrosPacientes({
 
         {busquedaProfunda ? (
           <div style={fGroup}>
-            <label style={{...lStyle, color: '#0ea5e9'}}>FECHA EXACTA (OPCIONAL)</label>
+            <label style={{...lStyle, color: '#0ea5e9'}}>
+              {isEn ? "EXACT DATE (OPTIONAL)" : "FECHA EXACTA (OPCIONAL)"}
+            </label>
             <input 
               type="date" 
               name="fechaExacta" 
@@ -151,7 +158,7 @@ export default function FiltrosPacientes({
         
         <div style={fGroup}>
           <button type="button" onClick={cargarDatos} style={btnBuscar}>
-            {loading ? "⏳ BUSCANDO..." : "🔍 " + t('filtros.refresco')}
+            {loading ? (isEn ? "⏳ SEARCHING..." : "⏳ BUSCANDO...") : "🔍 " + t('filtros.refresco')}
           </button>
         </div>
       </div>

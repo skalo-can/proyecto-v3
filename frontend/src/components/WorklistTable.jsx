@@ -1,30 +1,43 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit, FaTrash, FaCheckCircle, FaQrcode } from "react-icons/fa"; // 🚀 Importamos el icono de QR
+import { FaEdit, FaTrash, FaCheckCircle, FaQrcode } from "react-icons/fa";
 import "./WorklistTable.css";
 
-// 🚀 Añadimos onShowQR a las props recibidas
 const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrders, setSelectedOrders] = useState([]);
 
   const toggleSelect = (id) => {
-    setSelectedOrders(prev => 
+    setSelectedOrders(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
 
-  // 🔥 LÓGICA ACTUALIZADA: Filtramos y luego invertimos el orden (.reverse())
-  const filteredOrders = orders.filter((order) => {
+  const traducirPrioridad = (prioridad) => {
+    if (!prioridad) return "";
+    if (!isEn) return prioridad;
+    const map = {
+      rutina: "Routine",
+      urgente: "Urgent",
+      alta: "High",
+      normal: "Normal",
+      baja: "Low"
+    };
+    return map[String(prioridad).toLowerCase().trim()] || prioridad;
+  };
+
+  const filteredOrders = (orders || []).filter((order) => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      order.nombre.toLowerCase().includes(searchLower) ||
-      order.apellido.toLowerCase().includes(searchLower) ||
-      order.id_institucional.includes(searchLower) ||
-      order.accession_number.toLowerCase().includes(searchLower)
+      (order.nombre || "").toLowerCase().includes(searchLower) ||
+      (order.apellido || "").toLowerCase().includes(searchLower) ||
+      (order.id_institucional || "").includes(searchLower) ||
+      (order.accession_number || "").toLowerCase().includes(searchLower)
     );
-  }).reverse(); // <--- Los últimos ingresos ahora aparecen primero
+  }).reverse();
 
   return (
     <div className="worklist-wrapper-fused">
@@ -49,8 +62,8 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
           <thead>
             <tr>
               <th style={{ width: "40px" }}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   onChange={(e) => {
                     if (e.target.checked) setSelectedOrders(filteredOrders.map(o => o.id_orden));
                     else setSelectedOrders([]);
@@ -70,13 +83,14 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
             {filteredOrders.length > 0 ? (
               filteredOrders.map((order) => {
                 const isSelected = selectedOrders.includes(order.id_orden);
+                const prioridadKey = (order.prioridad || "").toLowerCase();
                 return (
                   <tr key={order.id_orden} className={`worklist-row animate-in ${isSelected ? "row-selected" : ""}`}>
                     <td>
-                      <input 
-                        type="checkbox" 
-                        checked={isSelected} 
-                        onChange={() => toggleSelect(order.id_orden)} 
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(order.id_orden)}
                         className="custom-checkbox"
                       />
                     </td>
@@ -85,15 +99,14 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
                     <td><span className="badge-modalidad">{order.modalidad}</span></td>
                     <td><code className="acc-code">{order.accession_number}</code></td>
                     <td>
-                      <span className={`priority-tag ${order.prioridad.toLowerCase()}`}>
-                        {order.prioridad}
+                      <span className={`priority-tag ${prioridadKey}`}>
+                        {traducirPrioridad(order.prioridad)}
                       </span>
                     </td>
                     <td className="actions-cell">
-                      {/* 🚀 BOTÓN DE QR (ESTILO DORADO) */}
-                      <button 
-                        className="btn-icon qr-gold" 
-                        onClick={() => onShowQR(order)} 
+                      <button
+                        className="btn-icon qr-gold"
+                        onClick={() => onShowQR(order)}
                         title={t('worklist_table.title_qr')}
                         style={{ color: '#fbbf24', fontSize: '1.1rem', marginRight: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}
                       >
@@ -108,19 +121,19 @@ const WorklistTable = ({ orders, onDelete, onEdit, onStart, onAtender, onShowQR 
                       ) : order.estado_ris === "Iniciado" ? (
                         <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                           <span className="badge-iniciado"><i className="fas fa-check-circle"></i> {t('worklist_table.badge_worklist')}</span>
-                          <button 
-                            className="btn-action-atender" 
-                            onClick={() => onAtender(order.id_orden)} 
-                            style={{ 
-                              backgroundColor: '#28a745', 
-                              color: 'white', 
-                              border: 'none', 
-                              borderRadius: '4px', 
-                              padding: '5px 8px', 
-                              cursor: 'pointer', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '4px' 
+                          <button
+                            className="btn-action-atender"
+                            onClick={() => onAtender(order.id_orden)}
+                            style={{
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '5px 8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
                             }}
                           >
                             <FaCheckCircle /> {t('worklist_table.btn_atender')}

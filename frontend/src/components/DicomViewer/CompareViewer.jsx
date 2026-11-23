@@ -1,14 +1,15 @@
 /**
- * CompareViewer.jsx — MI_PACS
- * ---------------------------------------------------------
- * Comparación clínica lado a lado (Estilo eFilm) en Cornerstone V4.
- * ✔ Panel de Fechas (Historial).
- * ✔ Etiquetas estáticas de fechas en los lienzos.
- * ✔ Extracción de Nombre y Documento nativo del DICOM.
- * ✔ Barra de herramientas auto-ajustable (Wrap).
+- CompareViewer.jsx — MI_PACS
+- ---------------------------------------------------------
+- Comparación clínica lado a lado (Estilo eFilm) en Cornerstone V4.
+- ✔ Panel de Fechas (Historial).
+- ✔ Etiquetas estáticas de fechas en los lienzos.
+- ✔ Extracción de Nombre y Documento nativo del DICOM.
+- ✔ Barra de herramientas auto-ajustable (Wrap).
  */
 
 import React, { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import cornerstone from "cornerstone-core";
 import cornerstoneTools from "cornerstone-tools";
 
@@ -41,6 +42,9 @@ export default function CompareViewer({
     API_BASE,
     isGuest
 }) {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
+
   const dicomLeftRef = useRef(null);
   const dicomRightRef = useRef(null);
 
@@ -58,7 +62,7 @@ export default function CompareViewer({
   const [infoLeft, setInfoLeft] = useState(false);
   const [infoRight, setInfoRight] = useState(false);
   
-  // 🚀 NUEVO: Estados para guardar la información vital del paciente del DICOM
+  // Estados para guardar la información vital del paciente del DICOM
   const [tagsLeft, setTagsLeft] = useState(null);
   const [tagsRight, setTagsRight] = useState(null);
 
@@ -73,9 +77,9 @@ export default function CompareViewer({
   const urlsA = seriesA?.[serieLeft]?.urls || [];
   const urlsB = seriesDinamicasB?.[serieRight]?.urls || [];
 
-  // 🚀 NUEVO: Función para formatear fechas DICOM
+  // Función para formatear fechas DICOM
   const formatDicomDate = (dateStr) => {
-    if (!dateStr) return 'Fecha Desconocida';
+    if (!dateStr) return isEn ? 'Unknown Date' : 'Fecha Desconocida';
     const cleanDate = String(dateStr).trim();
     if (cleanDate.length === 8) return `${cleanDate.substring(0,4)}-${cleanDate.substring(4,6)}-${cleanDate.substring(6,8)}`;
     return cleanDate;
@@ -102,7 +106,7 @@ export default function CompareViewer({
     };
   }, []);
 
-  // 🚀 LADO IZQUIERDO: CARGAR IMAGEN Y EXTRAER METADATOS COMPLETOS
+  // LADO IZQUIERDO: CARGAR IMAGEN Y EXTRAER METADATOS COMPLETOS
   useEffect(() => {
     if (urlsA.length === 0 || !dicomLeftRef.current) return;
     let url = urlsA[indexLeft];
@@ -113,18 +117,18 @@ export default function CompareViewer({
       cornerstone.displayImage(dicomLeftRef.current, img);
       if (img.data) {
         setTagsLeft({
-          paciente: img.data.string('x00100010') || 'Sin Nombre',
-          documento: img.data.string('x00100020') || 'Sin ID',
+          paciente: img.data.string('x00100010') || '',
+          documento: img.data.string('x00100020') || '',
           modalidad: img.data.string('x00080060') || 'N/A',
           fecha: img.data.string('x00080020') || '',
-          estudio: img.data.string('x00081030') || 'Sin Descripción',
+          estudio: img.data.string('x00081030') || '',
           serieDesc: img.data.string('x0008103E') || 'N/A'
         });
       }
     }).catch(e=>{});
   }, [indexLeft, urlsA, serieLeft]);
 
-  // 🚀 LADO DERECHO: CARGAR IMAGEN Y EXTRAER METADATOS COMPLETOS
+  // LADO DERECHO: CARGAR IMAGEN Y EXTRAER METADATOS COMPLETOS
   useEffect(() => {
     if (urlsB.length === 0 || !dicomRightRef.current) return;
     let url = urlsB[indexRight];
@@ -135,11 +139,11 @@ export default function CompareViewer({
       cornerstone.displayImage(dicomRightRef.current, img);
       if (img.data) {
         setTagsRight({
-          paciente: img.data.string('x00100010') || 'Sin Nombre',
-          documento: img.data.string('x00100020') || 'Sin ID',
+          paciente: img.data.string('x00100010') || '',
+          documento: img.data.string('x00100020') || '',
           modalidad: img.data.string('x00080060') || 'N/A',
           fecha: img.data.string('x00080020') || '',
-          estudio: img.data.string('x00081030') || 'Sin Descripción',
+          estudio: img.data.string('x00081030') || '',
           serieDesc: img.data.string('x0008103E') || 'N/A'
         });
       }
@@ -236,20 +240,20 @@ export default function CompareViewer({
         const imgsPrevio = await resPrevio.json(); 
 
         if (!imgsPrevio || imgsPrevio.length === 0 || !imgsPrevio[0].imagenes) {
-            alert("Este estudio no tiene imágenes.");
+            alert(isEn ? "This study has no images." : "Este estudio no tiene imágenes.");
             setCargandoPrevio(false);
             return;
         }
         
         const tokenSeguro = localStorage.getItem("token") || activeToken;
 
-        // 🚀 SOLUCIÓN: Separar todas las series del estudio previo
+        // Separar todas las series del estudio previo
         const nuevasSeries = imgsPrevio.map(serie => {
           const urlsNuevas = serie.imagenes.map(img => {
             if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
             return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
           });
-          return { nombre: serie.serie || "Serie Previa", urls: urlsNuevas };
+          return { nombre: serie.serie || (isEn ? "Prior Series" : "Serie Previa"), urls: urlsNuevas };
         });
 
         setSeriesDinamicasB(nuevasSeries);
@@ -260,7 +264,7 @@ export default function CompareViewer({
         
       } catch (err) {
           console.error(err);
-          alert("Error cargando este estudio.");
+          alert(isEn ? "Error loading this study." : "Error cargando este estudio.");
       } finally {
           setCargandoPrevio(false);
       }
@@ -282,7 +286,6 @@ export default function CompareViewer({
     dicomBox: { width: "100%", height: "55vh", position: "relative", backgroundColor: "#000", border: "1px solid #334155", borderRadius: "4px", overflow: "hidden" },
     overlayText: { position: "absolute", top: "10px", left: "10px", color: "#fbbf24", fontWeight: "bold", zIndex: 10, pointerEvents: "none", fontSize: "14px" },
     overlayFecha: { position: "absolute", top: "10px", right: "10px", color: "#10b981", backgroundColor: "rgba(0,0,0,0.6)", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", zIndex: 10, pointerEvents: "none", fontSize: "14px", border: "1px solid #10b981" },
-    // 🚀 Ajuste minWidth para que quepa toda la información nueva sin amontonarse
     overlayInfo: { position: "absolute", bottom: "10px", right: "10px", color: "#fff", backgroundColor: "rgba(15,23,42,0.9)", padding: "12px", borderRadius: "6px", zIndex: 10, pointerEvents: "none", fontSize: "12px", border: "1px solid #38bdf8", boxShadow: "0 0 10px rgba(0,0,0,0.5)", minWidth: "260px" },
     panelHistorial: { width: "200px", backgroundColor: "#0f172a", borderLeft: "1px solid #334155", padding: "10px", display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto" },
     tarjetaFecha: { backgroundColor: "#1e293b", border: "1px solid #334155", padding: "8px", borderRadius: "4px", cursor: "pointer", transition: "0.2s" },
@@ -293,29 +296,51 @@ export default function CompareViewer({
     const isL = lado === 'L';
     return (
       <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", paddingBottom: "5px" }}>
-        <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>🌓 Contraste</button>
-        <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>🔍 Zoom</button>
-        <button style={herramientaActiva === "Pan" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Pan")}>🖐️ Mover</button>
-        <button style={herramientaActiva === "Rotate" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Rotate")}>🔄 Rotar</button>
-        <button style={styles.btnTool} onClick={() => aplicarAccion(lado, 'ajustar')}>🏠 Ajustar</button>
+        <button style={herramientaActiva === "Wwwc" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Wwwc")}>
+          {isEn ? "🌓 Contrast" : "🌓 Contraste"}
+        </button>
+        <button style={herramientaActiva === "Zoom" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Zoom")}>
+          🔍 Zoom
+        </button>
+        <button style={herramientaActiva === "Pan" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Pan")}>
+          {isEn ? "🖐️ Pan" : "🖐️ Mover"}
+        </button>
+        <button style={herramientaActiva === "Rotate" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Rotate")}>
+          {isEn ? "🔄 Rotate" : "🔄 Rotar"}
+        </button>
+        <button style={styles.btnTool} onClick={() => aplicarAccion(lado, 'ajustar')}>
+          {isEn ? "🏠 Reset" : "🏠 Ajustar"}
+        </button>
 
         <div style={styles.divisor} />
 
-        <button style={herramientaActiva === "Length" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Length")}>📏 Medir</button>
-        <button style={herramientaActiva === "Angle" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Angle")}>📐 Ángulo</button>
-        <button style={herramientaActiva === "EllipticalRoi" ? styles.btnPremiumActivo : styles.btnPremium} onClick={() => activarHerramienta("EllipticalRoi")}>🎯 ROI</button>
+        <button style={herramientaActiva === "Length" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Length")}>
+          {isEn ? "📏 Length" : "📏 Medir"}
+        </button>
+        <button style={herramientaActiva === "Angle" ? styles.btnToolActivo : styles.btnTool} onClick={() => activarHerramienta("Angle")}>
+          {isEn ? "📐 Angle" : "📐 Ángulo"}
+        </button>
+        <button style={herramientaActiva === "EllipticalRoi" ? styles.btnPremiumActivo : styles.btnPremium} onClick={() => activarHerramienta("EllipticalRoi")}>
+          🎯 ROI
+        </button>
         
-        <button style={styles.btnPremium} onClick={() => aplicarAccion(lado, 'invert')}>🌗 Negativo</button>
-        <button style={styles.btnDanger} onClick={() => aplicarAccion(lado, 'clear')}>🧹 Limpiar</button>
+        <button style={styles.btnPremium} onClick={() => aplicarAccion(lado, 'invert')}>
+          {isEn ? "🌗 Invert" : "🌗 Negativo"}
+        </button>
+        <button style={styles.btnDanger} onClick={() => aplicarAccion(lado, 'clear')}>
+          {isEn ? "🧹 Clear" : "🧹 Limpiar"}
+        </button>
         
         <button style={styles.btnTool} onClick={() => aplicarAccion(lado, 'flipH')}>↔️ Flip H</button>
         <button style={styles.btnTool} onClick={() => aplicarAccion(lado, 'flipV')}>↕️ Flip V</button>
 
         <div style={styles.divisor} />
 
-        <button style={herramientaActiva === "Spin3D" ? styles.btn3DActivo : styles.btn3D} onClick={() => activarHerramienta("Spin3D")}>🧊 Giro 3D</button>
+        <button style={herramientaActiva === "Spin3D" ? styles.btn3DActivo : styles.btn3D} onClick={() => activarHerramienta("Spin3D")}>
+          {isEn ? "🧊 3D Spin" : "🧊 Giro 3D"}
+        </button>
         <button style={isL ? (cineLeft ? styles.btnCineActivo : styles.btnCine) : (cineRight ? styles.btnCineActivo : styles.btnCine)} onClick={() => isL ? setCineLeft(!cineLeft) : setCineRight(!cineRight)}>
-          {(isL ? cineLeft : cineRight) ? "⏸️ Pausa" : "▶️ Cine"}
+          {(isL ? cineLeft : cineRight) ? (isEn ? "⏸️ Pause" : "⏸️ Pausa") : "▶️ Cine"}
         </button>
         
         <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#94a3b8", fontSize: "11px", marginLeft: "2px", flexShrink: 0 }}>
@@ -325,17 +350,31 @@ export default function CompareViewer({
 
         <div style={styles.divisor} />
 
-        <button style={isL ? (infoLeft ? styles.btnInfoActivo : styles.btnInfo) : (infoRight ? styles.btnInfoActivo : styles.btnInfo)} onClick={() => isL ? setInfoLeft(!infoLeft) : setInfoRight(!infoRight)}>🛡️ Info</button>
+        <button style={isL ? (infoLeft ? styles.btnInfoActivo : styles.btnInfo) : (infoRight ? styles.btnInfoActivo : styles.btnInfo)} onClick={() => isL ? setInfoLeft(!infoLeft) : setInfoRight(!infoRight)}>
+          🛡️ Info
+        </button>
       </div>
     );
   };
 
+  const loadingText = isEn ? "Loading..." : "Cargando...";
+  const noNameText = isEn ? "No Name" : "Sin Nombre";
+  const noIdText = isEn ? "No ID" : "Sin ID";
+  const noDescText = isEn ? "No Description" : "Sin Descripción";
+
   return (
     <div style={{ padding: "20px", backgroundColor: "#000", minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "15px", flexShrink: 0 }}>
-        <button onClick={onVolver} style={{ padding: "8px 16px", backgroundColor: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>← Cerrar Comparación</button>
-        <h2 style={{ color: "#e2e8f0", margin: 0 }}>Comparación Histórica</h2>
-        <label style={{ color: "#fbbf24", fontWeight: "bold", cursor: "pointer", marginLeft: "20px" }}><input type="checkbox" checked={syncScroll} onChange={() => setSyncScroll(!syncScroll)} style={{ marginRight: "8px" }} />🔗 Sincronizar Scroll</label>
+        <button onClick={onVolver} style={{ padding: "8px 16px", backgroundColor: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>
+          {isEn ? "← Close Comparison" : "← Cerrar Comparación"}
+        </button>
+        <h2 style={{ color: "#e2e8f0", margin: 0 }}>
+          {isEn ? "Historical Comparison" : "Comparación Histórica"}
+        </h2>
+        <label style={{ color: "#fbbf24", fontWeight: "bold", cursor: "pointer", marginLeft: "20px" }}>
+          <input type="checkbox" checked={syncScroll} onChange={() => setSyncScroll(!syncScroll)} style={{ marginRight: "8px" }} />
+          {isEn ? "🔗 Sync Scroll" : "🔗 Sincronizar Scroll"}
+        </label>
       </div>
 
       <div style={{ display: "flex", gap: "15px", flex: 1, minHeight: 0 }}>
@@ -353,24 +392,26 @@ export default function CompareViewer({
           </div>
           <div ref={dicomLeftRef} style={styles.dicomBox} onContextMenu={e => e.preventDefault()} onWheel={e => moverIzquierda(e.deltaY > 0 ? 1 : -1)} onMouseDown={e => handleMouse('L', 'down', e)} onMouseMove={e => handleMouse('L', 'move', e)} onMouseUp={e => handleMouse('L', 'up', e)} onMouseLeave={e => handleMouse('L', 'up', e)}>
             
-            <div style={styles.overlayText}>Corte {indexLeft + 1} / {urlsA?.length || 0}</div>
+            <div style={styles.overlayText}>{isEn ? "Slice" : "Corte"} {indexLeft + 1} / {urlsA?.length || 0}</div>
             
             <div style={{...styles.overlayFecha, color: "#38bdf8", borderColor: "#38bdf8"}}>
-              ACTUAL: {tagsLeft?.fecha ? formatDicomDate(tagsLeft.fecha) : "Cargando..."}
+              {isEn ? "CURRENT:" : "ACTUAL:"} {tagsLeft?.fecha ? formatDicomDate(tagsLeft.fecha) : loadingText}
             </div>
             
-            {/* 🚀 PANEL DE INFO CLÍNICA COMPLETADO (IZQUIERDA) */}
+            {/* PANEL DE INFO CLÍNICA COMPLETADO (IZQUIERDA) */}
             {infoLeft && (
               <div style={styles.overlayInfo}>
-                <div style={{ color: "#38bdf8", borderBottom: "1px solid #38bdf8", paddingBottom: "4px", marginBottom: "6px", fontWeight: "bold" }}>DATOS NATIVOS</div>
-                <strong>Paciente:</strong> {tagsLeft?.paciente || "Cargando..."}<br/>
-                <strong>ID Original:</strong> {tagsLeft?.documento || "Cargando..."}<br/>
-                <strong>Modalidad:</strong> {tagsLeft?.modalidad || "Cargando..."}<br/>
-                <strong>Fecha Estudio:</strong> {tagsLeft?.fecha ? formatDicomDate(tagsLeft.fecha) : "Cargando..."}<br/>
-                <strong>Estudio:</strong> {tagsLeft?.estudio || "Cargando..."}<br/>
+                <div style={{ color: "#38bdf8", borderBottom: "1px solid #38bdf8", paddingBottom: "4px", marginBottom: "6px", fontWeight: "bold" }}>
+                  {isEn ? "NATIVE METADATA" : "DATOS NATIVOS"}
+                </div>
+                <strong>{isEn ? "Patient:" : "Paciente:"}</strong> {tagsLeft ? (tagsLeft.paciente || noNameText) : loadingText}<br/>
+                <strong>{isEn ? "Original ID:" : "ID Original:"}</strong> {tagsLeft ? (tagsLeft.documento || noIdText) : loadingText}<br/>
+                <strong>{isEn ? "Modality:" : "Modalidad:"}</strong> {tagsLeft?.modalidad || loadingText}<br/>
+                <strong>{isEn ? "Study Date:" : "Fecha Estudio:"}</strong> {tagsLeft?.fecha ? formatDicomDate(tagsLeft.fecha) : loadingText}<br/>
+                <strong>{isEn ? "Study:" : "Estudio:"}</strong> {tagsLeft ? (tagsLeft.estudio || noDescText) : loadingText}<br/>
                 <div style={{ marginTop: "6px", color: "#94a3b8" }}>
-                  Serie: {tagsLeft?.serieDesc || seriesA?.[serieLeft]?.nombre || 'N/A'}<br/>
-                  Total Imágenes: {urlsA?.length || 0}
+                  {isEn ? "Series:" : "Serie:"} {tagsLeft?.serieDesc || seriesA?.[serieLeft]?.nombre || 'N/A'}<br/>
+                  {isEn ? "Total Images:" : "Total Imágenes:"} {urlsA?.length || 0}
                 </div>
               </div>
             )}
@@ -395,21 +436,31 @@ export default function CompareViewer({
           </div>
           <div ref={dicomRightRef} style={styles.dicomBox} onContextMenu={e => e.preventDefault()} onWheel={e => moverDerecha(e.deltaY > 0 ? 1 : -1)} onMouseDown={e => handleMouse('R', 'down', e)} onMouseMove={e => handleMouse('R', 'move', e)} onMouseUp={e => handleMouse('R', 'up', e)} onMouseLeave={e => handleMouse('R', 'up', e)}>
             
-            <div style={styles.overlayText}>Corte {indexRight + 1} / {urlsB?.length || 0}</div>
-            <div style={styles.overlayFecha}>{fechaEstudioPrevio ? `PREVIO: ${fechaEstudioPrevio}` : (tagsRight?.fecha ? `PREVIO: ${formatDicomDate(tagsRight.fecha)}` : "PREVIO")}</div>
+            <div style={styles.overlayText}>{isEn ? "Slice" : "Corte"} {indexRight + 1} / {urlsB?.length || 0}</div>
+            <div style={styles.overlayFecha}>
+              {fechaEstudioPrevio
+                ? `${isEn ? "PRIOR:" : "PREVIO:"} ${fechaEstudioPrevio}`
+                : tagsRight?.fecha
+                ? `${isEn ? "PRIOR:" : "PREVIO:"} ${formatDicomDate(tagsRight.fecha)}`
+                : isEn
+                ? "PRIOR"
+                : "PREVIO"}
+            </div>
 
-            {/* 🚀 PANEL DE INFO CLÍNICA COMPLETADO (DERECHA) */}
+            {/* PANEL DE INFO CLÍNICA COMPLETADO (DERECHA) */}
             {infoRight && (
               <div style={styles.overlayInfo}>
-                <div style={{ color: "#10b981", borderBottom: "1px solid #10b981", paddingBottom: "4px", marginBottom: "6px", fontWeight: "bold" }}>DATOS NATIVOS</div>
-                <strong>Paciente:</strong> {tagsRight?.paciente || "Cargando..."}<br/>
-                <strong>ID Original:</strong> {tagsRight?.documento || "Cargando..."}<br/>
-                <strong>Modalidad:</strong> {tagsRight?.modalidad || "Cargando..."}<br/>
-                <strong>Fecha Estudio:</strong> {tagsRight?.fecha ? formatDicomDate(tagsRight.fecha) : "Cargando..."}<br/>
-                <strong>Estudio:</strong> {tagsRight?.estudio || "Cargando..."}<br/>
+                <div style={{ color: "#10b981", borderBottom: "1px solid #10b981", paddingBottom: "4px", marginBottom: "6px", fontWeight: "bold" }}>
+                  {isEn ? "NATIVE METADATA" : "DATOS NATIVOS"}
+                </div>
+                <strong>{isEn ? "Patient:" : "Paciente:"}</strong> {tagsRight ? (tagsRight.paciente || noNameText) : loadingText}<br/>
+                <strong>{isEn ? "Original ID:" : "ID Original:"}</strong> {tagsRight ? (tagsRight.documento || noIdText) : loadingText}<br/>
+                <strong>{isEn ? "Modality:" : "Modalidad:"}</strong> {tagsRight?.modalidad || loadingText}<br/>
+                <strong>{isEn ? "Study Date:" : "Fecha Estudio:"}</strong> {tagsRight?.fecha ? formatDicomDate(tagsRight.fecha) : loadingText}<br/>
+                <strong>{isEn ? "Study:" : "Estudio:"}</strong> {tagsRight ? (tagsRight.estudio || noDescText) : loadingText}<br/>
                 <div style={{ marginTop: "6px", color: "#94a3b8" }}>
-                  Serie: {tagsRight?.serieDesc || seriesDinamicasB?.[serieRight]?.nombre || 'N/A'}<br/>
-                  Total Imágenes: {urlsB?.length || 0}
+                  {isEn ? "Series:" : "Serie:"} {tagsRight?.serieDesc || seriesDinamicasB?.[serieRight]?.nombre || 'N/A'}<br/>
+                  {isEn ? "Total Images:" : "Total Imágenes:"} {urlsB?.length || 0}
                 </div>
               </div>
             )}
@@ -424,7 +475,7 @@ export default function CompareViewer({
         {/* BARRA LATERAL */}
         <div style={styles.panelHistorial}>
             <div style={{ color: "#94a3b8", fontSize: "12px", fontWeight: "bold", textAlign: "center", borderBottom: "1px solid #334155", paddingBottom: "8px", marginBottom: "5px" }}>
-                HISTORIAL DISPONIBLE
+                {isEn ? "AVAILABLE HISTORY" : "HISTORIAL DISPONIBLE"}
             </div>
             
             {listaHistorial.map((est) => (

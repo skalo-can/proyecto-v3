@@ -8,7 +8,12 @@ import "./Sidebar.css";
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
+
+  const apiBase = window.location.origin.includes(":5173")
+    ? "http://192.168.5.21:8000"
+    : window.location.origin;
 
   const isActive = (path) => location.pathname === path;
 
@@ -44,6 +49,20 @@ export default function Sidebar({ isOpen, onClose }) {
   const isTecnologo = userRol === "tecnologo"; 
   const esUrgenciologo = user?.es_urgenciologo === true;
 
+  const rolesEn = {
+    radiologo: "RADIOLOGIST",
+    tecnologo: "TECHNOLOGIST",
+    recepcion: "RECEPTION",
+    transcriptor: "TRANSCRIPTIONIST",
+    auxiliar: "ASSISTANT",
+    invitado: "GUEST",
+    it_biomedica: "BIOMEDICAL IT"
+  };
+
+  const rolEtiqueta = isEn
+    ? (rolesEn[userRol] || (userRol.startsWith("medico") ? "PHYSICIAN" : userRol.toUpperCase()))
+    : userRol.toUpperCase();
+
   const handleLimpiezaClinica = async () => {
     if (!isAdmin) return alert(t('alertas_limpieza.acceso_denegado'));
     
@@ -70,7 +89,7 @@ export default function Sidebar({ isOpen, onClose }) {
     }
 
     try {
-      const response = await fetch("http://192.168.5.21:8000/api/reset/soft", {
+      const response = await fetch(`${apiBase}/api/reset/soft`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.token}` }
       });
@@ -93,7 +112,11 @@ export default function Sidebar({ isOpen, onClose }) {
           <span className="sidebar-subtitle">MI_PACS SYSTEM</span>
           <br />
           <small className={esUrgenciologo ? "urgencia-badge" : ""} style={{ color: esUrgenciologo ? '#ef4444' : '#fbbf24', fontWeight: 'bold' }}>
-            {isSkalo ? "🚀 MODO MAESTRO" : esUrgenciologo ? "🚨 MÉD. URGENCIAS" : `🛡️ ${userRol.toUpperCase()}`}
+            {isSkalo
+              ? (isEn ? "🚀 MASTER MODE" : "🚀 MODO MAESTRO")
+              : esUrgenciologo
+              ? (isEn ? "🚨 ER PHYSICIAN" : "🚨 MÉD. URGENCIAS")
+              : `🛡️ ${rolEtiqueta}`}
           </small>
         </div>
 

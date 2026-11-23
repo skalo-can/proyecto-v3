@@ -632,7 +632,7 @@ export default function ModalFirma({
           <span style={{ color: "#cbd5e1", fontSize: "0.8rem" }}>
             <kbd style={kbdEstilo}>F2</kbd> / <kbd style={kbdEstilo}>Ctrl+Space</kbd>{" "}
             {isEn ? "Dictate" : "Dictar"} ·{" "}
-            <kbd style={kbdEstilo}>Ctrl+I</kbd> IA ·{" "}
+            <kbd style={kbdEstilo}>Ctrl+I</kbd> {isEn ? "AI" : "IA"} ·{" "}
             <kbd style={kbdEstilo}>Ctrl+Enter</kbd> {isEn ? "Sign" : "Firmar"} ·{" "}
             <kbd style={kbdEstilo}>Esc</kbd> {isEn ? "Close" : "Cerrar"}
           </span>

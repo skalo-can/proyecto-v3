@@ -1,9 +1,12 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAudioRecorder } from "./useAudioRecorder"; 
 
 export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
   const { pacienteId } = useParams();
+  const { i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
   
   const estudioId = estudioIdProps || pacienteId; 
   
@@ -55,19 +58,27 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
   };
 
   const handleRechazoTecnico = async () => {
-    const motivo = window.prompt("🚨 CONTROL DE CALIDAD PACS:\nEscriba el motivo detallado del rechazo:");
+    const motivo = window.prompt(
+      isEn
+        ? "🚨 PACS QUALITY CONTROL:\nEnter the detailed reason for rejection:"
+        : "🚨 CONTROL DE CALIDAD PACS:\nEscriba el motivo detallado del rechazo:"
+    );
     if (!motivo) return; 
     try {
       const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/rechazar-estudio-imagen`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nota_rechazo: motivo })
       });
       if (response.ok) {
-        alert("🛑 Estudio rebotado con éxito.");
+        alert(isEn ? "🛑 Study rejected successfully." : "🛑 Estudio rebotado con éxito.");
         const canalRefresco = new BroadcastChannel("mipacs_refresco_flujo");
         canalRefresco.postMessage("actualizar_tabla");
         setTimeout(() => { canalRefresco.close(); if(isWindow) window.close(); }, 150);
-      } else { alert("❌ Fallo en servidor."); }
-    } catch (error) { alert("❌ Error de comunicación."); }
+      } else {
+        alert(isEn ? "❌ Server failure." : "❌ Fallo en servidor.");
+      }
+    } catch (error) {
+      alert(isEn ? "❌ Communication error." : "❌ Error de comunicación.");
+    }
   };
 
   const procesarEnvioServidor = async (blobFinal) => {
@@ -84,7 +95,11 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
       
       if (!response.ok) {
         const errorTexto = await response.text();
-        alert(`❌ ALERTA DE BACKEND (No se guardó el audio):\nCódigo: ${response.status}\nDetalle: ${errorTexto}`);
+        alert(
+          isEn
+            ? `❌ BACKEND ALERT (Audio was not saved):\nCode: ${response.status}\nDetail: ${errorTexto}`
+            : `❌ ALERTA DE BACKEND (No se guardó el audio):\nCódigo: ${response.status}\nDetalle: ${errorTexto}`
+        );
         setProcesandoGuardado(false);
         return; 
       }
@@ -92,10 +107,16 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
       const canal = new BroadcastChannel("mipacs_refresco_flujo");
       canal.postMessage("actualizar_tabla");
       setTimeout(() => { canal.close(); if(isWindow) window.close(); }, 150);
-      if (!isWindow) alert("✅ Audio guardado exitosamente.");
+      if (!isWindow) {
+        alert(isEn ? "✅ Audio saved successfully." : "✅ Audio guardado exitosamente.");
+      }
 
     } catch (err) {
-      alert(`❌ ERROR DE RED O CORS:\nFallo al contactar la API.\nDetalle: ${err.message}`);
+      alert(
+        isEn
+          ? `❌ NETWORK OR CORS ERROR:\nFailed to contact API.\nDetail: ${err.message}`
+          : `❌ ERROR DE RED O CORS:\nFallo al contactar la API.\nDetalle: ${err.message}`
+      );
       setProcesandoGuardado(false);
     }
   };
@@ -110,7 +131,11 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
       setProcesandoGuardado(true);
       procesarEnvioServidor(audioBlobReal);
     } else {
-      alert("⚠️ No se ha detectado audio. Grabe algo antes de finalizar.");
+      alert(
+        isEn
+          ? "⚠️ No audio detected. Record something before finishing."
+          : "⚠️ No se ha detectado audio. Grabe algo antes de finalizar."
+      );
     }
   };
 
@@ -153,7 +178,13 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [grabacionIniciada, estaGrabando, audioBlobReal, paciente, procesandoGuardado]); 
 
-  if (!paciente) return <div style={{ background: '#000', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#fff' }}><h2>Preparando Grabadora...</h2></div>;
+  if (!paciente) {
+    return (
+      <div style={{ background: '#000', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#fff' }}>
+        <h2>{isEn ? "Preparing Recorder..." : "Preparando Grabadora..."}</h2>
+      </div>
+    );
+  }
 
   const getColorMarco = () => {
     if (!grabacionIniciada) return isWindow ? '15px solid #334155' : '4px solid #334155'; 
@@ -185,11 +216,11 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
   // 🚀 BARRA DE ATAJOS PERMANENTE Y COMPACTA
   const barraAtajos = (
     <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: isWindow ? "15px" : "10px", color: "#94a3b8", fontSize: isWindow ? "0.9rem" : "0.75rem", marginTop: isWindow ? "20px" : "8px", backgroundColor: "rgba(15, 23, 42, 0.6)", padding: "4px 12px", borderRadius: "6px", border: "1px solid #334155" }}>
-      <span><kbd style={kbdStyle}>Espacio</kbd> Iniciar/Pausar</span>
-      <span><kbd style={kbdStyle}>Tab</kbd> Reproducir Audio</span>
-      <span><kbd style={kbdStyle}>Flechas</kbd> Adelantar/Atrasar</span>
-      <span><kbd style={kbdStyle}>Enter</kbd> Finalizar</span>
-      <span><kbd style={kbdStyle}>Esc</kbd> Descartar</span>
+      <span><kbd style={kbdStyle}>{isEn ? "Space" : "Espacio"}</kbd> {isEn ? "Start/Pause" : "Iniciar/Pausar"}</span>
+      <span><kbd style={kbdStyle}>Tab</kbd> {isEn ? "Play Audio" : "Reproducir Audio"}</span>
+      <span><kbd style={kbdStyle}>{isEn ? "Arrows" : "Flechas"}</kbd> {isEn ? "Forward/Rewind" : "Adelantar/Atrasar"}</span>
+      <span><kbd style={kbdStyle}>Enter</kbd> {isEn ? "Finish" : "Finalizar"}</span>
+      <span><kbd style={kbdStyle}>Esc</kbd> {isEn ? "Discard" : "Descartar"}</span>
     </div>
   );
 
@@ -198,7 +229,11 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: isWindow ? '30px' : '5px' }}>
         <div style={{ width: isWindow ? '30px' : '20px', height: isWindow ? '30px' : '20px', borderRadius: '50%', backgroundColor: estaGrabando ? '#ef4444' : (grabacionIniciada ? '#eab308' : '#334155'), boxShadow: estaGrabando ? '0 0 20px #ef4444' : 'none' }} />
         <h1 style={{ color: '#fff', fontSize: isWindow ? '2rem' : '1.1rem', margin: 0 }}>
-          {!grabacionIniciada ? "🎙️ ESPERANDO INICIO" : (estaGrabando ? "🎤 MODO GRABACIÓN ACTIVO" : "⏸️ GRABACIÓN PAUSADA")}
+          {!grabacionIniciada
+            ? (isEn ? "🎙️ WAITING TO START" : "🎙️ ESPERANDO INICIO")
+            : estaGrabando
+            ? (isEn ? "🎤 RECORDING MODE ACTIVE" : "🎤 MODO GRABACIÓN ACTIVO")
+            : (isEn ? "⏸️ RECORDING PAUSED" : "⏸️ GRABACIÓN PAUSADA")}
         </h1>
       </div>
 
@@ -207,15 +242,19 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
           {nombreCompleto}
         </h2>
         <p style={{ margin: '2px 0 0 0', fontSize: isWindow ? '1.2rem' : '0.85rem', color: '#fbbf24', fontFamily: 'monospace' }}>
-          ID: {paciente.identificacion || paciente.id} | Modalidad: {paciente.modalidad || paciente.tipo_estudio}
+          ID: {paciente.identificacion || paciente.id} | {isEn ? "Modality" : "Modalidad"}: {paciente.modalidad || paciente.tipo_estudio}
         </p>
       </div>
 
       <div style={{ width: '100%', maxWidth: '700px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isWindow ? '20px' : '5px' }}>
         {!grabacionIniciada ? (
           <div style={{ display: 'flex', gap: '15px', marginTop: isWindow ? '0' : '5px' }}>
-            <button style={btnInicio} onClick={() => { setGrabacionIniciada(true); iniciarGrabacionHardware(); }}>⏺️ INICIAR</button>
-            <button style={btnRechazar} onClick={handleRechazoTecnico} title="Rechazar estudio sin grabar">🛑 RECHAZAR</button>
+            <button style={btnInicio} onClick={() => { setGrabacionIniciada(true); iniciarGrabacionHardware(); }}>
+              {isEn ? "⏺️ START" : "⏺️ INICIAR"}
+            </button>
+            <button style={btnRechazar} onClick={handleRechazoTecnico} title={isEn ? "Reject study without recording" : "Rechazar estudio sin grabar"}>
+              {isEn ? "🛑 REJECT" : "🛑 RECHAZAR"}
+            </button>
           </div>
         ) : estaGrabando ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: isWindow ? '80px' : '35px', marginBottom: '5px' }}>
@@ -236,7 +275,7 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
               <div style={{ marginBottom: '10px' }}>
                 <button style={btnControl} onClick={() => handleNavigate('rewind')}>⏪ 5s</button>
                 <button style={btnControl} onClick={() => handleNavigate('play')}>▶️ Play</button>
-                <button style={btnControl} onClick={() => handleNavigate('pause')}>⏸️ Pausa</button>
+                <button style={btnControl} onClick={() => handleNavigate('pause')}>{isEn ? "⏸️ Pause" : "⏸️ Pausa"}</button>
                 <button style={btnControl} onClick={() => handleNavigate('speed_up')}>⚡ Spd (+)</button>
                 <button style={btnControl} onClick={() => handleNavigate('speed_down')}>🐢 Spd (-)</button>
                 <button style={btnControl} onClick={() => handleNavigate('forward')}>⏩ 5s</button>
@@ -248,8 +287,14 @@ export default function ModalDictadoHardware({ isWindow, estudioIdProps }) {
 
       {grabacionIniciada && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', width: '100%', maxWidth: '700px', marginTop: isWindow ? '40px' : '5px' }}>
-          <button type="button" onClick={onDescartar} style={btnAccion}>❌ DESCARTAR</button>
-          {!estaGrabando && <button type="button" onClick={onGuardar} style={btnGuardar}>✅ FINALIZAR</button>}
+          <button type="button" onClick={onDescartar} style={btnAccion}>
+            {isEn ? "❌ DISCARD" : "❌ DESCARTAR"}
+          </button>
+          {!estaGrabando && (
+            <button type="button" onClick={onGuardar} style={btnGuardar}>
+              {isEn ? "✅ FINISH" : "✅ FINALIZAR"}
+            </button>
+          )}
         </div>
       )}
 

@@ -16,7 +16,8 @@ import { useTranslation } from "react-i18next";
 export default function Pacientes() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t, i18n } = useTranslation(); 
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
 
   const [pacientes, setPacientes] = useState([]); 
   const [loading, setLoading] = useState(false);
@@ -66,7 +67,6 @@ export default function Pacientes() {
   useEffect(() => {
     if (user) {
       const rolActual = String(user?.rol || "").toLowerCase().trim();
-      
       const esUrgenciologo = user.es_urgenciologo === true;
 
       if (esUrgenciologo) {
@@ -87,56 +87,55 @@ export default function Pacientes() {
   }, [user]);
 
   const cargarDatos = useCallback(() => {
-      setLoading(true);
-      let paramsObj = { modalidad: filtros.modalidad || "", estado: filtros.estado || "", busqueda: filtros.busqueda || "", sort_by: sortBy, order: sortOrder };
+    setLoading(true);
+    let paramsObj = { modalidad: filtros.modalidad || "", estado: filtros.estado || "", busqueda: filtros.busqueda || "", sort_by: sortBy, order: sortOrder };
 
-      if (busquedaProfunda) {
-        if ((filtros.busqueda || "").trim() === "" && filtros.fechaExacta === "") {
-          paramsObj.fechaDesde = filtros.fechaDesde; paramsObj.fechaHasta = filtros.fechaHasta;
-        } else {
-          paramsObj.fechaDesde = filtros.fechaExacta || ""; paramsObj.fechaHasta = filtros.fechaExacta || ""; 
-        }
-      } else {
+    if (busquedaProfunda) {
+      if ((filtros.busqueda || "").trim() === "" && filtros.fechaExacta === "") {
         paramsObj.fechaDesde = filtros.fechaDesde; paramsObj.fechaHasta = filtros.fechaHasta;
+      } else {
+        paramsObj.fechaDesde = filtros.fechaExacta || ""; paramsObj.fechaHasta = filtros.fechaExacta || ""; 
       }
+    } else {
+      paramsObj.fechaDesde = filtros.fechaDesde; paramsObj.fechaHasta = filtros.fechaHasta;
+    }
 
-      const params = new URLSearchParams(paramsObj);
+    const params = new URLSearchParams(paramsObj);
 
-      fetch(`${apiBase}/api/pacientes?${params}`)
-        .then((res) => res.json())
-        .then((data) => {
-          let datos = Array.isArray(data) ? data : (data.items || []);
+    fetch(`${apiBase}/api/pacientes?${params}`)
+      .then((res) => res.json())
+      .then((data) => {
+        let datos = Array.isArray(data) ? data : (data.items || []);
+        
+        // 🧠 MOTOR DE ORDENAMIENTO IA (Triage Automático)
+        datos.sort((a, b) => {
+          const pesos = { "CRITICO": 3, "URGENTE": 2, "NORMAL": 1 };
+          const pesoA = pesos[a.prioridad_ia] || 1;
+          const pesoB = pesos[b.prioridad_ia] || 1;
           
-          // 🧠 MOTOR DE ORDENAMIENTO IA (Triage Automático)
-          // Fuerza a que los pacientes críticos floten automáticamente a la cima de la tabla
-          datos.sort((a, b) => {
-            const pesos = { "CRITICO": 3, "URGENTE": 2, "NORMAL": 1 };
-            const pesoA = pesos[a.prioridad_ia] || 1; // Si no tiene, asume NORMAL
-            const pesoB = pesos[b.prioridad_ia] || 1;
-            
-            if (pesoA !== pesoB) {
-              return pesoB - pesoA; // Mayor peso va primero
-            }
-            return 0; // Si tienen la misma urgencia, respeta el orden de llegada
-          });
-
-          setPacientes(datos);
-          try {
-            const colaTrabajo = datos.map((item) => ({
-              estudio_interno_id: item.estudio_interno_id,
-              id_real: item.identificacion || item.id_paciente || item.id,
-              estado_pacs: item.estado_pacs,
-            }));
-            localStorage.setItem("mipacs_cola_trabajo", JSON.stringify(colaTrabajo));
-          } catch (e) {}
-          setLoading(false);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error("Error cargando el repositorio PACS:", err);
-          setLoading(false);
+          if (pesoA !== pesoB) {
+            return pesoB - pesoA;
+          }
+          return 0;
         });
-    }, [filtros, sortBy, sortOrder, busquedaProfunda]);
+
+        setPacientes(datos);
+        try {
+          const colaTrabajo = datos.map((item) => ({
+            estudio_interno_id: item.estudio_interno_id,
+            id_real: item.identificacion || item.id_paciente || item.id,
+            estado_pacs: item.estado_pacs,
+          }));
+          localStorage.setItem("mipacs_cola_trabajo", JSON.stringify(colaTrabajo));
+        } catch (e) {}
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error cargando el repositorio PACS:", err);
+        setLoading(false);
+      });
+  }, [filtros, sortBy, sortOrder, busquedaProfunda, apiBase]);
+
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
   useEffect(() => {
@@ -168,7 +167,6 @@ export default function Pacientes() {
     return sortOrder === "asc" ? <span style={{ color: '#fbbf24', marginLeft: '5px' }}>↑</span> : <span style={{ color: '#fbbf24', marginLeft: '5px' }}>↓</span>;
   };
   
-  // 🔥 CORRECCIÓN: Ahora el checkbox usa el ID único del estudio
   const toggleSeleccionarPaciente = (estudioInternoId) => {
     setSeleccionados(prev => prev.includes(estudioInternoId) ? prev.filter(x => x !== estudioInternoId) : [...prev, estudioInternoId]);
   };
@@ -193,7 +191,6 @@ export default function Pacientes() {
     setFiltros(prev => ({ ...prev, fechaDesde: desdeStr, fechaHasta: hastaStr }));
   };
 
-  // La edición del paciente sigue actualizando al paciente, pero lo buscamos por el id del estudio de la fila
   const abrirEditorPaciente = (estudio) => {
     const p = pacientes.find(x => x.estudio_interno_id === estudio.estudio_interno_id) || estudio;
     setPacienteAEditar(p);
@@ -215,37 +212,66 @@ export default function Pacientes() {
     const rolActual = String(user?.rol || "").toLowerCase();
     
     if (rolActual === "tecnologo" || rolActual === "recepcion") {
-      motivoAuditoria = window.prompt("⚠️ CONTROL DE AUDITORÍA:\nEscriba el motivo de la corrección demográfica:");
-      if (!motivoAuditoria || motivoAuditoria.trim() === "") return alert("❌ Operación cancelada. Motivo obligatorio.");
+      motivoAuditoria = window.prompt(
+        isEn
+          ? "⚠️ AUDIT CONTROL:\nEnter the reason for the demographic correction:"
+          : "⚠️ CONTROL DE AUDITORÍA:\nEscriba el motivo de la corrección demográfica:"
+      );
+      if (!motivoAuditoria || motivoAuditoria.trim() === "") {
+        return alert(
+          isEn
+            ? "❌ Operation cancelled. Reason is mandatory."
+            : "❌ Operación cancelada. Motivo obligatorio."
+        );
+      }
     }
 
-    const payload = { ...formEdit, modificado_por: user?.username || "Desconocido", motivo_cambio: motivoAuditoria };
+    const payload = {
+      ...formEdit,
+      modificado_por: user?.username || (isEn ? "Unknown" : "Desconocido"),
+      motivo_cambio: motivoAuditoria
+    };
 
     try {
-      // Guardamos la edición usando el ID del paciente (esto afecta los datos generales)
-    const response = await fetch(`${apiBase}/api/pacientes/${pacienteAEditar.id}`, {
+      const response = await fetch(`${apiBase}/api/pacientes/${pacienteAEditar.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
       });
 
       if (response.ok) {
-        // Reflejamos los cambios en todas las filas que pertenezcan a este paciente
         setPacientes(prev => prev.map(item => item.id === pacienteAEditar.id ? { ...item, ...formEdit, segundo_nombre: formEdit.segundo_nombre || "-", segundo_apellido: formEdit.segundo_apellido || "-", email: formEdit.email || "-", telefono: formEdit.telefono || "-" } : item));
-        alert("📝 Datos corregidos y registrados.");
+        alert(isEn ? "📝 Data updated and logged." : "📝 Datos corregidos y registrados.");
         setModalEditOpen(false); setPacienteAEditar(null);
-      } else { alert(`❌ Fallo en actualización.`); }
-    } catch (error) { alert("❌ Error de comunicación con la API."); }
+      } else {
+        alert(isEn ? "❌ Update failed." : "❌ Fallo en actualización.");
+      }
+    } catch (error) {
+      alert(isEn ? "❌ API communication error." : "❌ Error de comunicación con la API.");
+    }
   };
 
   // 🔥 CORRECCIÓN: Flujo apuntando a /estudio/{id}
   const handleReabrirFlujoEstudio = async (estudio) => {
-    if (!window.confirm(`⚠️ MODO MAESTRO:\n¿Reabrir el flujo para este estudio de ${estudio.primer_nombre}?`)) return;
+    if (
+      !window.confirm(
+        isEn
+          ? `⚠️ MASTER MODE:\nReopen the workflow for this study of ${estudio.primer_nombre}?`
+          : `⚠️ MODO MAESTRO:\n¿Reabrir el flujo para este estudio de ${estudio.primer_nombre}?`
+      )
+    ) return;
     try {
       const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudio.estudio_interno_id}/reabrir-flujo`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ forzar_estado_proceso: true })
       });
-      if (response.ok) { setEstudiosAutorizados(prev => ({ ...prev, [estudio.estudio_interno_id]: true })); alert("🔄 Flujo reabierto."); cargarDatos(); } 
-      else { alert("❌ Error al alterar el flujo."); }
-    } catch (error) { alert("❌ Fallo en la red."); }
+      if (response.ok) {
+        setEstudiosAutorizados(prev => ({ ...prev, [estudio.estudio_interno_id]: true }));
+        alert(isEn ? "🔄 Workflow reopened." : "🔄 Flujo reabierto.");
+        cargarDatos();
+      } else {
+        alert(isEn ? "❌ Error altering workflow." : "❌ Error al alterar el flujo.");
+      }
+    } catch (error) {
+      alert(isEn ? "❌ Network failure." : "❌ Fallo en la red.");
+    }
   };
 
   // 🔥 CORRECCIÓN: Apuntando la validación del tecnólogo al estudio individual
@@ -253,7 +279,6 @@ export default function Pacientes() {
     try {
       const token = user?.token || localStorage.getItem("token");
       
-      // Usamos apiBase dinámica y forzamos el método POST
       const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/marcar-tomado`, {
         method: "POST", 
         headers: {
@@ -263,12 +288,12 @@ export default function Pacientes() {
       });
       
       if (response.ok) {
-        cargarDatos(); // Refresca la tabla automáticamente
+        cargarDatos();
       } else {
-        alert("❌ Error al validar el estudio.");
+        alert(isEn ? "❌ Error validating the study." : "❌ Error al validar el estudio.");
       }
     } catch (error) {
-      alert("❌ Error de comunicación con la API.");
+      alert(isEn ? "❌ API communication error." : "❌ Error de comunicación con la API.");
     }
   };
 
@@ -276,7 +301,9 @@ export default function Pacientes() {
   const abrirModuloDictado = (estudioId) => {
     const pac = pacientes.find(p => p.estudio_interno_id === estudioId);
     if (!pac) return;
-    if (!(!!estudiosAutorizados[estudioId] || pac.estado_pacs === "Tomado")) return alert("🔒 Estudio Bloqueado.");
+    if (!(!!estudiosAutorizados[estudioId] || pac.estado_pacs === "Tomado")) {
+      return alert(isEn ? "🔒 Study Locked." : "🔒 Estudio Bloqueado.");
+    }
     window.open(`/visor-dictado/${estudioId}`, `Dictado_${estudioId}`, `width=1000,height=950,top=50,left=200,resizable=yes`);
   };
 
@@ -286,7 +313,9 @@ export default function Pacientes() {
   const abrirDictadoDirectoFirma = (estudioId) => {
     const pac = pacientes.find(p => p.estudio_interno_id === estudioId);
     if (!pac) return;
-    if (!(!!estudiosAutorizados[estudioId] || pac.estado_pacs === "Tomado")) return alert("🔒 Estudio Bloqueado.");
+    if (!(!!estudiosAutorizados[estudioId] || pac.estado_pacs === "Tomado")) {
+      return alert(isEn ? "🔒 Study Locked." : "🔒 Estudio Bloqueado.");
+    }
     window.open(`/visor-firma/${estudioId}?modo=autodictado`, `AutoDictadoFirma_${estudioId}`, `width=1300,height=1000,top=50,left=100,resizable=yes`);
   };
 
@@ -294,7 +323,6 @@ export default function Pacientes() {
   const ejecutarPlayAudioTabla = (estudioId) => {
     let reproductor = reproductorGlobalRef.current;
     
-    // Si la referencia del DOM aún no está lista, la creamos dinámicamente al vuelo
     if (!reproductor) {
       reproductor = document.createElement('audio');
       reproductor.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
@@ -307,7 +335,9 @@ export default function Pacientes() {
       const pac = pacientes.find(p => p.estudio_interno_id === estudioId);
       if (pac && (pac.estado_pacs === "Dictado" || (pac.flujo_clinico && pac.flujo_clinico.tiene_audio))) {
         urlCargada = `${apiBase}/api/pacientes/estudio/${estudioId}/audio?t=${new Date().getTime()}`;
-      } else return alert("ℹ️ No hay un dictado activo para este estudio.");
+      } else {
+        return alert(isEn ? "ℹ️ There is no active dictation for this study." : "ℹ️ No hay un dictado activo para este estudio.");
+      }
     }
 
     if (audioActualJugando === estudioId) {
@@ -323,8 +353,12 @@ export default function Pacientes() {
         playPromise.then(() => {
           setAudioActualJugando(estudioId);
         }).catch(e => {
-          console.error("Safari bloqueó el audio:", e);
-          alert("❌ El navegador bloqueó el audio. Asegúrate de permitir la reproducción en este sitio.");
+          console.error("El navegador bloqueó el audio:", e);
+          alert(
+            isEn
+              ? "❌ The browser blocked audio playback. Please allow audio on this site."
+              : "❌ El navegador bloqueó el audio. Asegúrate de permitir la reproducción en este sitio."
+          );
         });
       }
       
@@ -332,7 +366,6 @@ export default function Pacientes() {
     }
   };
   
-  // 🔥 CORRECCIÓN: Filtramos los seleccionados por el ID del estudio
   const pacientesParaEnvio = pacientes.filter(p => seleccionados.includes(p.estudio_interno_id)).map(p => ({ ...p, modality: p.modalidad || p.modality || "OTRO" }));
 
   return (
@@ -342,12 +375,14 @@ export default function Pacientes() {
           
           {/* Contenedor Izquierdo: Título y Botón de Idioma */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <h2 style={styles.tituloDorado}>{t('menu_pacientes', 'Panel de Control Operativo')}</h2>
+            <h2 style={styles.tituloDorado}>
+              {t('menu_pacientes', isEn ? 'Operational Control Panel' : 'Panel de Control Operativo')}
+            </h2>
             <button 
-              onClick={() => i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es')}
+              onClick={() => i18n.changeLanguage(i18n.language?.startsWith('es') ? 'en' : 'es')}
               style={{ background: "#475569", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}
             >
-              {t('cambiar_idioma', '🌐 Cambiar Idioma')}
+              {t('cambiar_idioma', isEn ? '🌐 Switch Language' : '🌐 Cambiar Idioma')}
             </button>
           </div> 
 
@@ -396,8 +431,6 @@ export default function Pacientes() {
             handleReabrirFlujoEstudio={handleReabrirFlujoEstudio} abrirModalTranscriptor={abrirModalTranscriptor}
             abrirModalFirma={abrirModalFirma}
             abrirDictadoDirectoFirma={abrirDictadoDirectoFirma}
-            
-            // 🔥 PASAMOS LAS HERRAMIENTAS NUEVAS A LA TABLA
             handleMarcarTomado={handleMarcarTomado}
             rolUsuario={String(user?.rol || "").toLowerCase().trim()}
           />

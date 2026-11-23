@@ -11,7 +11,8 @@ export default function TablaPacientes({
   abrirDictadoDirectoFirma, handleMarcarTomado 
 }) {  
 
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
   const { user } = useAuth();
 
   const userRol = String(user?.rol || "").toLowerCase().trim();
@@ -71,23 +72,43 @@ export default function TablaPacientes({
 
   // 🔥 ACTUALIZADO: URL Dinámica
   const handleCancelarEstudio = async (estudioId) => {
-    const motivo = window.prompt("🛑 ATENCIÓN: Va a abortar este estudio.\nMotivo clínico/técnico:");
+    const motivo = window.prompt(
+      isEn
+        ? "🛑 WARNING: You are about to abort this study.\nClinical/technical reason:"
+        : "🛑 ATENCIÓN: Va a abortar este estudio.\nMotivo clínico/técnico:"
+    );
     if (!motivo || motivo.trim() === "") return; 
     try {
       const response = await fetch(`${apiBase}/api/pacientes/estudio/${estudioId}/cancelar-estudio`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motivo_cancelacion: motivo })
       });
-      if (response.ok) { alert("✅ Estudio cancelado."); window.location.reload(); } 
-      else { alert("❌ Error al cancelar el estudio."); }
-    } catch (error) { alert("❌ Error de comunicación con la API."); }
+      if (response.ok) {
+        alert(isEn ? "✅ Study cancelled." : "✅ Estudio cancelado.");
+        window.location.reload();
+      } else {
+        alert(isEn ? "❌ Error cancelling the study." : "❌ Error al cancelar el estudio.");
+      }
+    } catch (error) {
+      alert(isEn ? "❌ API communication error." : "❌ Error de comunicación con la API.");
+    }
   };
 
-const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
+  const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
     if (!destino || destino === "-" || destino.trim() === "") {
-      return alert(`❌ Faltan datos para envío. Por favor, edite el paciente y agregue su ${tipoMetodo}.`);
+      return alert(
+        isEn
+          ? `❌ Missing delivery data. Please edit the patient and add their ${tipoMetodo}.`
+          : `❌ Faltan datos para envío. Por favor, edite el paciente y agregue su ${tipoMetodo}.`
+      );
     }
     
-    if (!window.confirm(`📤 ¿Confirmar envío automatizado por ${tipoMetodo} al destino: ${destino}?`)) return;
+    if (
+      !window.confirm(
+        isEn
+          ? `📤 Confirm automated ${tipoMetodo} delivery to: ${destino}?`
+          : `📤 ¿Confirmar envío automatizado por ${tipoMetodo} al destino: ${destino}?`
+      )
+    ) return;
     
     try {
       const token = localStorage.getItem("token")?.replace(/['"]+/g, '');
@@ -108,14 +129,17 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           })
         });
 
-        if (!response.ok) throw new Error((await response.json()).detail || "Error en pasarela de WhatsApp");
-        alert(`✅ WhatsApp enviado con éxito al ${destino} y registrado en la bitácora.`);
+        if (!response.ok) throw new Error((await response.json()).detail || (isEn ? "WhatsApp gateway error" : "Error en pasarela de WhatsApp"));
+        alert(
+          isEn
+            ? `✅ WhatsApp sent successfully to ${destino} and logged.`
+            : `✅ WhatsApp enviado con éxito al ${destino} y registrado en la bitácora.`
+        );
       } 
       // ==========================================
       // 2. PASARELA EMAIL (Con Enlace Seguro del Visor)
       // ==========================================
       else if (tipoMetodo === 'Email') {
-        // A) Generamos el enlace seguro primero
         const linkRes = await fetch(`${apiBase}/api/secure-links/generar/${estudioId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
@@ -130,7 +154,6 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           console.error("❌ Falló la generación del link de seguridad.");  
         }
 
-        // B) Despachamos el correo con el PDF y el Enlace
         const response = await fetch(`${apiBase}/api/email/enviar-estudio/${estudioId}`, {
           method: "POST",
           headers: { 
@@ -143,10 +166,13 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           })
         });
 
-        if (!response.ok) throw new Error((await response.json()).detail || "Error en el servidor de correos");
-        alert(`✅ Correo enviado silenciosamente con éxito a ${destino}`);
+        if (!response.ok) throw new Error((await response.json()).detail || (isEn ? "Email server error" : "Error en el servidor de correos"));
+        alert(
+          isEn
+            ? `✅ Email sent silently with success to ${destino}`
+            : `✅ Correo enviado silenciosamente con éxito a ${destino}`
+        );
       }
-
       // ==========================================
       // 3. PASARELA SMS (Mantiene su flujo manual original)
       // ==========================================
@@ -156,18 +182,20 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
         });
         
-        if (!linkRes.ok) throw new Error("No se pudo generar el token de seguridad");
+        if (!linkRes.ok) throw new Error(isEn ? "Could not generate security token" : "No se pudo generar el token de seguridad");
         
         const data = await linkRes.json();
         const urlSegura = `${apiBase}/portal/${data.link}`;      
-        const mensaje = `Hola. Clínica Asotrauma le informa que sus imágenes radiológicas ya están disponibles.\n\nPara visualizarlas, ingrese al siguiente enlace y escriba su Fecha de Nacimiento (DíaMesAño) por seguridad. Válido por 48 horas:\n\n${urlSegura}\n\nGracias por confiar en nosotros.`;
+        const mensaje = isEn
+          ? `Hello. Your radiology images are now available.\n\nTo view them, open the following link and enter your Date of Birth (DayMonthYear) for security. Valid for 48 hours:\n\n${urlSegura}\n\nThank you for trusting us.`
+          : `Hola. Le informamos que sus imágenes radiológicas ya están disponibles.\n\nPara visualizarlas, ingrese al siguiente enlace y escriba su Fecha de Nacimiento (DíaMesAño) por seguridad. Válido por 48 horas:\n\n${urlSegura}\n\nGracias por confiar en nosotros.`;
 
         const urlSms = `sms:${destino.replace(/\D/g, '')}?body=${encodeURIComponent(mensaje)}`;
         window.location.href = urlSms;
       }
     } catch (error) { 
       console.error(error);
-      alert(`❌ Fallo en el envío: ${error.message}`); 
+      alert(isEn ? `❌ Delivery failed: ${error.message}` : `❌ Fallo en el envío: ${error.message}`); 
     }
   };
 
@@ -216,7 +244,7 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           <th style={{ ...styles.thStyle, padding: "16px 12px", whiteSpace: "nowrap" }}>{t('tabla.visor')}</th>
         </tr>
       </thead>
-<tbody>
+      <tbody>
         {(!pacientes || pacientes.length === 0) ? (
           <tr>
             <td colSpan="18" style={styles.waitingState}>
@@ -228,10 +256,10 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
           pacientes.map((p, index) => {
             const idReal = p.identificacion || p.id_paciente || p.id || "S/I";
             const primerNombre = p.primer_nombre || ""; const segundoNombre = p.segundo_nombre || "-";
-            const primerApellido = p.primer_apellido || "Desconocido"; const segundoApellido = p.segundo_apellido || "-";
+            const primerApellido = p.primer_apellido || (isEn ? "Unknown" : "Desconocido"); const segundoApellido = p.segundo_apellido || "-";
             const emailReal = p.email || "-"; const telefonoReal = p.telefono || "-";
             const mReal = p.modalidad || p.tipo_estudio || "CR";
-            const descripcionReal = p.descripcion || p.study_description || p.procedimiento || "Sin descripción";
+            const descripcionReal = p.descripcion || p.study_description || p.procedimiento || (isEn ? "No description" : "Sin descripción");
 
             // 🔥 LOGICA PARA DIVIDIR FECHA Y HORA
             let fechaReal = p.fecha || "S/F"; 
@@ -251,8 +279,8 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                 }
             }
 
-            // 🔥 AHORA CAPTURAR INSTITUCIÓN QUE REALMENTE VENGA DEL ARCHIVO
-            const institucionReal = p.institucion || "Desconocida";
+            // 🔥 CAPTURAR INSTITUCIÓN REAL
+            const institucionReal = p.institucion || (isEn ? "Unknown" : "Desconocida");
 
             const estaSeleccionado = seleccionados.includes(p.estudio_interno_id);
             const estiloMod = obtenerEstiloModalidad(mReal);
@@ -268,9 +296,8 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
             const esNormal = p.prioridad_ia === "NORMAL";
             
             const estadoActivo = p.estado_pacs !== "Firmado" && p.estado_pacs !== "Cancelado";
-            const yaPasoPorIA = p.estado_pacs !== "Importado"; // Para no pintar de verde los que aún no han sido validados por el tecnólogo
+            const yaPasoPorIA = p.estado_pacs !== "Importado";
 
-            // Determinar colores de la fila (Priorizando selecciones manuales y bloqueos)
             let bgColor = "#111418";
             let borderL = "4px solid transparent";
 
@@ -281,11 +308,11 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
             } else if (p.estado_pacs === "Rechazado") {
               bgColor = "#2a1215"; borderL = "4px solid #ef4444";
             } else if (esCritico && estadoActivo) {
-              bgColor = "rgba(239, 68, 68, 0.15)"; borderL = "4px solid #ef4444"; // 🚨 Alerta Roja
+              bgColor = "rgba(239, 68, 68, 0.15)"; borderL = "4px solid #ef4444";
             } else if (esUrgente && estadoActivo) {
-              bgColor = "rgba(249, 115, 22, 0.15)"; borderL = "4px solid #f97316"; // ⚠️ Alerta Naranja
+              bgColor = "rgba(249, 115, 22, 0.15)"; borderL = "4px solid #f97316";
             } else if (esNormal && estadoActivo && yaPasoPorIA) {
-              bgColor = "rgba(16, 185, 129, 0.06)"; borderL = "4px solid #10b981"; // 🟢 Verde Suave (IA validó)
+              bgColor = "rgba(16, 185, 129, 0.06)"; borderL = "4px solid #10b981";
             }
 
             return (
@@ -304,21 +331,26 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <div style={styles.containerFlujo}>
-                    {p.estado_pacs === "Cancelado" && (<span style={{ color: "#94a3b8", fontWeight: "bold", fontSize: "12px", display: "flex", gap: "6px" }}>🚫 Archivado</span>)}
-                    {p.estado_pacs === "Rechazado" && (<span style={{ color: "#ef4444", fontWeight: "bold", fontSize: "13px", display: "flex", gap: "6px" }}>🛑 Repetir Toma</span>)}
+                    {p.estado_pacs === "Cancelado" && (<span style={{ color: "#94a3b8", fontWeight: "bold", fontSize: "12px", display: "flex", gap: "6px" }}>{isEn ? "🚫 Archived" : "🚫 Archivado"}</span>)}
+                    {p.estado_pacs === "Rechazado" && (<span style={{ color: "#ef4444", fontWeight: "bold", fontSize: "13px", display: "flex", gap: "6px" }}>{isEn ? "🛑 Retake" : "🛑 Repetir Toma"}</span>)}
                     
                     {userRol === 'tecnologo' && (p.estado_pacs === 'Importado' || p.estado_pacs === 'Pendiente' || !p.estado_pacs) && (
                         <button
                             onClick={() => handleMarcarTomado(p.estudio_interno_id)}
                             style={{ background: "#10b981", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}
-                            title="Validar paciente y asignar a mis métricas"
+                            title={isEn ? "Validate patient and assign to my metrics" : "Validar paciente y asignar a mis métricas"}
                         >
-                            ✔ Validar Estudio
+                            {isEn ? "✔ Validate Study" : "✔ Validar Estudio"}
                         </button>
                     )}
 
                     {p.estado_pacs === "Urgencia" && canUseHerramientasMedicas && (
-                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}><span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }}>🚨 Urgencia</span><button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>🎙️ Oficial</button></div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <span style={{ color: "#f97316", fontWeight: "bold", fontSize: "13px" }}>{isEn ? "🚨 Urgent" : "🚨 Urgencia"}</span>
+                        <button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>
+                          {isEn ? "🎙️ Official" : "🎙️ Oficial"}
+                        </button>
+                      </div>
                     )}
 
                     {(p.estado_pacs === "Importado" || p.estado_pacs === "Tomado") && canUseHerramientasMedicas && (
@@ -326,22 +358,22 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                           <button
                             onClick={() => abrirModuloDictado(p.estudio_interno_id)}
-                            title="Dictar para enviar a transcriptor humano"
+                            title={isEn ? "Dictate to send to human transcriptionist" : "Dictar para enviar a transcriptor humano"}
                             style={{ ...styles.iconFlujoBase, color: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.4)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}
                           >
                             🎙️ {t("btn_grabar")}
                           </button>
                           <button
                             onClick={() => abrirDictadoDirectoFirma(p.estudio_interno_id)}
-                            title="Auto-transcribir dictado, respaldar audio y firmar directamente"
+                            title={isEn ? "Auto-transcribe dictation, back up audio, and sign directly" : "Auto-transcribir dictado, respaldar audio y firmar directamente"}
                             style={{ ...styles.iconFlujoBase, color: "#38bdf8", backgroundColor: "rgba(14, 165, 233, 0.18)", border: "1px solid rgba(56, 189, 248, 0.5)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
                           >
-                            ⚡ {String(localStorage.getItem("i18nextLng") || "").startsWith("en") ? "Dictate & Sign" : "Dictar y Firmar"}
+                            ⚡ {isEn ? "Dictate & Sign" : "Dictar y Firmar"}
                           </button>
                         </div>
                       ) : (
                         <button onClick={() => abrirModuloDictado(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.1)", border: "1px dashed rgba(239, 68, 68, 0.4)", cursor: "not-allowed", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
-                          🔒 Bloqueado
+                          {isEn ? "🔒 Locked" : "🔒 Bloqueado"}
                         </button>
                       )
                     )}
@@ -349,20 +381,28 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                     {p.estado_pacs === "Dictado" && (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                         <button onClick={() => ejecutarPlayAudioTabla(p.estudio_interno_id)} style={{ ...styles.iconFlujoBase, color: "#3b82f6", backgroundColor: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)", cursor: "pointer", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", display: "flex", gap: "6px" }}>🔊 Play</button>
-                        {(canUseHerramientasMedicas || userRol === "transcriptor") && (<button onClick={() => abrirModalTranscriptor(p.estudio_interno_id)} style={{ padding: "6px 12px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>✍️ Transcribir</button>)}
+                        {(canUseHerramientasMedicas || userRol === "transcriptor") && (
+                          <button onClick={() => abrirModalTranscriptor(p.estudio_interno_id)} style={{ padding: "6px 12px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>
+                            {isEn ? "✍️ Transcribe" : "✍️ Transcribir"}
+                          </button>
+                        )}
                       </div>
                     )}
-                    {p.estado_pacs === "Transcrito" && canUseHerramientasMedicas && (<button onClick={() => abrirModalFirma(p.estudio_interno_id)} style={{ padding: "6px 12px", backgroundColor: "#10b981", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}>🔏 Validar y Firmar</button>)}
+                    {p.estado_pacs === "Transcrito" && canUseHerramientasMedicas && (
+                      <button onClick={() => abrirModalFirma(p.estudio_interno_id)} style={{ padding: "6px 12px", backgroundColor: "#10b981", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 0 10px rgba(16, 185, 129, 0.3)" }}>
+                        {isEn ? "🔏 Validate & Sign" : "🔏 Validar y Firmar"}
+                      </button>
+                    )}
                     {p.estado_pacs === "Firmado" && (
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                        <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", gap: "4px" }}>✅ Completado</span>
+                        <span style={{ color: "#10b981", fontWeight: "bold", fontSize: "14px", display: "flex", gap: "4px" }}>{isEn ? "✅ Completed" : "✅ Completado"}</span>
                         <button onClick={() => abrirPDF(p.estudio_interno_id)} style={{ padding: "4px 10px", backgroundColor: "#334155", color: "#fff", border: "1px solid #475569", borderRadius: "4px", cursor: "pointer", fontSize: "12px", display: "flex", gap: "4px" }}>📄 PDF</button>
                         {(userRol === "recepcion" || isAdmin) && (
                           <>
                             <button onClick={() => handleEnvioManual('WhatsApp', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#25D366", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>📱 WA</button>
                             <button onClick={() => handleEnvioManual('Email', p.estudio_interno_id, idReal, emailReal)} style={{ padding: "4px 8px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>✉️ Email</button>
                             {import.meta.env.VITE_HABILITAR_SMS === "true" && (
-                            <button onClick={() => handleEnvioManual('SMS', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
+                              <button onClick={() => handleEnvioManual('SMS', p.estudio_interno_id, idReal, telefonoReal)} style={{ padding: "4px 8px", backgroundColor: "#8b5cf6", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}>💬 SMS</button>
                             )}
                           </>
                         )}
@@ -377,9 +417,9 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                 
                 {/* 🔥 CELDA CON EL DISTINTIVO VISUAL DE IA 🔥 */}
                 <td style={{ ...styles.tdStyle, color: '#f8fafc', fontWeight: '500', fontSize: '0.85rem' }}>
-                  {esCritico && estadoActivo && <span title="¡ALERTA IA: Posible patología crítica!" style={{ marginRight: '6px', fontSize: '1.2rem' }}>🚨</span>}
-                  {esUrgente && estadoActivo && <span title="¡AVISO IA: Posible urgencia!" style={{ marginRight: '6px', fontSize: '1.2rem' }}>⚠️</span>}
-                  {esNormal && estadoActivo && yaPasoPorIA && <span title="IA: Estudio sin hallazgos críticos evidentes" style={{ marginRight: '6px', fontSize: '1.2rem' }}>🟢</span>}
+                  {esCritico && estadoActivo && <span title={isEn ? "AI ALERT: Possible critical pathology!" : "¡ALERTA IA: Posible patología crítica!"} style={{ marginRight: '6px', fontSize: '1.2rem' }}>🚨</span>}
+                  {esUrgente && estadoActivo && <span title={isEn ? "AI WARNING: Possible urgency!" : "¡AVISO IA: Posible urgencia!"} style={{ marginRight: '6px', fontSize: '1.2rem' }}>⚠️</span>}
+                  {esNormal && estadoActivo && yaPasoPorIA && <span title={isEn ? "AI: Study without obvious critical findings" : "IA: Estudio sin hallazgos críticos evidentes"} style={{ marginRight: '6px', fontSize: '1.2rem' }}>🟢</span>}
                   {descripcionReal}
                 </td>
 
@@ -388,15 +428,15 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
                   {institucionReal}
                 </td>
                 
-                <td style={styles.tdStyle}>{p.departamento || "Radiología"}</td>
+                <td style={styles.tdStyle}>{p.departamento || (isEn ? "Radiology" : "Radiología")}</td>
 
                 <td style={styles.tdStyle} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    {canEditPaciente && (<button style={styles.btnEditar} onClick={() => abrirEditorPaciente(p)} title="Editar Datos">📝</button>)}
+                    {canEditPaciente && (<button style={styles.btnEditar} onClick={() => abrirEditorPaciente(p)} title={isEn ? "Edit Data" : "Editar Datos"}>📝</button>)}
                     {canUseHerramientasMedicas && (
                       <>
-                        <button style={{ ...styles.btnEditar, backgroundColor: '#3b82f6', color: '#fff', border: 'none' }} onClick={() => handleReabrirFlujoEstudio(p)} title="Reabrir Flujo">🔄</button>
-                        {p.estado_pacs !== "Cancelado" && p.estado_pacs !== "Firmado" && (<button style={{ ...styles.btnEditar, backgroundColor: '#ef4444', color: '#fff', border: 'none' }} onClick={() => handleCancelarEstudio(p.estudio_interno_id)} title="Abortar">🛑</button>)}
+                        <button style={{ ...styles.btnEditar, backgroundColor: '#3b82f6', color: '#fff', border: 'none' }} onClick={() => handleReabrirFlujoEstudio(p)} title={isEn ? "Reopen Workflow" : "Reabrir Flujo"}>🔄</button>
+                        {p.estado_pacs !== "Cancelado" && p.estado_pacs !== "Firmado" && (<button style={{ ...styles.btnEditar, backgroundColor: '#ef4444', color: '#fff', border: 'none' }} onClick={() => handleCancelarEstudio(p.estudio_interno_id)} title={isEn ? "Abort Study" : "Abortar"}>🛑</button>)}
                       </>
                     )}
                   </div>
@@ -412,4 +452,4 @@ const handleEnvioManual = async (tipoMetodo, estudioId, idReal, destino) => {
       </tbody>
     </table>
   );
-} 
+}

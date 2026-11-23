@@ -1,11 +1,12 @@
 /**
- * VisorMPR3D.jsx — MI_PACS
- * ---------------------------------------------------------
- * Motor 3D Actualizado y Sincronizado con cornerstoneInit.js
+- VisorMPR3D.jsx — MI_PACS
+- ---------------------------------------------------------
+- Motor 3D Actualizado y Sincronizado con cornerstoneInit.js
  */
 
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import dicomParser from "dicom-parser";
 
 // 🚀 IMPORTACIONES
@@ -20,6 +21,9 @@ const API_BASE = window.location.origin;
 export default function VisorMPR3D() {
   const { id: currentId } = useParams();
   const location = useLocation();
+  const { i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
+
   const searchParams = new URLSearchParams(location.search);
   const activeToken = searchParams.get("token") || localStorage.getItem("token")?.replace(/['"]+/g, '');
   const isGuest = !!searchParams.get("token");
@@ -34,11 +38,16 @@ export default function VisorMPR3D() {
     const volumeId = "cornerstoneStreamingImageVolume:my_mpr_volume";
     const renderingEngineId = "my_mpr_rendering_engine";
     const toolGroupId = "mpr_tool_group";
+    const enIngles = (localStorage.getItem("i18nextLng") || i18n.language || "").startsWith("en");
 
     const inicializarMPR = async () => {
       try {
         if (typeof SharedArrayBuffer === 'undefined') {
-          alert("⚠️ SharedArrayBuffer deshabilitado. Revisa vite.config.js");
+          alert(
+            enIngles
+              ? "⚠️ SharedArrayBuffer disabled. Check vite.config.js"
+              : "⚠️ SharedArrayBuffer deshabilitado. Revisa vite.config.js"
+          );
           setCargando(false);
           return;
         }
@@ -62,7 +71,11 @@ export default function VisorMPR3D() {
             csCore.imageLoader.registerImageLoader('wadouri', dicomLoader.wadouri.loadImage);
         } else {
             console.error("❌ dicomLoader.wadouri no existe. Revisa el import.", dicomLoader);
-            alert("Fallo al inyectar wadouri. Revisa la consola F12.");
+            alert(
+              enIngles
+                ? "Failed to inject wadouri. Check F12 console."
+                : "Fallo al inyectar wadouri. Revisa la consola F12."
+            );
         }
 
         // Inyectar Token de Seguridad
@@ -81,7 +94,9 @@ export default function VisorMPR3D() {
         const response = await fetch(urlFetch, { headers: headersFetch });
         const data = await response.json();
 
-        if (!data || data.length === 0) throw new Error("No hay imágenes");
+        if (!data || data.length === 0) {
+          throw new Error(enIngles ? "No images found" : "No hay imágenes");
+        }
 
         const seriePrincipal = data.reduce((prev, current) => 
           (prev.imagenes.length > current.imagenes.length) ? prev : current
@@ -157,14 +172,28 @@ export default function VisorMPR3D() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h3 style={{ margin: 0, color: '#fbbf24' }}>🧊 MI_PACS - Reconstrucción Multiplanar (MPR) 3D</h3>
-        <button style={styles.btnCerrar} onClick={() => window.close()}>Cerrar MPR</button>
+        <h3 style={{ margin: 0, color: '#fbbf24' }}>
+          {isEn
+            ? "🧊 MI_PACS - 3D Multiplanar Reconstruction (MPR)"
+            : "🧊 MI_PACS - Reconstrucción Multiplanar (MPR) 3D"}
+        </h3>
+        <button style={styles.btnCerrar} onClick={() => window.close()}>
+          {isEn ? "Close MPR" : "Cerrar MPR"}
+        </button>
       </div>
 
       {cargando && (
         <div style={styles.loadingOverlay}>
-          <h2>Reconstruyendo Volumen 3D en la GPU...</h2>
-          <p>Construyendo cortes ortogonales a partir de las imágenes axiales.</p>
+          <h2>
+            {isEn
+              ? "Reconstructing 3D Volume on GPU..."
+              : "Reconstruyendo Volumen 3D en la GPU..."}
+          </h2>
+          <p>
+            {isEn
+              ? "Building orthogonal slices from axial images."
+              : "Construyendo cortes ortogonales a partir de las imágenes axiales."}
+          </p>
         </div>
       )}
 
@@ -178,7 +207,7 @@ export default function VisorMPR3D() {
           <div ref={coronalRef} style={styles.viewport} onContextMenu={e => e.preventDefault()} />
         </div>
         <div style={styles.viewportWrapper}>
-          <div style={styles.label}>SAGITAL</div>
+          <div style={styles.label}>{isEn ? "SAGITTAL" : "SAGITAL"}</div>
           <div ref={sagittalRef} style={styles.viewport} onContextMenu={e => e.preventDefault()} />
         </div>
       </div>

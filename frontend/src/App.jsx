@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import axios from "axios"; // 🚀 IMPORTACIÓN AÑADIDA PARA EL INTERCEPTOR
 import VisorMPR3D from './pages/VisorMPR3D'; // 🚀 IMPORTACIÓN NUEVA DEL VISOR 3D
+import { useTranslation } from "react-i18next";
 
 
 // =====================================================================
@@ -81,13 +82,15 @@ if (window.location.hostname.includes("portal.mipacs.net")) {
 window.API_URL = apiUrl;
 // =====================================================================
 
-function ProtectedRoute({ children, allowedRoles }) {
+  function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, loading, user } = useAuth();
+  const { i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
 
   if (loading) return (
     <div className="global-loading">
       <div className="spinner"></div>
-      <p>Validando sesión...</p>
+      <p>{isEn ? "Validating session..." : "Validando sesión..."}</p>
     </div>
   );
 
