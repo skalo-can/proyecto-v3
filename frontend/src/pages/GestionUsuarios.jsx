@@ -60,13 +60,62 @@ const PERMISOS_POR_DEFECTO = {
     } 
 };
 
+const ROLES_EN = {
+    superadmin: "SUPERADMIN",
+    admin: "ADMIN",
+    tecnologo: "TECHNOLOGIST",
+    radiologo: "RADIOLOGIST",
+    medico: "PHYSICIAN",
+    transcriptor: "TRANSCRIPTIONIST",
+    recepcion: "RECEPTION",
+    it_biomedica: "BIOMEDICAL IT",
+    auxiliar: "ASSISTANT",
+    invitado: "GUEST",
+    paciente: "PATIENT"
+};
+
+const PERMISOS_EN = {
+    ver_lista_pacientes: "VIEW PATIENT LIST",
+    desbloquear_pacientes: "UNLOCK PATIENTS",
+    editar_datos_pacientes: "EDIT PATIENT DATA",
+    grabar_dictado: "RECORD DICTATION",
+    transcribir: "TRANSCRIBE",
+    escuchar_dictado: "LISTEN TO DICTATION",
+    verificar_informe: "VERIFY REPORT",
+    firmar_informe: "SIGN REPORT",
+    ver_pdf: "VIEW PDF",
+    ver_documentos_adjuntos: "VIEW ATTACHMENTS",
+    entregar_resultados: "DELIVER RESULTS",
+    importar_archivos: "IMPORT FILES",
+    exportar_archivos: "EXPORT FILES",
+    gestion_usuarios: "USER MANAGEMENT",
+    modificar_usuarios: "MODIFY USERS",
+    activar_desactivar_usuarios: "ACTIVATE / DEACTIVATE USERS",
+    recepcion_ris: "RIS RECEPTION",
+    ver_estadisticas: "VIEW STATISTICS",
+    configuracion_mipacs: "MI_PACS CONFIGURATION",
+    ciclo_vida_backups: "LIFECYCLE & BACKUPS",
+    configurar_tags_dicom: "CONFIGURE DICOM TAGS",
+    reporte_cobro_glosas: "BILLING & CLAIMS REPORT",
+    auditoria_sistema: "SYSTEM AUDIT",
+    logs_email: "EMAIL LOGS",
+    logs_whatsapp: "WHATSAPP LOGS",
+    resetear_sistema: "RESET SYSTEM",
+    panel_productividad: "PRODUCTIVITY DASHBOARD",
+    ver_visor_dicom: "VIEW DICOM VIEWER",
+    gestionar_plantillas: "MANAGE TEMPLATES",
+    generar_enlaces_seguros: "GENERATE SECURE LINKS",
+    acceso_ia: "AI ACCESS"
+};
+
 // Generamos la lista de todos los permisos únicos para la matriz
 const TODOS_LOS_PERMISOS = Array.from(new Set(Object.values(PERMISOS_POR_DEFECTO).flatMap(obj => Object.keys(obj))));
 
 export default function GestionUsuarios() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isEn = i18n.language?.startsWith('en');
+    const apiBase = import.meta.env.VITE_API_URL || window.API_URL || '';
     
-    // 🚀 ESTADO ACTUALIZADO: Incluye registro_medico y es_urgenciologo
     const estadoInicial = { id: null, nombre: '', username: '', email: '', password: '', rol: '', registro_medico: '', es_urgenciologo: false };
     const [userForm, setUserForm] = useState(estadoInicial);
     const [permisos, setPermisos] = useState({}); 
@@ -74,15 +123,24 @@ export default function GestionUsuarios() {
     const [selectedUsers, setSelectedUsers] = useState({});
     const [verPassword, setVerPassword] = useState(false);
 
-    // ✨ NUEVO ESTADO PARA EFECTO VISUAL DE TABLA
     const [hoveredRow, setHoveredRow] = useState(null);
+
+    const traducirRol = (rol) => {
+        if (!rol) return '';
+        const key = String(rol).toLowerCase().trim();
+        return isEn ? (ROLES_EN[key] || key.toUpperCase()) : key.toUpperCase();
+    };
+
+    const traducirPermiso = (key) => {
+        if (isEn && PERMISOS_EN[key]) return PERMISOS_EN[key];
+        return key.replace(/_/g, ' ').toUpperCase();
+    };
 
     useEffect(() => { fetchUsuarios(); }, []);
 
     const fetchUsuarios = async () => {
         try {
-            // ✅ CÓDIGO CORREGIDO 1/4
-            const res = await axios.get(`${window.API_URL}/api/usuarios/`);
+            const res = await axios.get(`${apiBase}/api/usuarios/`);
             setUsuarios(res.data || []);
         } catch (err) { console.error("Error al cargar usuarios:", err); }
     };
@@ -94,16 +152,12 @@ export default function GestionUsuarios() {
             return;
         }
         
-        // Si cambian a un rol no médico, apagamos el flag de urgenciologo por seguridad
         const esRolMedico = nuevoRol === 'medico' || nuevoRol === 'radiologo';
         setUserForm(prev => ({ ...prev, rol: nuevoRol, es_urgenciologo: esRolMedico ? prev.es_urgenciologo : false }));
-        
-        // Aquí cargamos los permisos automáticos según el rol elegido
         setPermisos({ ...PERMISOS_POR_DEFECTO[nuevoRol] });
     };
 
     const seleccionarParaEditar = (u) => {
-        // 🚀 RECUPERACIÓN ACTUALIZADA: Carga el registro médico y el poder de urgenciologo al editar
         setUserForm({ 
             id: u.id, 
             nombre: u.nombre, 
@@ -127,16 +181,13 @@ export default function GestionUsuarios() {
             Object.keys(permisos).forEach(key => {
                 if (permisos[key] === true) permisosLimpios[key] = true;
             });
-            // El payload ya incluye automáticamente es_urgenciologo desde userForm
             const payload = { ...userForm, permisos: permisosLimpios };
 
             if (userForm.id) {
-                // ✅ CÓDIGO CORREGIDO 2/4
-                await axios.put(`${window.API_URL}/api/usuarios/${userForm.id}`, payload);
+                await axios.put(`${apiBase}/api/usuarios/${userForm.id}`, payload);
                 alert(t('gestion_usuarios.alerta_actualizado'));
             } else {
-                // ✅ CÓDIGO CORREGIDO 3/4
-                await axios.post(`${window.API_URL}/api/usuarios/crear-perfil`, payload);
+                await axios.post(`${apiBase}/api/usuarios/crear-perfil`, payload);
                 alert(t('gestion_usuarios.alerta_creado'));
             }
             setUserForm(estadoInicial);
@@ -147,20 +198,20 @@ export default function GestionUsuarios() {
     };
 
     const handleCambiarEstado = async (nuevoEstado) => {
-            const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
-            if (ids.length === 0) return alert(t('gestion_usuarios.alerta_seleccione_tabla'));
-            const accion = nuevoEstado ? "ACTIVAR" : "BLOQUEAR";
-            try {
-                for (let id of ids) {
-                    // 🔥 SOLUCIÓN: Usamos axios.put en lugar de patch para evitar el bloqueo del CORS
-                    // ✅ CÓDIGO CORREGIDO 4/4
-                    await axios.put(`${window.API_URL}/api/usuarios/${id}/estado?activo=${nuevoEstado}`);
-                }
-                alert(`${t('gestion_usuarios.alerta_usuarios_actualizados')}${accion}`);
-                setSelectedUsers({});
-                fetchUsuarios();
-            } catch (err) { alert(`${t('gestion_usuarios.alerta_error_intentar')}${accion}.`); }
-        };
+        const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
+        if (ids.length === 0) return alert(t('gestion_usuarios.alerta_seleccione_tabla'));
+        const accion = isEn
+            ? (nuevoEstado ? "ACTIVATE" : "BLOCK")
+            : (nuevoEstado ? "ACTIVAR" : "BLOQUEAR");
+        try {
+            for (let id of ids) {
+                await axios.put(`${apiBase}/api/usuarios/${id}/estado?activo=${nuevoEstado}`);
+            }
+            alert(`${t('gestion_usuarios.alerta_usuarios_actualizados')}${accion}`);
+            setSelectedUsers({});
+            fetchUsuarios();
+        } catch (err) { alert(`${t('gestion_usuarios.alerta_error_intentar')}${accion}.`); }
+    };
 
     const handleEliminar = async () => {
         const ids = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
@@ -168,8 +219,7 @@ export default function GestionUsuarios() {
         if (window.confirm(`${t('gestion_usuarios.alerta_eliminar_permanente')}${ids.length}${t('gestion_usuarios.alerta_usuarios')}`)) {
             try {
                 for (let id of ids) { 
-                    // ✅ CÓDIGO CORREGIDO 5/4 (Bonus track en la eliminación)
-                    await axios.delete(`${window.API_URL}/api/usuarios/${id}`); 
+                    await axios.delete(`${apiBase}/api/usuarios/${id}`); 
                 }
                 alert(t('gestion_usuarios.alerta_eliminados'));
                 setUserForm(estadoInicial);
@@ -219,12 +269,11 @@ export default function GestionUsuarios() {
                             <select value={userForm.rol} onChange={e => cambiarRol(e.target.value)} style={{ border: !userForm.rol ? '2px solid #ef4444' : '1px solid #444' }}>
                                 <option value="">{t('gestion_usuarios.seleccione_rol')}</option>
                                 {Object.keys(PERMISOS_POR_DEFECTO).map(r => (
-                                    <option key={r} value={r}>{r.toUpperCase()}</option>
+                                    <option key={r} value={r}>{traducirRol(r)}</option>
                                 ))}
                             </select>
                         </div>
 
-                        {/* 🔥 NUEVO: CASILLA DE URGENCIÓLOGO (Solo visible para médicos y radiólogos) */}
                         {(userForm.rol === 'medico' || userForm.rol === 'radiologo') && (
                             <div className="field-group" style={{ gridColumn: '1 / -1', backgroundColor: 'rgba(249, 115, 22, 0.1)', padding: '15px', borderRadius: '6px', border: '1px solid rgba(249, 115, 22, 0.4)', display: 'flex', alignItems: 'center', gap: '12px', marginTop: '10px' }}>
                                 <input 
@@ -243,12 +292,12 @@ export default function GestionUsuarios() {
 
                     {userForm.rol && (
                         <>
-                            <h3 style={{color: '#fbbf24', margin: '20px 0 10px 0', fontSize: '0.9rem'}}>{t('gestion_usuarios.matriz_permisos')} {userForm.rol.toUpperCase()}</h3>
+                            <h3 style={{color: '#fbbf24', margin: '20px 0 10px 0', fontSize: '0.9rem'}}>{t('gestion_usuarios.matriz_permisos')} {traducirRol(userForm.rol)}</h3>
                             <div className="permisos-container-master">
                                 {TODOS_LOS_PERMISOS.map(key => (
                                     <label key={key} className="permiso-label" style={{ color: '#fff' }}>
                                         <input type="checkbox" checked={!!permisos[key]} onChange={() => setPermisos({...permisos, [key]: !permisos[key]})} />
-                                        {key.replace(/_/g, ' ').toUpperCase()}
+                                        {traducirPermiso(key)}
                                     </label>
                                 ))}
                             </div>
@@ -289,7 +338,6 @@ export default function GestionUsuarios() {
                                             key={u.id}
                                             onMouseEnter={() => setHoveredRow(u.id)}
                                             onMouseLeave={() => setHoveredRow(null)}
-                                            // 🔥 CORRECCIÓN: Selección única. Si ya está seleccionado lo limpia, si no, lo selecciona a él solo.
                                             onClick={() => setSelectedUsers(prev => prev[u.id] ? {} : { [u.id]: true })}
                                             style={{
                                                 backgroundColor: isSelected ? 'rgba(251, 191, 36, 0.15)' : (isHovered ? '#1e293b' : 'transparent'),
@@ -302,7 +350,6 @@ export default function GestionUsuarios() {
                                                 <input 
                                                     type="checkbox" 
                                                     checked={isSelected} 
-                                                    // 🔥 CORRECCIÓN: Mismo comportamiento para el checkbox directo
                                                     onChange={() => setSelectedUsers(prev => prev[u.id] ? {} : { [u.id]: true })} 
                                                 />
                                             </td>
@@ -310,7 +357,7 @@ export default function GestionUsuarios() {
                                             <td style={{ color: '#ffffff', fontSize: '0.85rem' }}>{u.username}</td>
                                             <td>
                                                 <span className="rol-badge" style={{ background: '#333', color: '#fbbf24', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                                    {u.rol.toUpperCase()}
+                                                    {traducirRol(u.rol)}
                                                     {u.es_urgenciologo && <span title={t('gestion_usuarios.title_urgencias_activas')} style={{marginLeft: '6px', fontSize: '14px'}}>🚨</span>}
                                                 </span>
                                             </td>

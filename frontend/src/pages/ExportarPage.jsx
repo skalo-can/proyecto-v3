@@ -5,23 +5,31 @@ import './ExportarPage.css';
 
 export default function ExportarPage() {
     const { t } = useTranslation();
+    const apiBase = import.meta.env.VITE_API_URL || window.API_URL || '';
+
     const [criterio, setCriterio] = useState('');
     const [estudios, setEstudios] = useState([]);
     const [seleccionados, setSeleccionados] = useState([]);
     const [buscando, setBuscando] = useState(false);
     
-    // 🔥 ESTADOS PARA BARRA DE PROGRESO
+    // ESTADOS PARA BARRA DE PROGRESO
     const [estadoExportacion, setEstadoExportacion] = useState('inactiva'); 
     const [progreso, setProgreso] = useState(0);
     const [mensajeProgreso, setMensajeProgreso] = useState('');
     
-    // 🔥 CONTROLES DE EXPORTACIÓN (Restaurados y 100% visibles)
+    // CONTROLES DE EXPORTACIÓN
     const [incluirVisor, setIncluirVisor] = useState(true);
     const [modoDestino, setModoDestino] = useState('EXPLORADOR');
 
     const obtenerTokenLimpio = () => {
         let tokenCrudo = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
         return tokenCrudo.replace(/['"]+/g, '').trim();
+    };
+
+    const traducirEstado = (estadoRaw) => {
+        if (!estadoRaw) return t('exportacion.ingresado');
+        const clave = String(estadoRaw).toLowerCase().trim();
+        return t(`estados.${clave}`, estadoRaw);
     };
 
     const handleBuscarPaciente = async () => {
@@ -38,7 +46,7 @@ export default function ExportarPage() {
         
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.get(`http://192.168.5.21:8000/api/pacientes?busqueda=${criterio}`, {
+            const res = await axios.get(`${apiBase}/api/pacientes?busqueda=${encodeURIComponent(criterio)}`, {
                 headers: { Authorization: `Bearer ${tokenLimpio}` }
             });
 
@@ -54,7 +62,6 @@ export default function ExportarPage() {
                             estudio_unico_id: est.estudio_interno_id || est.accession_number || `nested_${idx}_${estIdx}`,
                             nombrePaciente: `${item.primer_nombre} ${item.primer_apellido}`,
                             cedula: item.identificacion,
-                            // 🚀 FIX: Leemos tipo_estudio de la base de datos real
                             modalidad_real: est.tipo_estudio || est.modalidad || "DX",
                             tienePdf: est.estado === "firmado" || est.estado_pacs === "firmado" || item.estado_pacs === "Firmado"
                         });
@@ -66,7 +73,6 @@ export default function ExportarPage() {
                         estudio_unico_id: item.estudio_interno_id || item.accession_number || `flat_${idx}`,
                         nombrePaciente: `${item.primer_nombre} ${item.primer_apellido}` || t('exportacion.paciente_encontrado'),
                         cedula: item.identificacion,
-                        // 🚀 FIX: Leemos tipo_estudio de la base de datos real
                         modalidad_real: item.tipo_estudio || item.modalidad || "DX",
                         tienePdf: item.estado_pacs === "Firmado" || item.estado === "firmado"
                     });
@@ -111,7 +117,7 @@ export default function ExportarPage() {
             
             const estudiosAExportar = estudios.filter(est => seleccionados.includes(est.estudio_unico_id));
 
-            const res = await axios.post('http://192.168.5.21:8000/api/pacientes/exportar/medios-externos', {
+            const res = await axios.post(`${apiBase}/api/pacientes/exportar/medios-externos`, {
                 estudios_ids: estudiosAExportar.map(e => e.estudio_real_id),
                 incluir_visor: incluirVisor,
                 modo_destino: modoDestino
@@ -223,7 +229,9 @@ export default function ExportarPage() {
                                                         <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{t('exportacion.sin_informe')}</span>
                                                     )}
                                                 </td>
-                                                <td style={{ padding: '12px 15px', color: '#cbd5e1' }}>{est.estado_pacs || est.estado || t('exportacion.ingresado')}</td>
+                                                <td style={{ padding: '12px 15px', color: '#cbd5e1' }}>
+                                                    {traducirEstado(est.estado_pacs || est.estado)}
+                                                </td>
                                             </tr>
                                         );
                                     })}
@@ -232,7 +240,7 @@ export default function ExportarPage() {
                         </div>
                     )}
 
-                    {/* 🔥 PANEL DE CONFIGURACIÓN EXCLUYENTE (Restaurado y 100% visible) */}
+                    {/* PANEL DE CONFIGURACIÓN EXCLUYENTE */}
                     <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px', border: '1px solid #333', marginBottom: '25px', opacity: estadoExportacion === 'procesando' ? 0.5 : 1, pointerEvents: estadoExportacion === 'procesando' ? 'none' : 'auto' }}>
                         
                         <label style={{ color: '#fbbf24', fontSize: '0.9rem', display: 'block', marginBottom: '15px', fontWeight: 'bold', textTransform: 'uppercase' }}>
@@ -279,7 +287,7 @@ export default function ExportarPage() {
                         </div>
                     </div>
 
-                    {/* 🔥 INTERFAZ DE BARRA DE PROGRESO */}
+                    {/* INTERFAZ DE BARRA DE PROGRESO */}
                     {estadoExportacion !== 'inactiva' && (
                         <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#fff', fontWeight: 'bold' }}>

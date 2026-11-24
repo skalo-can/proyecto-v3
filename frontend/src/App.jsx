@@ -2,28 +2,28 @@ import React, { useState } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import axios from "axios"; // 🚀 IMPORTACIÓN AÑADIDA PARA EL INTERCEPTOR
-import VisorMPR3D from './pages/VisorMPR3D'; // 🚀 IMPORTACIÓN NUEVA DEL VISOR 3D
+import axios from "axios";
+import VisorMPR3D from './pages/VisorMPR3D';
 import { useTranslation } from "react-i18next";
 
-
 // =====================================================================
-// 🛡️ ESCUDO INTERCEPTOR GLOBAL DE SEGURIDAD
+// ESCUDO INTERCEPTOR GLOBAL DE SEGURIDAD
 // =====================================================================
-// Si cualquier pantalla (como el temporizador de importación) recibe un 
-// error 401 (No Autorizado), este escudo detiene la petición, borra el 
-// rastro de la sesión y manda al usuario al Login automáticamente.
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
       console.warn("🔒 Seguridad: Sesión inválida o expirada. Redirigiendo al Login...");
       localStorage.removeItem("token");
+      localStorage.removeItem("access_token");
       
-      // 🚀 FIX: Destruir ventana si es un visor flotante
+      // Destruir ventana si es un visor flotante
       if (window.opener && window.opener !== window) {
         window.close();
-      } else if (window.location.pathname !== "/login") {
+      } else if (
+        window.location.pathname !== "/login" &&
+        !window.location.pathname.startsWith("/portal")
+      ) {
         window.location.href = "/login";
       }
     }
@@ -32,7 +32,6 @@ axios.interceptors.response.use(
 );
 
 // =====================================================================
-
 // Componentes y Páginas
 import { Header } from "./components/Header";
 import Sidebar from "./components/Sidebar";
@@ -63,26 +62,37 @@ import PerfilInstitucion from "./components/PerfilInstitucion";
 import GestorPlantillas from "./components/GestorPlantillas";
 import GestorFirmas from "./pages/GestorFirmas";
 
-// 🚀 IMPORTACIONES PARA MÓDULOS MULTIMONITOR
+// IMPORTACIONES PARA MÓDULOS MULTIMONITOR
 import ModalDictadoHardware from "./pages/ModalDictadoHardware";
 import ModalTranscriptor from "./components/Modals/ModalTranscriptor";
 import ModalFirma from "./components/Modals/ModalFirma";
 
 // =====================================================================
-// 🌍 DETECTOR AUTOMÁTICO DE ENTORNO (HOSPITAL-GRADE)
+// DETECTOR CENTRALIZADO DE ENTORNO (ÚNICO PUNTO DE CONFIGURACIÓN)
 // =====================================================================
-let apiUrl = "http://192.168.5.21:8000"; // Por defecto, asume que no hay internet (Intranet)
+// 1. Si existe VITE_API_URL en .env, tiene máxima prioridad.
+// 2. Si el sistema corre bajo HTTPS o detrás de Nginx (sin puerto :5173), usa window.location.origin.
+// 3. En desarrollo local (:5173), usa esta única IP de respaldo:
+const INTRANET_FALLBACK_API = "http://192.168.5.21:8000";
 
-// Si la URL del navegador contiene el dominio público, cambia la ruta hacia internet
-if (window.location.hostname.includes("portal.mipacs.net")) {
-  apiUrl = "https://portal.mipacs.net";
-}
+const detectarApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (window.location.protocol === "https:") {
+    return window.location.origin;
+  }
+  if (window.location.port === "5173" || window.location.port === "3000") {
+    return INTRANET_FALLBACK_API;
+  }
+  return window.location.origin;
+};
 
-// Hacemos que esta variable esté disponible en todo el sistema
-window.API_URL = apiUrl;
+window.API_URL = detectarApiUrl();
+window.PUBLIC_URL = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
 // =====================================================================
 
-  function ProtectedRoute({ children, allowedRoles }) {
+function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, loading, user } = useAuth();
   const { i18n } = useTranslation();
   const isEn = i18n.language?.startsWith("en");
@@ -167,7 +177,7 @@ export default function App() {
         } />
 
         {/* ========================================================
-            🚀 RUTAS LIMPIAS (MULTIMONITOR)
+            RUTAS LIMPIAS (MULTIMONITOR)
             SIN Layout, para abrir en ventanas flotantes nativas.
            ======================================================== */}
 
@@ -189,14 +199,14 @@ export default function App() {
           </ProtectedRoute>
         } />
 
-        {/* 🔥 NUEVO: Visor DICOM trasladado a Ruta Limpia */}
+        {/* Visor DICOM en Ruta Limpia */}
         <Route path="/imagenes-estudio/:id" element={
           <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'auxiliar', 'invitado', 'transcriptor', 'tecnologo', 'it_biomedica']}>
             <VisorDICOMWrapper />
           </ProtectedRoute>
         } />
 
-      <Route path="/mpr/:id" element={
+        <Route path="/mpr/:id" element={
           <ProtectedRoute allowedRoles={['admin', 'superadmin', 'radiologo', 'invitado']}>
             <VisorMPR3D />
           </ProtectedRoute>
@@ -235,7 +245,8 @@ export default function App() {
         <Route path="/recepcion" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['admin', 'superadmin', 'recepcion']}><RecepcionPage /></ProtectedRoute></Layout>} />
         <Route path="/gestion-backups" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><BackupConfigPage /></ProtectedRoute></Layout>} />
         <Route path="/recuperar-backups" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><RecuperarBackupsPage /></ProtectedRoute></Layout>} />
-        {/* 🔥 PORTAL EXTERNO PARA PACIENTES (Aislamiento Total) */}
+        
+        {/* PORTAL EXTERNO PARA PACIENTES (Aislamiento Total) */}
         <Route path="/portal/:token" element={<PortalPaciente />} />
         <Route path="/email-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><EmailLogsPage /></ProtectedRoute></Layout>} />
         <Route path="/whatsapp-logs" element={<Layout onOpenDicom={openDicom}><ProtectedRoute allowedRoles={['superadmin']}><WhatsAppLogsPage /></ProtectedRoute></Layout>} />

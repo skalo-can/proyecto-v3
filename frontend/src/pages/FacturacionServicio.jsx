@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Calculator, FileText, Send, DollarSign, TrendingUp, Mail, CheckCircle, BarChart3, Settings, ShieldAlert, Clock, AlertTriangle, Layers, HardDrive, ChevronDown, ChevronUp, Check, X, Printer, Building, Save, PlusCircle, Edit, Lock, Upload, FolderDown, Zap } from 'lucide-react';
+import { FileText, DollarSign, CheckCircle, Settings, ShieldAlert, Clock, ChevronUp, X, Building, Save, Edit, Lock, Upload, FolderDown, Zap } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAuth } from '../AuthContext';
 import './FacturacionServicio.css';
@@ -18,7 +18,10 @@ const DEFAULT_REGLAS = {
 };
 
 const FacturacionServicio = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith('en');
+  const apiBase = import.meta.env.VITE_API_URL || window.API_URL || '';
+
   const { user, token } = useAuth();
   const currentUsername = String(user?.username || user?.nombre || "").trim().toUpperCase();
   const isSkalo = currentUsername.includes("SKALO") || user?.rol === "superadmin";
@@ -26,8 +29,6 @@ const FacturacionServicio = () => {
   const [modoEdicion, setModoEdicion] = useState(false);
   const [modoEdicionReglas, setModoEdicionReglas] = useState(false);
   const [guardandoParametros, setGuardandoParametros] = useState(false);
-
-  // 🔥 NUEVO ESTADO PARA EL BOTÓN DE ARCHIVAR
   const [archivando, setArchivando] = useState(false);
 
   const [datosEmisor, setDatosEmisor] = useState(() => {
@@ -114,18 +115,17 @@ const FacturacionServicio = () => {
     if (!fechaInicio || !fechaFin) return alert(t('facturacion.msg_alerta_fechas'));
     setCargando(true);
     try {
-      // ✅ CÓDIGO CORREGIDO
-      const response = await fetch(`${window.API_URL}/api/stats-dashboard?inicio=${fechaInicio}&fin=${fechaFin}`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch(`${apiBase}/api/stats-dashboard?inicio=${fechaInicio}&fin=${fechaFin}`, { headers: { Authorization: `Bearer ${token}` } });
       if (response.ok) {
         const data = await response.json();
         
         setDatosConsumo({ 
-            modalidades: data.modalidades || [],
-            totalesReales: {
-                pacientes: data.pacientesTotal || 0,
-                estudios: data.estudiosTotal || 0,
-                imagenes: data.imagenesTotal || 0
-            }
+          modalidades: data.modalidades || [],
+          totalesReales: {
+            pacientes: data.pacientesTotal || 0,
+            estudios: data.estudiosTotal || 0,
+            imagenes: data.imagenesTotal || 0
+          }
         });
         
         if (data.crecimiento && Array.isArray(data.crecimiento)) {
@@ -149,7 +149,12 @@ const FacturacionServicio = () => {
     if (!datosConsumo || !Array.isArray(datosConsumo.modalidades)) return { cantidadBase: 0, subtotal: 0, impuesto: 0, retencion: 0, neto: 0, etiquetaUnidad: '', pesoGB: '0.00', desgloseIngresos: [] };
     
     let subtotal = 0, cantidadBase = 0, pesoEstimadoGB = 0, desgloseIngresos = [];
-    let etiquetaUnidad = clienteActivo.modeloCobro === 'estudios' ? t('facturacion.opt_estudios') : (clienteActivo.modeloCobro === 'imagenes' ? t('facturacion.opt_imagenes') : 'Cobros');
+    let etiquetaUnidad =
+      clienteActivo.modeloCobro === 'estudios'
+        ? t('facturacion.opt_estudios')
+        : clienteActivo.modeloCobro === 'imagenes'
+        ? t('facturacion.opt_imagenes')
+        : t('facturacion.opt_pacientes');
 
     datosConsumo.modalidades.forEach(mod => {
       let qty = clienteActivo.modeloCobro === 'estudios' ? (mod.value || 0) : (clienteActivo.modeloCobro === 'imagenes' ? (mod.imagenes || 0) : (mod.pacientes || 0));
@@ -192,8 +197,7 @@ const FacturacionServicio = () => {
     setMostrarModalFactura(true);
   };
 
-  // 🔥 NUEVA FUNCIÓN CONECTADA AL BACKEND
-const handleImprimirYGuardar = async () => {
+  const handleImprimirYGuardar = async () => {
     if (facturaGenerada) {
       alert(t('facturacion.msg_factura_archivada'));
       return;
@@ -201,14 +205,13 @@ const handleImprimirYGuardar = async () => {
 
     setArchivando(true);
     try {
-      // 🔥 CAPTURA AUTOMÁTICA DE LA GRÁFICA DESDE EL VISOR
       let graficaBase64 = null;
       const svgElement = document.querySelector('.printable-invoice .recharts-surface');
       if (svgElement) {
         const svgString = new XMLSerializer().serializeToString(svgElement);
         const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-        const URL = window.URL || window.webkitURL || window;
-        const blobURL = URL.createObjectURL(svgBlob);
+        const URLObj = window.URL || window.webkitURL || window;
+        const blobURL = URLObj.createObjectURL(svgBlob);
         
         await new Promise((resolve) => {
           const img = new Image();
@@ -221,14 +224,13 @@ const handleImprimirYGuardar = async () => {
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0);
             graficaBase64 = canvas.toDataURL('image/png').split(',')[1];
-            URL.revokeObjectURL(blobURL);
+            URLObj.revokeObjectURL(blobURL);
             resolve();
           };
           img.src = blobURL;
         });
       }
 
-      // 🔥 ESTRUCTURA COMPLETA CON LA GRÁFICA INCLUIDA
       const payloadFactura = {
         numero_factura: numeroFacturaActual,
         tipo_documento: clienteActivo.tipoEmision === 'factura' ? t('facturacion.factura_venta') : t('facturacion.cuenta_cobro_upper'),
@@ -259,7 +261,6 @@ const handleImprimirYGuardar = async () => {
           subtotal: item.ingresos.toFixed(2)
         })),
 
-        // 🔥 INYECTAMOS LA GRÁFICA CAPTURADA
         grafica_base64: graficaBase64,
 
         subtotal: finanzas.subtotal,
@@ -272,8 +273,7 @@ const handleImprimirYGuardar = async () => {
         neto: finanzas.neto
       };
 
-      // ✅ CÓDIGO CORREGIDO
-      const response = await fetch(`${window.API_URL}/api/pdf/facturacion/archivar`, {
+      const response = await fetch(`${apiBase}/api/pdf/facturacion/archivar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -288,7 +288,7 @@ const handleImprimirYGuardar = async () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `Factura_${numeroFacturaActual}.pdf`);
+      link.setAttribute("download", `${isEn ? 'Invoice' : 'Factura'}_${numeroFacturaActual}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -296,7 +296,7 @@ const handleImprimirYGuardar = async () => {
       const nuevaFactura = { 
         id: numeroFacturaActual, 
         clienteId: clienteActivo.id, 
-        clinica: clienteActivo.nombre || 'Cliente', 
+        clinica: clienteActivo.nombre || (isEn ? 'Client' : 'Cliente'), 
         fecha: new Date().toISOString().split('T')[0], 
         total: finanzas.neto, 
         estado: 'Pendiente', 
@@ -317,7 +317,7 @@ const handleImprimirYGuardar = async () => {
     }
   };
 
-  const marcarComoPagada = (idFactura) => setCartera(cartera.map(fac => fac.id === idFactura ? { ...fac, estado: t('facturacion.saldada'), mora: 0 } : fac));
+  const marcarComoPagada = (idFactura) => setCartera(cartera.map(fac => fac.id === idFactura ? { ...fac, estado: 'Saldada', mora: 0 } : fac));
 
   const getEstiloInput = (esRegla = false) => {
     const editable = esRegla ? modoEdicionReglas : modoEdicion;
@@ -328,7 +328,7 @@ const handleImprimirYGuardar = async () => {
     };
   };
 
-  const renderAreaChart = (width, height, isPrint = false) => {
+  const renderAreaChart = (width, height) => {
     const modalidadesActivas = Object.keys(clienteActivo.modalidadesSeleccionadas || {}).filter(m => clienteActivo.modalidadesSeleccionadas[m]);
     
     return (
@@ -341,7 +341,7 @@ const handleImprimirYGuardar = async () => {
               dataKey="fecha" 
               stroke="#64748b" 
               fontSize={8} 
-              label={{ value: 'TIEMPO (DÍAS)', position: 'bottom', offset: 0, fill: '#64748b', fontSize: 7, fontWeight: 'bold' }}
+              label={{ value: isEn ? 'TIME (DAYS)' : 'TIEMPO (DÍAS)', position: 'bottom', offset: 0, fill: '#64748b', fontSize: 7, fontWeight: 'bold' }}
             />
             
             <YAxis 
@@ -351,7 +351,7 @@ const handleImprimirYGuardar = async () => {
 
             <RechartsTooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a', fontSize: '9px' }}/>
             
-            {(!tendenciaVolumen.length || !modalidadesActivas.some(mod => tendenciaVolumen[0].hasOwnProperty(mod))) && (
+            {(!tendenciaVolumen.length || !modalidadesActivas.some(mod => Object.prototype.hasOwnProperty.call(tendenciaVolumen[0], mod))) && (
               <Area type="monotone" dataKey="total" stroke="#3b82f6" fillOpacity={0.2} fill="#3b82f6" isAnimationActive={false} />
             )}
             
@@ -452,7 +452,7 @@ const handleImprimirYGuardar = async () => {
                  <Upload size={10} /> {t('facturacion.btn_subir_imagen')}
                  <input type="file" disabled={!modoEdicion} accept="image/*" onChange={handleCargarFirma} style={{ display: 'none' }} />
                </label>
-               {datosEmisor.firmaDigital && <CheckCircle size={12} color="#10b981" title="Firma Cargada" />}
+               {datosEmisor.firmaDigital && <CheckCircle size={12} color="#10b981" title={isEn ? "Signature Loaded" : "Firma Cargada"} />}
             </div>
           </div>
         </div>
@@ -463,7 +463,7 @@ const handleImprimirYGuardar = async () => {
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <h2 className="section-label" style={{ fontSize: '0.8rem', margin: 0, display: 'flex', alignItems: 'center', gap: '4px', color: '#fbbf24' }}>
-              <Settings size={13} /> {t('facturacion.reglas_comerciales')} {clienteActivo.nombre || 'Cliente'}
+              <Settings size={13} /> {t('facturacion.reglas_comerciales')} {clienteActivo.nombre || (isEn ? 'Client' : 'Cliente')}
               {!modoEdicionReglas && <Lock size={10} color="#ef4444" />}
             </h2>
             <div>
@@ -651,7 +651,7 @@ const handleImprimirYGuardar = async () => {
 
               <div className="section-wrapper" style={{ padding: '15px', background: '#1a1d26', borderRadius: '8px' }}>
                 <h2 className="section-label" style={{ fontSize: '0.9rem', marginBottom: '10px' }}><FileText size={15} /> {t('facturacion.paso_2')}</h2>
-                <p style={{ color: '#a0aabf', fontSize: '0.75rem', marginBottom: '15px' }}>{t('facturacion.desc_paso_2')} <strong>{clienteActivo?.nombre || 'Cliente'}</strong>{t('facturacion.desc_paso_2_b')}</p>
+                <p style={{ color: '#a0aabf', fontSize: '0.75rem', marginBottom: '15px' }}>{t('facturacion.desc_paso_2')} <strong>{clienteActivo?.nombre || (isEn ? 'Client' : 'Cliente')}</strong>{t('facturacion.desc_paso_2_b')}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                   <button 
                     onClick={() => { setModalCarteraAbierto(false); handlePrevisualizarFactura(); }} 
@@ -676,17 +676,24 @@ const handleImprimirYGuardar = async () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: 'white', fontSize: '0.8rem' }}>
                       <thead><tr style={{ borderBottom: '2px solid #ef4444' }}><th style={{ padding: '8px' }}>{t('facturacion.th_documento')}</th><th style={{ padding: '8px' }}>{t('facturacion.th_cliente')}</th><th style={{ padding: '8px' }}>{t('facturacion.th_emision')}</th><th style={{ padding: '8px' }}>{t('facturacion.th_neto')}</th><th style={{ padding: '8px' }}>{t('facturacion.th_estado')}</th><th style={{ padding: '8px', textAlign: 'center' }}>{t('facturacion.th_acciones')}</th></tr></thead>
                       <tbody>
-                        {cartera.filter(f => f.clienteId === clienteActivo?.id).map((fac, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #3d4253', background: fac.estado === 'Pendiente' ? 'rgba(239, 68, 68, 0.08)' : 'transparent' }}>
-                            <td style={{ padding: '10px 8px', color: '#38bdf8', fontWeight: 'bold' }}>{fac.id}</td><td style={{ padding: '10px 8px' }}>{fac.clinica}</td><td style={{ padding: '10px 8px', color: '#a0aabf' }}>{fac.fecha}</td><td style={{ padding: '10px 8px', fontWeight: 'bold' }}>${fac.total}</td>
-                            <td style={{ padding: '10px 8px' }}><span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', background: fac.estado === t('facturacion.saldada') ? '#10b981' : '#f59e0b', color: fac.estado === t('facturacion.saldada') ? 'white' : 'black', fontWeight: '600' }}>{fac.estado}</span></td>
-                            <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                              {fac.estado === 'Pendiente' ? (
-                                <button onClick={() => marcarComoPagada(fac.id)} style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid #10b981', borderRadius: '4px', padding: '4px 10px', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold', margin: '0 auto' }}>{t('facturacion.btn_liquidar')}</button>
-                              ) : <span style={{ color: '#64748b', fontSize: '0.7rem' }}>{t('facturacion.saldada')}</span>}
-                            </td>
-                          </tr>
-                        ))}
+                        {cartera.filter(f => f.clienteId === clienteActivo?.id).map((fac, idx) => {
+                          const esPendiente = fac.estado === 'Pendiente';
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid #3d4253', background: esPendiente ? 'rgba(239, 68, 68, 0.08)' : 'transparent' }}>
+                              <td style={{ padding: '10px 8px', color: '#38bdf8', fontWeight: 'bold' }}>{fac.id}</td><td style={{ padding: '10px 8px' }}>{fac.clinica}</td><td style={{ padding: '10px 8px', color: '#a0aabf' }}>{fac.fecha}</td><td style={{ padding: '10px 8px', fontWeight: 'bold' }}>${fac.total}</td>
+                              <td style={{ padding: '10px 8px' }}>
+                                <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', background: !esPendiente ? '#10b981' : '#f59e0b', color: !esPendiente ? 'white' : 'black', fontWeight: '600' }}>
+                                  {esPendiente ? (isEn ? 'Pending' : 'Pendiente') : t('facturacion.saldada')}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                {esPendiente ? (
+                                  <button onClick={() => marcarComoPagada(fac.id)} style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid #10b981', borderRadius: '4px', padding: '4px 10px', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold', margin: '0 auto' }}>{t('facturacion.btn_liquidar')}</button>
+                                ) : <span style={{ color: '#64748b', fontSize: '0.7rem' }}>{t('facturacion.saldada')}</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
                         {cartera.filter(f => f.clienteId === clienteActivo?.id).length === 0 && (
                           <tr><td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#a0aabf' }}>{t('facturacion.sin_documentos')}</td></tr>
                         )}
@@ -715,7 +722,7 @@ const handleImprimirYGuardar = async () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #e2e8f0', paddingBottom: '25px', marginBottom: '35px' }}>
               <div>
                 <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', color: '#0f172a', fontWeight: '900' }}>{datosEmisor.nombre || ''}</h1>
-                <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#475569' }}>NIT/ID: {datosEmisor.idFiscal || ''}</p>
+                <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#475569' }}>{isEn ? 'Tax ID:' : 'NIT/ID:'} {datosEmisor.idFiscal || ''}</p>
                 <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#475569' }}>{datosEmisor.direccion || ''}, {datosEmisor.ciudad || ''}</p>
                 <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#475569' }}>{datosEmisor.telefono || ''} | {datosEmisor.email || ''}</p>
               </div>
@@ -723,7 +730,7 @@ const handleImprimirYGuardar = async () => {
                 <h1 style={{ margin: '0 0 8px 0', fontSize: '26px', color: '#3b82f6', textTransform: 'uppercase', fontWeight: '900', letterSpacing: '1px' }}>
                   {clienteActivo?.tipoEmision === 'factura' ? t('facturacion.factura_venta') : t('facturacion.cuenta_cobro_upper')}
                 </h1>
-                <p style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>N° {numeroFacturaActual}</p>
+                <p style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>{isEn ? 'No.' : 'N°'} {numeroFacturaActual}</p>
                 <p style={{ margin: '0 0 4px 0', fontSize: '13px' }}><strong>{t('facturacion.fecha_emision')}</strong> {new Date().toLocaleDateString()}</p>
                 <p style={{ margin: '0 0 4px 0', fontSize: '13px' }}><strong>{t('facturacion.periodo_facturado')}</strong> {fechaInicio} {t('facturacion.al')} {fechaFin}</p>
               </div>
@@ -732,7 +739,7 @@ const handleImprimirYGuardar = async () => {
             <div style={{ marginBottom: '35px', background: '#f8fafc', padding: '25px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('facturacion.facturar_a')}</p>
               <h3 style={{ margin: '0 0 6px 0', fontSize: '20px', color: '#0f172a', fontWeight: 'bold' }}>{clienteActivo?.nombre || ''}</h3>
-              <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#334155' }}>NIT/RUT: {clienteActivo?.idFiscal || ''}</p>
+              <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#334155' }}>{isEn ? 'Tax ID:' : 'NIT/RUT:'} {clienteActivo?.idFiscal || ''}</p>
               <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#334155' }}>{clienteActivo?.direccion || ''}, {clienteActivo?.ciudad || ''}</p>
               {(clienteActivo?.telefono || clienteActivo?.email) && (
                 <p style={{ margin: '0 0 0 0', fontSize: '14px', color: '#334155' }}>

@@ -1,7 +1,17 @@
 import axios from "axios";
 
-// ✅ Ruta relativa
-const API = "/api/whatsapp";
+const getApiBase = () => {
+  const base = import.meta.env.VITE_API_URL || window.API_URL || "";
+  return `${base}/api/whatsapp`;
+};
+
+const getAuthHeaders = () => {
+  const rawToken = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  const token = rawToken.replace(/['"]+/g, "").trim();
+  return {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  };
+};
 
 // ======================================================
 //   LISTAR LOGS (con filtros y paginación)
@@ -21,38 +31,18 @@ export const listarWhatsAppLogs = async ({
   params.append("page", page);
   params.append("page_size", pageSize);
 
-  // 🛡️ OBTENEMOS EL TOKEN DE SEGURIDAD DEL NAVEGADOR
-  const rawToken = localStorage.getItem("token") || "";
-  const token = rawToken.replace(/['"]+/g, ''); // Limpiamos comillas extra
-
-  // 🚀 INYECTAMOS EL TOKEN EN LOS HEADERS
-  const res = await axios.get(`${API}/logs?${params.toString()}`, {
-    headers: {
-      "Authorization": `Bearer ${token}`
-    }
-  });
-  
+  const res = await axios.get(`${getApiBase()}/logs?${params.toString()}`, getAuthHeaders());
   return res.data;
 };
 
 // ======================================================
-//   ENVIAR ESTUDIO POR WHATSAPP  ⭐
+//   ENVIAR ESTUDIO POR WHATSAPP
 // ======================================================
 export const enviarEstudioWhatsApp = async (estudioId, payload) => {
-  // 🛡️ OBTENEMOS EL TOKEN DE SEGURIDAD
-  const rawToken = localStorage.getItem("token") || "";
-  const token = rawToken.replace(/['"]+/g, '');
-
-  // 🚀 INYECTAMOS EL TOKEN EN LOS HEADERS
   const res = await axios.post(
-    `${API}/enviar-estudio/${estudioId}`,
+    `${getApiBase()}/enviar-estudio/${estudioId}`,
     payload,
-    {
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
-    }
+    getAuthHeaders()
   );
-  
   return res.data;
 };

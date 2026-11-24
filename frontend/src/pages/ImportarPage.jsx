@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next';
 import './ImportarPage.css';
 
 export default function ImportarPage() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isEn = i18n.language?.startsWith('en');
+    const apiBase = import.meta.env.VITE_API_URL || window.API_URL || '';
+
     const [loading, setLoading] = useState(false);
     const [progreso, setProgreso] = useState({
         en_progreso: false, exitosos: 0, fallidos: 0,
@@ -12,7 +15,7 @@ export default function ImportarPage() {
     });
     const [resumenFinal, setResumenFinal] = useState(null);
     
-    // 🚀 NUEVOS ESTADOS PARA EL MODAL VISUAL
+    // ESTADOS PARA EL MODAL VISUAL
     const [mostrarModalRuta, setMostrarModalRuta] = useState(false);
     const [rutaInput, setRutaInput] = useState("");
     
@@ -26,7 +29,7 @@ export default function ImportarPage() {
     const verificarEstadoImportacion = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.get(`${window.API_URL}/api/importacion-fisica/estado`, {
+            const res = await axios.get(`${apiBase}/api/importacion-fisica/estado`, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}`, 'Accept': 'application/json' }
             });
 
@@ -54,7 +57,7 @@ export default function ImportarPage() {
         const reconectarProgreso = async () => {
             try {
                 const tokenLimpio = obtenerTokenLimpio();
-                const res = await axios.get(`${window.API_URL}/api/importacion-fisica/estado`, {
+                const res = await axios.get(`${apiBase}/api/importacion-fisica/estado`, {
                     headers: { 'Authorization': `Bearer ${tokenLimpio}`, 'Accept': 'application/json' }
                 });
                 
@@ -75,14 +78,14 @@ export default function ImportarPage() {
             componenteMontado = false; 
             if (intervaloProgreso.current) clearInterval(intervaloProgreso.current); 
         };
-    }, []);
+    }, [apiBase]);
 
     const handleCerrarModalExito = () => {
         setResumenFinal(null);
         setProgreso({ en_progreso: false, exitosos: 0, fallidos: 0, total_detectados: 0, finalizado: false });
     };
 
-    // 🚀 ABRE EL MODAL VISUAL EN LUGAR DEL WINDOW.PROMPT
+    // ABRE EL MODAL VISUAL EN LUGAR DEL WINDOW.PROMPT
     const abrirModalRuta = () => {
         const tokenLimpio = obtenerTokenLimpio();
         if (!tokenLimpio) {
@@ -93,7 +96,7 @@ export default function ImportarPage() {
         setMostrarModalRuta(true);
     };
 
-    // 🚀 EJECUTA LA IMPORTACIÓN CUANDO EL USUARIO CONFIRMA EN EL MODAL
+    // EJECUTA LA IMPORTACIÓN CUANDO EL USUARIO CONFIRMA EN EL MODAL
     const confirmarImportacion = async () => {
         if (!rutaInput || rutaInput.trim() === '') {
             alert(t('importacion.ruta_requerida'));
@@ -106,7 +109,7 @@ export default function ImportarPage() {
         
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.post(`${window.API_URL}/api/importacion-fisica/disco-externo`, 
+            const res = await axios.post(`${apiBase}/api/importacion-fisica/disco-externo`, 
             { ruta: rutaInput.trim() }, 
             {
                 headers: { 
@@ -138,7 +141,7 @@ export default function ImportarPage() {
 
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            await axios.post(`${window.API_URL}/api/importacion-fisica/cancelar`, {}, {
+            await axios.post(`${apiBase}/api/importacion-fisica/cancelar`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
             alert(t('importacion.orden_cancelacion_enviada'));
@@ -150,7 +153,7 @@ export default function ImportarPage() {
     const handleExportarBD = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.post(`${window.API_URL}/api/importacion-fisica/exportar-bd`, {}, {
+            const res = await axios.post(`${apiBase}/api/importacion-fisica/exportar-bd`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
             alert(`${t('importacion.bd_exportada_exito')}${res.data.message || t('importacion.operacion_completada')}`);
@@ -162,7 +165,7 @@ export default function ImportarPage() {
     const handleImportarBD = async () => {
         try {
             const tokenLimpio = obtenerTokenLimpio();
-            const res = await axios.post(`${window.API_URL}/api/importacion-fisica/importar-bd`, {}, {
+            const res = await axios.post(`${apiBase}/api/importacion-fisica/importar-bd`, {}, {
                 headers: { 'Authorization': `Bearer ${tokenLimpio}` }
             });
             alert(`${t('importacion.bd_importada_exito')}${res.data.message || t('importacion.operacion_completada')}`);
@@ -174,12 +177,12 @@ export default function ImportarPage() {
     return (
         <div className="importar-page-wrapper">
             
-            {/* 🚀 MODAL VISUAL PARA LA RUTA */}
+            {/* MODAL VISUAL PARA LA RUTA */}
             {mostrarModalRuta && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
                     <div style={{ backgroundColor: '#1a1d26', border: '1px solid #fbbf24', borderRadius: '10px', padding: '25px', width: '90%', maxWidth: '500px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
                         <h3 style={{ color: '#fbbf24', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span>📁</span> Ingesta Clínica Local
+                            <span>📁</span> {isEn ? 'Local Clinical Ingestion' : 'Ingesta Clínica Local'}
                         </h3>
                         <p style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '15px', whiteSpace: 'pre-line' }}>
                             {t('importacion.prompt_ruta')}
@@ -188,16 +191,16 @@ export default function ImportarPage() {
                             type="text" 
                             value={rutaInput}
                             onChange={(e) => setRutaInput(e.target.value)}
-                            placeholder="D:\ o /mnt/usb"
+                            placeholder={isEn ? "D:\\ or /mnt/usb" : "D:\\ o /mnt/usb"}
                             style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #4a5066', backgroundColor: '#0f1114', color: '#fff', fontSize: '1rem', boxSizing: 'border-box', outline: 'none', marginBottom: '20px', fontFamily: 'monospace' }}
                             autoFocus
                         />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                             <button onClick={() => setMostrarModalRuta(false)} style={{ padding: '10px 20px', backgroundColor: '#334155', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                Cancelar
+                                {isEn ? 'Cancel' : 'Cancelar'}
                             </button>
                             <button onClick={confirmarImportacion} style={{ padding: '10px 20px', backgroundColor: '#fbbf24', color: '#000', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                Iniciar Extracción
+                                {isEn ? 'Start Extraction' : 'Iniciar Extracción'}
                             </button>
                         </div>
                     </div>

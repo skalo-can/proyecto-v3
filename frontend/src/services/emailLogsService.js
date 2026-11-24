@@ -1,31 +1,29 @@
 import axios from "axios";
 
-// Es mejor usar window.location.origin o una variable de entorno para que sea dinámico
-// pero mantendré tu IP temporalmente si estás probando en red local.
-const API = "http://192.168.5.21:8000/api/email-logs"; 
+const getApiBase = () => {
+  const base = import.meta.env.VITE_API_URL || window.API_URL || "";
+  return `${base}/api/email-logs`;
+};
 
-// Función de ayuda para obtener el token limpio
 const getAuthHeaders = () => {
-  const token = localStorage.getItem("token")?.replace(/['"]+/g, '');
+  const rawToken = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  const token = rawToken.replace(/['"]+/g, "").trim();
   return {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
   };
 };
 
 export const listarEmailLogs = async (limit = 100) => {
-  // Le pasamos los headers con el token como segundo parámetro a axios.get
-  const res = await axios.get(`${API}/listar?limit=${limit}`, getAuthHeaders());
+  const res = await axios.get(`${getApiBase()}/listar?limit=${limit}`, getAuthHeaders());
   return res.data;
 };
 
 export const emailLogsPorEstudio = async (estudioId) => {
-  const res = await axios.get(`${API}/estudio/${estudioId}`, getAuthHeaders());
+  const res = await axios.get(`${getApiBase()}/estudio/${estudioId}`, getAuthHeaders());
   return res.data;
 };
 
 export const emailLogsPorEmail = async (email) => {
-  const res = await axios.get(`${API}/email/${email}`, getAuthHeaders());
+  const res = await axios.get(`${getApiBase()}/email/${encodeURIComponent(email)}`, getAuthHeaders());
   return res.data;
 };

@@ -1,34 +1,30 @@
 import React, { useState } from "react";
-import { useParams } from "react-router-dom"; 
+import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useAuth } from "../../AuthContext";
 import "./PortalPaciente.css";
 
 import VisorDICOMWrapper from "../../VisorDICOMWrapper";
 
 export const PortalPaciente = () => {
-  const { token } = useParams(); 
-  const { user } = useAuth();
+  const { token } = useParams();
   const { i18n } = useTranslation();
   const isEn = i18n.language?.startsWith("en");
-  
+
   const [validado, setValidado] = useState(false);
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(""); 
-  const [validandoPin, setValidandoPin] = useState(false); 
-  const [estudioData, setEstudioData] = useState(null); 
-  const [vistasRestantes, setVistasRestantes] = useState(null); 
-  
+  const [errorMsg, setErrorMsg] = useState("");
+  const [validandoPin, setValidandoPin] = useState(false);
+  const [estudioData, setEstudioData] = useState(null);
+  const [vistasRestantes, setVistasRestantes] = useState(null);
+
   // Controla si el PIN se muestra como texto o asteriscos
   const [mostrarPin, setMostrarPin] = useState(false);
-  
+
   const [loadingEstudio, setLoadingEstudio] = useState(false);
   const [mostrarVisor, setMostrarVisor] = useState(false);
 
-  const apiBase = window.location.origin.includes(":5173")
-    ? "http://192.168.5.21:8000"
-    : window.location.origin;
+  const apiBase = import.meta.env.VITE_API_URL || window.API_URL || "";
 
   const toggleIdioma = () => {
     i18n.changeLanguage(isEn ? "es" : "en");
@@ -36,7 +32,7 @@ export const PortalPaciente = () => {
 
   const handleAcceso = async () => {
     if (!pin || pin.length < 4) return;
-    
+
     setValidandoPin(true);
     setError(false);
     setErrorMsg("");
@@ -53,10 +49,10 @@ export const PortalPaciente = () => {
       if (!response.ok) {
         throw new Error(data.detail || (isEn ? "Identity not verified" : "Identidad no verificada"));
       }
-      
+
       if (data.acceso_permitido) {
-        setEstudioData(data.estudio); 
-        setVistasRestantes(data.vistas_restantes); 
+        setEstudioData(data.estudio);
+        setVistasRestantes(data.vistas_restantes);
         setValidado(true);
         setPin("");
       }
@@ -68,7 +64,7 @@ export const PortalPaciente = () => {
       setTimeout(() => {
         setError(false);
         setErrorMsg("");
-      }, 3500); 
+      }, 3500);
     } finally {
       setValidandoPin(false);
     }
@@ -79,7 +75,7 @@ export const PortalPaciente = () => {
     setTimeout(() => {
       setLoadingEstudio(false);
       setMostrarVisor(true);
-    }, 4000); 
+    }, 4000);
   };
 
   const abrirInforme = () => {
@@ -89,7 +85,7 @@ export const PortalPaciente = () => {
   if (!validado) {
     return (
       <div className="portal-login-container">
-        <div className={`portal-card-paciente ${error ? 'shake-error' : ''}`} style={{ position: "relative" }}>
+        <div className={`portal-card-paciente ${error ? "shake-error" : ""}`} style={{ position: "relative" }}>
           <button
             type="button"
             onClick={toggleIdioma}
@@ -112,8 +108,20 @@ export const PortalPaciente = () => {
 
           <div className="portal-icon-header">🔐</div>
           <h2 className="portal-title">{isEn ? "SECURE ACCESS" : "ACCESO SEGURO"}</h2>
-          
-          <div style={{ backgroundColor: 'rgba(251, 191, 36, 0.1)', borderLeft: '4px solid #fbbf24', padding: '12px', borderRadius: '4px', color: '#fbbf24', marginBottom: '20px', fontSize: '13px', textAlign: 'left', lineHeight: '1.4' }}>
+
+          <div
+            style={{
+              backgroundColor: "rgba(251, 191, 36, 0.1)",
+              borderLeft: "4px solid #fbbf24",
+              padding: "12px",
+              borderRadius: "4px",
+              color: "#fbbf24",
+              marginBottom: "20px",
+              fontSize: "13px",
+              textAlign: "left",
+              lineHeight: "1.4"
+            }}
+          >
             {isEn ? (
               <>
                 <strong>🔒 High-Security Link:</strong> To protect your medical data, this link has a <strong>limit of 4 views</strong> and will expire once reached. We recommend downloading your PDF report on your first visit.
@@ -127,12 +135,12 @@ export const PortalPaciente = () => {
 
           {/* CONTENEDOR DEL PIN CON ICONO DE OJO Y EVENTO ENTER */}
           <div style={{ position: "relative", width: "100%" }}>
-            <input 
-              type={mostrarPin ? "text" : "password"} 
-              placeholder={isEn ? "ACCESS PIN (DDMMYYYY)" : "PIN DE ACCESO (DDMMAAAA)"} 
+            <input
+              type={mostrarPin ? "text" : "password"}
+              placeholder={isEn ? "ACCESS PIN (DDMMYYYY)" : "PIN DE ACCESO (DDMMAAAA)"}
               value={pin}
               autoComplete="off"
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && pin.length >= 4 && !validandoPin) {
                   handleAcceso();
@@ -141,14 +149,14 @@ export const PortalPaciente = () => {
               maxLength={8}
               className="portal-input-pin"
               disabled={validandoPin}
-              style={{ 
+              style={{
                 paddingRight: "45px",
                 WebkitTextSecurity: mostrarPin ? "none" : "unset",
                 fontFamily: mostrarPin ? "monospace" : "inherit",
                 letterSpacing: mostrarPin ? "3px" : "normal"
-              }} 
+              }}
             />
-            <span 
+            <span
               onClick={() => !validandoPin && setMostrarPin(!mostrarPin)}
               style={{
                 position: "absolute",
@@ -170,29 +178,31 @@ export const PortalPaciente = () => {
               {mostrarPin ? "👁️" : "🙈"}
             </span>
           </div>
-          
+
           {error && (
-            <div style={{
-              backgroundColor: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              color: '#f87171',
-              padding: '12px',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              marginTop: '15px',
-              textAlign: 'center',
-              textShadow: '0 1px 2px rgba(0,0,0,0.8)'
-            }}>
+            <div
+              style={{
+                backgroundColor: "rgba(239, 68, 68, 0.15)",
+                border: "1px solid rgba(239, 68, 68, 0.4)",
+                color: "#f87171",
+                padding: "12px",
+                borderRadius: "6px",
+                fontSize: "13px",
+                fontWeight: "bold",
+                marginTop: "15px",
+                textAlign: "center",
+                textShadow: "0 1px 2px rgba(0,0,0,0.8)"
+              }}
+            >
               ⚠️ {errorMsg.toUpperCase() || (isEn ? "IDENTITY NOT VERIFIED" : "IDENTIDAD NO VERIFICADA")}
             </div>
           )}
-          
-          <button 
-            onClick={handleAcceso} 
+
+          <button
+            onClick={handleAcceso}
             className="btn-portal-confirmar"
             disabled={validandoPin || pin.length === 0}
-            style={{ marginTop: '15px' }}
+            style={{ marginTop: "15px" }}
           >
             {validandoPin
               ? isEn ? "VERIFYING..." : "VERIFICANDO..."
@@ -206,12 +216,12 @@ export const PortalPaciente = () => {
   return (
     <div className="portal-interno-layout">
       <header className="portal-interno-header">
-        <div className="portal-header-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+        <div className="portal-header-content" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <h1 className="portal-logo-text">MI_PACS <span className="gold-text">GLOBAL PORTAL</span></h1>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
             {vistasRestantes !== null && (
-              <span style={{ color: '#fbbf24', fontSize: '12px', fontWeight: 'bold', backgroundColor: 'rgba(251, 191, 36, 0.1)', padding: '6px 10px', borderRadius: '20px', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
+              <span style={{ color: "#fbbf24", fontSize: "12px", fontWeight: "bold", backgroundColor: "rgba(251, 191, 36, 0.1)", padding: "6px 10px", borderRadius: "20px", border: "1px solid rgba(251, 191, 36, 0.3)" }}>
                 {isEn
                   ? `👁️ REMAINING VIEWS: ${vistasRestantes}`
                   : `👁️ VISUALIZACIONES RESTANTES: ${vistasRestantes}`}
@@ -235,7 +245,7 @@ export const PortalPaciente = () => {
               🌐 {isEn ? "ES" : "EN"}
             </button>
 
-            <button onClick={() => mostrarVisor ? setMostrarVisor(false) : window.location.reload()} className="btn-exit-luxury">
+            <button onClick={() => (mostrarVisor ? setMostrarVisor(false) : window.location.reload())} className="btn-exit-luxury">
               {mostrarVisor ? (isEn ? "BACK" : "VOLVER") : (isEn ? "EXIT" : "SALIR")}
             </button>
           </div>
@@ -261,7 +271,7 @@ export const PortalPaciente = () => {
             </div>
 
             <div className="estudios-grid-luxury">
-              <div className="estudio-card-luxury" onClick={!loadingEstudio ? activarVisor : null} style={{cursor: 'pointer'}}>
+              <div className="estudio-card-luxury" onClick={!loadingEstudio ? activarVisor : null} style={{ cursor: "pointer" }}>
                 <div className="card-shine"></div>
                 <div className="estudio-icon-gold">🔬</div>
                 <div className="estudio-details-luxury">
@@ -275,7 +285,7 @@ export const PortalPaciente = () => {
                       ? "Click to open the image viewer and your report."
                       : "Haga clic para abrir el visor de imágenes y su informe."}
                   </p>
-                  
+
                   {loadingEstudio ? (
                     <div className="loading-bar-gold">
                       <div className="loading-progress"></div>
@@ -292,24 +302,24 @@ export const PortalPaciente = () => {
         ) : (
           <div className="visor-paciente-main">
             <div className="visor-sidebar-gold">
-              <button 
-                className="tool-gold-btn highlight" 
+              <button
+                className="tool-gold-btn highlight"
                 onClick={abrirInforme}
                 title={isEn ? "View and Download Radiology Report" : "Ver y Descargar Reporte Radiológico"}
               >
                 📋<span>{isEn ? "Report" : "Informe"}</span>
               </button>
             </div>
-            
+
             <div className="visor-viewport-luxury">
               <div className="viewport-header-info">
                 {isEn ? "PATIENT" : "PACIENTE"}: {estudioData?.paciente_nombre || (isEn ? "UNKNOWN" : "DESCONOCIDO")} | {isEn ? "MODALITY" : "MODALIDAD"}: {estudioData?.modalidad || "N/A"}
               </div>
-              <div className="canvas-luxury-area" style={{ height: '70vh', width: '100%', position: 'relative' }}>
-                <VisorDICOMWrapper 
-                  estudioId={estudioData?.id} 
-                  tokenPaciente={token} 
-                  esPortalPaciente={true} 
+              <div className="canvas-luxury-area" style={{ height: "70vh", width: "100%", position: "relative" }}>
+                <VisorDICOMWrapper
+                  estudioId={estudioData?.id}
+                  tokenPaciente={token}
+                  esPortalPaciente={true}
                 />
               </div>
               <div className="viewport-footer-info">MI_PACS HIGH DEFINITION VIEWING</div>

@@ -1,6 +1,6 @@
 /**
- * BackupConfigPage.jsx — MI_PACS
- * Panel de Control del Ciclo de Vida, Copias de Seguridad y Purga Legal de DICOM
+- BackupConfigPage.jsx — MI_PACS
+- Panel de Control del Ciclo de Vida, Copias de Seguridad y Purga Legal de DICOM
  */
 
 import React, { useState, useEffect, useRef } from "react";
@@ -10,6 +10,8 @@ import { useTranslation } from "react-i18next";
 export default function BackupConfigPage() {
   const { t } = useTranslation();
   const { token } = useAuth();
+  const apiBase = import.meta.env.VITE_API_URL || window.API_URL || "";
+
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
 
@@ -28,7 +30,7 @@ export default function BackupConfigPage() {
   const [escudoPediatrico, setEscudoPediatrico] = useState(true);
   const [desbloquearPurga, setDesbloquearPurga] = useState(false);
 
-  // 🚀 ESTADOS PARA LA BARRA DE PROGRESO ASÍNCRONA
+  // ESTADOS PARA LA BARRA DE PROGRESO ASÍNCRONA
   const [progresoRutina, setProgresoRutina] = useState({
     en_progreso: false,
     exitosos: 0,
@@ -41,7 +43,7 @@ export default function BackupConfigPage() {
 
   useEffect(() => {
     // 1. Cargar configuración de base de datos (Cron y Legal)
-    fetch("http://192.168.5.21:8000/api/admin/config", {
+    fetch(`${apiBase}/api/admin/config`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -55,8 +57,8 @@ export default function BackupConfigPage() {
       })
       .catch((err) => console.error("Error cargando parámetros DB:", err));
 
-    // 🚀 2. NUEVO: Cargar configuración del JSON (Modalidades, Ruta NAS, Maduración)
-    fetch("http://192.168.5.21:8000/api/backup/config", {
+    // 2. Cargar configuración del JSON (Modalidades, Ruta NAS, Maduración)
+    fetch(`${apiBase}/api/backup/config`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -66,7 +68,6 @@ export default function BackupConfigPage() {
           if (data.nas_ruta) setNasRuta(data.nas_ruta);
           if (data.copia_internacional !== undefined) setCopiaInternacional(data.copia_internacional);
           
-          // Reconstruir el estado de los checkboxes basado en el array guardado
           if (data.modalidades) {
             const modsGuardadas = {
               CT: false, MR: false, DX: false, US: false, CR: false, MG: false, DXA: false, PET: false, RF: false, XA: false
@@ -81,64 +82,62 @@ export default function BackupConfigPage() {
         }
       })
       .catch((err) => console.error("Error cargando parámetros JSON:", err));
-  }, [token]);
+  }, [token, apiBase]);
 
-  // 🚀 LÓGICA DE RECONEXIÓN Y POLLING (Igual a ImportarPage) - NO SE TOCA
   const verificarEstadoRutina = async () => {
     try {
-        const res = await fetch("http://192.168.5.21:8000/api/admin/estado-rutina", {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
+      const res = await fetch(`${apiBase}/api/admin/estado-rutina`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
 
-        if (data.finalizado === true) {
-            if (!intervaloProgreso.current) return;
-            clearInterval(intervaloProgreso.current);
-            intervaloProgreso.current = null;
-            setLoading(false);
-            setProgresoRutina(data);
-            setMensaje({ texto: t('backup_config.msg_operacion_exito'), tipo: "success" });
-            
-            // Limpiar la barra después de 5 segundos
-            setTimeout(() => {
-                setProgresoRutina(prev => ({ ...prev, en_progreso: false }));
-            }, 5000);
-        } else {
-            if (intervaloProgreso.current) {
-                setProgresoRutina(data);
-            }
+      if (data.finalizado === true) {
+        if (!intervaloProgreso.current) return;
+        clearInterval(intervaloProgreso.current);
+        intervaloProgreso.current = null;
+        setLoading(false);
+        setProgresoRutina(data);
+        setMensaje({ texto: t('backup_config.msg_operacion_exito'), tipo: "success" });
+        
+        setTimeout(() => {
+          setProgresoRutina(prev => ({ ...prev, en_progreso: false }));
+        }, 5000);
+      } else {
+        if (intervaloProgreso.current) {
+          setProgresoRutina(data);
         }
+      }
     } catch (err) {
-        console.error("Error al rastrear la rutina:", err);
+      console.error("Error al rastrear la rutina:", err);
     }
   };
 
   useEffect(() => {
     let componenteMontado = true;
     const reconectarProgreso = async () => {
-        try {
-            const res = await fetch("http://192.168.5.21:8000/api/admin/estado-rutina", {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const data = await res.json();
-            
-            if (componenteMontado && data && data.en_progreso && !data.finalizado) {
-                if (intervaloProgreso.current) clearInterval(intervaloProgreso.current);
-                setProgresoRutina(data);
-                setLoading(true);
-                intervaloProgreso.current = setInterval(verificarEstadoRutina, 1500);
-            }
-        } catch (err) {
-            console.error("No se pudo reconectar al estado del motor:", err);
+      try {
+        const res = await fetch(`${apiBase}/api/admin/estado-rutina`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        
+        if (componenteMontado && data && data.en_progreso && !data.finalizado) {
+          if (intervaloProgreso.current) clearInterval(intervaloProgreso.current);
+          setProgresoRutina(data);
+          setLoading(true);
+          intervaloProgreso.current = setInterval(verificarEstadoRutina, 1500);
         }
+      } catch (err) {
+        console.error("No se pudo reconectar al estado del motor:", err);
+      }
     };
     
     reconectarProgreso();
     return () => { 
-        componenteMontado = false; 
-        if (intervaloProgreso.current) clearInterval(intervaloProgreso.current); 
+      componenteMontado = false; 
+      if (intervaloProgreso.current) clearInterval(intervaloProgreso.current); 
     };
-  }, [token]);
+  }, [token, apiBase]);
 
   const handleGuardarConfig = async (e) => {
     e.preventDefault();
@@ -146,13 +145,13 @@ export default function BackupConfigPage() {
     const modSeleccionadas = Object.keys(modalidades).filter(key => modalidades[key]);
 
     try {
-      const resBackup = await fetch("http://192.168.5.21:8000/api/backup/config", {
+      const resBackup = await fetch(`${apiBase}/api/backup/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ dias_maduracion: diasMaduracion, modalidades: modSeleccionadas, nas_ruta: nasRuta, copia_internacional: copiaInternacional })
       });
 
-      const resCron = await fetch("http://192.168.5.21:8000/api/admin/config", {
+      const resCron = await fetch(`${apiBase}/api/admin/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ hora_backup: horaBackup, umbral_purga: umbralPurga, retencion_legal_anios: retencionLegalAnios, escudo_pediatrico: escudoPediatrico })
@@ -172,13 +171,12 @@ export default function BackupConfigPage() {
     if (!window.confirm(t('backup_config.confirm_ejecutar_rutina'))) return;
     setLoading(true);
     try {
-      const response = await fetch("http://192.168.5.21:8000/api/backup/run", {
+      const response = await fetch(`${apiBase}/api/backup/run`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
       
-      // Si el backend es asíncrono y devuelve processing, iniciamos la barra
       if (response.ok && data.status === "processing") {
         if (intervaloProgreso.current) clearInterval(intervaloProgreso.current);
         setProgresoRutina({ en_progreso: true, exitosos: 0, fallidos: 0, total_detectados: data.archivos_detectados || 100, finalizado: false, operacion: "backup" });
@@ -200,7 +198,7 @@ export default function BackupConfigPage() {
     if (!window.confirm(t('backup_config.confirm_mantenimiento'))) return;
     setLoading(true);
     try {
-      const response = await fetch("http://192.168.5.21:8000/api/admin/mantenimiento-profundo", {
+      const response = await fetch(`${apiBase}/api/admin/mantenimiento-profundo`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -223,17 +221,16 @@ export default function BackupConfigPage() {
     }
   };
 
-  // 🚀 LÓGICA DE CANCELACIÓN
   const handleCancelarRutina = async () => {
     if (!window.confirm(t('backup_config.confirm_detener_proceso'))) return;
     try {
-        await fetch("http://192.168.5.21:8000/api/admin/cancelar-rutina", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        setMensaje({ texto: t('backup_config.msg_orden_cancelacion'), tipo: "info" });
+      await fetch(`${apiBase}/api/admin/cancelar-rutina`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMensaje({ texto: t('backup_config.msg_orden_cancelacion'), tipo: "info" });
     } catch (err) {
-        alert(t('backup_config.msg_error_cancelar'));
+      alert(t('backup_config.msg_error_cancelar'));
     }
   };
 
@@ -254,24 +251,24 @@ export default function BackupConfigPage() {
         </div>
       )}
 
-      {/* 🚀 MONITOREO ASÍNCRONO PERSISTENTE */}
+      {/* MONITOREO ASÍNCRONO PERSISTENTE */}
       {progresoRutina.en_progreso && (
-          <div style={{ marginBottom: '25px', backgroundColor: 'rgba(251, 191, 36, 0.03)', border: '1px solid #fbbf24', padding: '20px', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ color: '#fbbf24', margin: '0', fontSize: '1rem' }}>
-                      📊 {progresoRutina.operacion === "vacuum" ? t('backup_config.monitor_mantenimiento') : t('backup_config.monitor_rutina')}
-                  </h3>
-                  <button onClick={handleCancelarRutina} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '5px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>{t('backup_config.btn_cancelar_proceso')}</button>
-              </div>
-              <div style={{ display: 'flex', gap: '30px', color: '#fff', fontSize: '0.9rem' }}>
-                  <div>{t('backup_config.tareas_detectadas')} <strong style={{ color: '#fbbf24' }}>{progresoRutina.total_detectados}</strong></div>
-                  <div>{t('backup_config.completadas')} <strong style={{ color: '#10b981' }}>{progresoRutina.exitosos}</strong></div>
-                  <div>{t('backup_config.errores')} <strong style={{ color: '#ef4444' }}>{progresoRutina.fallidos}</strong></div>
-              </div>
-              <div style={{ backgroundColor: '#222', height: '10px', borderRadius: '5px', marginTop: '15px', overflow: 'hidden' }}>
-                  <div style={{ backgroundColor: '#10b981', height: '100%', width: `${progresoRutina.total_detectados > 0 ? (progresoRutina.exitosos / progresoRutina.total_detectados) * 100 : 0}%`, transition: 'width 0.3s ease' }}></div>
-              </div>
+        <div style={{ marginBottom: '25px', backgroundColor: 'rgba(251, 191, 36, 0.03)', border: '1px solid #fbbf24', padding: '20px', borderRadius: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h3 style={{ color: '#fbbf24', margin: '0', fontSize: '1rem' }}>
+              📊 {progresoRutina.operacion === "vacuum" ? t('backup_config.monitor_mantenimiento') : t('backup_config.monitor_rutina')}
+            </h3>
+            <button onClick={handleCancelarRutina} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '5px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>{t('backup_config.btn_cancelar_proceso')}</button>
           </div>
+          <div style={{ display: 'flex', gap: '30px', color: '#fff', fontSize: '0.9rem' }}>
+            <div>{t('backup_config.tareas_detectadas')} <strong style={{ color: '#fbbf24' }}>{progresoRutina.total_detectados}</strong></div>
+            <div>{t('backup_config.completadas')} <strong style={{ color: '#10b981' }}>{progresoRutina.exitosos}</strong></div>
+            <div>{t('backup_config.errores')} <strong style={{ color: '#ef4444' }}>{progresoRutina.fallidos}</strong></div>
+          </div>
+          <div style={{ backgroundColor: '#222', height: '10px', borderRadius: '5px', marginTop: '15px', overflow: 'hidden' }}>
+            <div style={{ backgroundColor: '#10b981', height: '100%', width: `${progresoRutina.total_detectados > 0 ? (progresoRutina.exitosos / progresoRutina.total_detectados) * 100 : 0}%`, transition: 'width 0.3s ease' }}></div>
+          </div>
+        </div>
       )}
 
       <div style={gridLayout}>
@@ -408,7 +405,7 @@ export default function BackupConfigPage() {
                   if(window.confirm(t('backup_config.confirm_eliminar_dicom'))) {
                     const dias = document.getElementById("dias_retencion").value;
                     try {
-                      const res = await fetch(`http://192.168.5.21:8000/api/purgar-importados?dias_retencion=${dias}`, {
+                      const res = await fetch(`${apiBase}/api/purgar-importados?dias_retencion=${dias}`, {
                         method: 'DELETE',
                         headers: { 'Authorization': `Bearer ${token}` }
                       });

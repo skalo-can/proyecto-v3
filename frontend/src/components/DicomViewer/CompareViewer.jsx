@@ -19,9 +19,11 @@ const Thumb = ({ url, onClick, activo, count }) => {
     if (!ref.current || !url) return;
     const el = ref.current;
     try { cornerstone.getEnabledElement(el); } catch (e) { cornerstone.enable(el); }
-    let safeUrl = url.startsWith("wadouri:") ? url : `wadouri:${url}`;
-    cornerstone.loadAndCacheImage(safeUrl).then(img => cornerstone.displayImage(el, img)).catch(e => {});
-    return () => cornerstone.disable(el);
+    const safeUrl = url.startsWith("wadouri:") ? url : `wadouri:${url}`;
+    cornerstone.loadAndCacheImage(safeUrl).then(img => cornerstone.displayImage(el, img)).catch(() => {});
+    return () => {
+      try { cornerstone.disable(el); } catch (e) {}
+    };
   }, [url]);
 
   return (
@@ -44,6 +46,7 @@ export default function CompareViewer({
 }) {
   const { i18n } = useTranslation();
   const isEn = i18n.language?.startsWith("en");
+  const apiBase = API_BASE || import.meta.env.VITE_API_URL || window.API_URL || window.location.origin;
 
   const dicomLeftRef = useRef(null);
   const dicomRightRef = useRef(null);
@@ -62,7 +65,6 @@ export default function CompareViewer({
   const [infoLeft, setInfoLeft] = useState(false);
   const [infoRight, setInfoRight] = useState(false);
   
-  // Estados para guardar la información vital del paciente del DICOM
   const [tagsLeft, setTagsLeft] = useState(null);
   const [tagsRight, setTagsRight] = useState(null);
 
@@ -77,7 +79,6 @@ export default function CompareViewer({
   const urlsA = seriesA?.[serieLeft]?.urls || [];
   const urlsB = seriesDinamicasB?.[serieRight]?.urls || [];
 
-  // Función para formatear fechas DICOM
   const formatDicomDate = (dateStr) => {
     if (!dateStr) return isEn ? 'Unknown Date' : 'Fecha Desconocida';
     const cleanDate = String(dateStr).trim();
@@ -86,8 +87,8 @@ export default function CompareViewer({
   };
 
   useEffect(() => {
-      const estudio = listaHistorial.find(e => e.id === idPrevioActivo);
-      if (estudio) setFechaEstudioPrevio(estudio.fecha);
+    const estudio = listaHistorial.find(e => e.id === idPrevioActivo);
+    if (estudio) setFechaEstudioPrevio(estudio.fecha);
   }, [idPrevioActivo, listaHistorial]);
 
   useEffect(() => {
@@ -101,12 +102,12 @@ export default function CompareViewer({
     cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 1 });
 
     return () => {
-      if (elLeft) cornerstone.disable(elLeft);
-      if (elRight) cornerstone.disable(elRight);
+      if (elLeft) { try { cornerstone.disable(elLeft); } catch (e) {} }
+      if (elRight) { try { cornerstone.disable(elRight); } catch (e) {} }
     };
   }, []);
 
-  // LADO IZQUIERDO: CARGAR IMAGEN Y EXTRAER METADATOS COMPLETOS
+  // LADO IZQUIERDO
   useEffect(() => {
     if (urlsA.length === 0 || !dicomLeftRef.current) return;
     let url = urlsA[indexLeft];
@@ -125,10 +126,10 @@ export default function CompareViewer({
           serieDesc: img.data.string('x0008103E') || 'N/A'
         });
       }
-    }).catch(e=>{});
+    }).catch(() => {});
   }, [indexLeft, urlsA, serieLeft]);
 
-  // LADO DERECHO: CARGAR IMAGEN Y EXTRAER METADATOS COMPLETOS
+  // LADO DERECHO
   useEffect(() => {
     if (urlsB.length === 0 || !dicomRightRef.current) return;
     let url = urlsB[indexRight];
@@ -147,7 +148,7 @@ export default function CompareViewer({
           serieDesc: img.data.string('x0008103E') || 'N/A'
         });
       }
-    }).catch(e=>{});
+    }).catch(() => {});
   }, [indexRight, urlsB, serieRight]);
 
   const moverIzquierda = (delta) => {
@@ -232,42 +233,42 @@ export default function CompareViewer({
   };
 
   const cargarEstudioPrevio = async (id, fecha) => {
-      setCargandoPrevio(true);
-      try {
-        const resPrevio = await fetch(`${API_BASE}/api/estudios/${id}/imagenes`, {
-          headers: isGuest ? {} : { Authorization: `Bearer ${activeToken}` }
-        });
-        const imgsPrevio = await resPrevio.json(); 
+    setCargandoPrevio(true);
+    try {
+      const rawLocalToken = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+      const tokenSeguro = rawLocalToken.replace(/['"]+/g, "").trim() || activeToken;
 
-        if (!imgsPrevio || imgsPrevio.length === 0 || !imgsPrevio[0].imagenes) {
-            alert(isEn ? "This study has no images." : "Este estudio no tiene imágenes.");
-            setCargandoPrevio(false);
-            return;
-        }
-        
-        const tokenSeguro = localStorage.getItem("token") || activeToken;
+      const resPrevio = await fetch(`${apiBase}/api/estudios/${id}/imagenes`, {
+        headers: isGuest ? {} : { Authorization: `Bearer ${tokenSeguro}` }
+      });
+      if (!resPrevio.ok) throw new Error("Error HTTP");
+      const imgsPrevio = await resPrevio.json(); 
 
-        // Separar todas las series del estudio previo
-        const nuevasSeries = imgsPrevio.map(serie => {
-          const urlsNuevas = serie.imagenes.map(img => {
-            if (isGuest) return `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`;
-            return `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
-          });
-          return { nombre: serie.serie || (isEn ? "Prior Series" : "Serie Previa"), urls: urlsNuevas };
-        });
-
-        setSeriesDinamicasB(nuevasSeries);
-        setIdPrevioActivo(id);
-        setFechaEstudioPrevio(fecha);
-        setIndexRight(0); 
-        setSerieRight(0);
-        
-      } catch (err) {
-          console.error(err);
-          alert(isEn ? "Error loading this study." : "Error cargando este estudio.");
-      } finally {
-          setCargandoPrevio(false);
+      if (!imgsPrevio || imgsPrevio.length === 0 || !imgsPrevio[0].imagenes) {
+        alert(isEn ? "This study has no images." : "Este estudio no tiene imágenes.");
+        setCargandoPrevio(false);
+        return;
       }
+
+      const nuevasSeries = imgsPrevio.map(serie => {
+        const urlsNuevas = serie.imagenes.map(img => {
+          if (isGuest) return `wadouri:${apiBase}/api/secure-links/stream/${img.id}?token=${activeToken}`;
+          return `wadouri:${apiBase}/api/dicom/stream/${img.id}?token=${tokenSeguro}`;
+        });
+        return { nombre: serie.serie || (isEn ? "Prior Series" : "Serie Previa"), urls: urlsNuevas };
+      });
+
+      setSeriesDinamicasB(nuevasSeries);
+      setIdPrevioActivo(id);
+      setFechaEstudioPrevio(fecha);
+      setIndexRight(0); 
+      setSerieRight(0);
+    } catch (err) {
+      console.error(err);
+      alert(isEn ? "Error loading this study." : "Error cargando este estudio.");
+    } finally {
+      setCargandoPrevio(false);
+    }
   };
 
   const styles = {

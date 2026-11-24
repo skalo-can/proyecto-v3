@@ -9,14 +9,13 @@ import { useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import dicomParser from "dicom-parser";
 
-// 🚀 IMPORTACIONES
+// IMPORTACIONES CORNERSTONE 3D
 import * as csCore from "@cornerstonejs/core";
 import * as csTools from "@cornerstonejs/tools";
 import { cornerstoneStreamingImageVolumeLoader } from "@cornerstonejs/streaming-image-volume-loader";
-// 🚀 FIX: Importar todo el módulo con '*' evita que Vite pierda funciones clave
 import * as cornerstoneDICOMImageLoader from "@cornerstonejs/dicom-image-loader";
 
-const API_BASE = window.location.origin;
+const API_BASE = import.meta.env.VITE_API_URL || window.API_URL || window.location.origin;
 
 export default function VisorMPR3D() {
   const { id: currentId } = useParams();
@@ -25,11 +24,15 @@ export default function VisorMPR3D() {
   const isEn = i18n.language?.startsWith("en");
 
   const searchParams = new URLSearchParams(location.search);
-  const activeToken = searchParams.get("token") || localStorage.getItem("token")?.replace(/['"]+/g, '');
-  const isGuest = !!searchParams.get("token");
+  const tokenUrl = searchParams.get("token");
+  const rawLocalToken = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  const cleanLocalToken = rawLocalToken.replace(/['"]+/g, "").trim();
+
+  const activeToken = tokenUrl || cleanLocalToken;
+  const isGuest = !!tokenUrl;
 
   const [cargando, setCargando] = useState(true);
-  
+
   const axialRef = useRef(null);
   const sagittalRef = useRef(null);
   const coronalRef = useRef(null);
@@ -42,7 +45,7 @@ export default function VisorMPR3D() {
 
     const inicializarMPR = async () => {
       try {
-        if (typeof SharedArrayBuffer === 'undefined') {
+        if (typeof SharedArrayBuffer === "undefined") {
           alert(
             enIngles
               ? "⚠️ SharedArrayBuffer disabled. Check vite.config.js"
@@ -52,77 +55,105 @@ export default function VisorMPR3D() {
           return;
         }
 
-        try { await csCore.init(); } catch (e) {}
-        try { await csTools.init(); } catch (e) {}
+        try {
+          await csCore.init();
+        } catch (e) {}
+        try {
+          await csTools.init();
+        } catch (e) {}
 
         csCore.volumeLoader.registerUnknownVolumeLoader(cornerstoneStreamingImageVolumeLoader);
         csCore.volumeLoader.registerVolumeLoader("cornerstoneStreamingImageVolume", cornerstoneStreamingImageVolumeLoader);
 
-        // 🚀 EL FIX DEFINITIVO: Extraer el loader con seguridad
+        // Extraer el loader con seguridad
         const dicomLoader = cornerstoneDICOMImageLoader.default || cornerstoneDICOMImageLoader;
 
-        // Asegurar dependencias sin reiniciar los Workers (cornerstoneInit.js ya lo hizo)
         if (!dicomLoader.external) dicomLoader.external = {};
         dicomLoader.external.cornerstone = csCore;
         dicomLoader.external.dicomParser = dicomParser;
 
-        // 🚀 CONEXIÓN DIRECTA DEL ESQUEMA WADOURI (Esto evita el "no image loader")
-        if (dicomLoader.wadouri && typeof dicomLoader.wadouri.loadImage === 'function') {
-            csCore.imageLoader.registerImageLoader('wadouri', dicomLoader.wadouri.loadImage);
+        // Conexión directa del esquema wadouri
+        if (dicomLoader.wadouri && typeof dicomLoader.wadouri.loadImage === "function") {
+          csCore.imageLoader.registerImageLoader("wadouri", dicomLoader.wadouri.loadImage);
         } else {
-            console.error("❌ dicomLoader.wadouri no existe. Revisa el import.", dicomLoader);
-            alert(
-              enIngles
-                ? "Failed to inject wadouri. Check F12 console."
-                : "Fallo al inyectar wadouri. Revisa la consola F12."
-            );
+          console.error("❌ dicomLoader.wadouri no existe. Revisa el import.", dicomLoader);
+          alert(
+            enIngles
+              ? "Failed to inject wadouri. Check F12 console."
+              : "Fallo al inyectar wadouri. Revisa la consola F12."
+          );
         }
 
         // Inyectar Token de Seguridad
-        if (activeToken && !isGuest && typeof dicomLoader.configure === 'function') {
+        if (activeToken && !isGuest && typeof dicomLoader.configure === "function") {
           dicomLoader.configure({
-            beforeSend: (xhr) => xhr.setRequestHeader('Authorization', `Bearer ${activeToken}`)
+            beforeSend: (xhr) => xhr.setRequestHeader("Authorization", `Bearer ${activeToken}`)
           });
         }
 
         // Obtener rutas de las imágenes
-        const urlFetch = isGuest 
-          ? `${API_BASE}/api/secure-links/imagenes/${activeToken}` 
+        const urlFetch = isGuest
+          ? `${API_BASE}/api/secure-links/imagenes/${activeToken}`
           : `${API_BASE}/api/estudios/${currentId}/imagenes`;
-        
+
         const headersFetch = isGuest ? {} : { Authorization: `Bearer ${activeToken}` };
         const response = await fetch(urlFetch, { headers: headersFetch });
+        if (!response.ok) {
+          throw new Error(enIngles ? "Authentication or server error" : "Error de autenticación o servidor");
+        }
+
         const data = await response.json();
 
         if (!data || data.length === 0) {
           throw new Error(enIngles ? "No images found" : "No hay imágenes");
         }
 
-        const seriePrincipal = data.reduce((prev, current) => 
-          (prev.imagenes.length > current.imagenes.length) ? prev : current
+        const seriePrincipal = data.reduce((prev, current) =>
+          prev.imagenes.length > current.imagenes.length ? prev : current
         );
 
-        const imageIds = seriePrincipal.imagenes.map(img => 
-          isGuest 
-            ? `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}` 
+        const imageIds = seriePrincipal.imagenes.map((img) =>
+          isGuest
+            ? `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`
             : `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${activeToken}`
         );
 
         // Limpieza de memoria
         let renderingEngine = csCore.getRenderingEngine(renderingEngineId);
-        if (renderingEngine) { renderingEngine.destroy(); }
+        if (renderingEngine) {
+          renderingEngine.destroy();
+        }
         let toolGroup = csTools.ToolGroupManager.getToolGroup(toolGroupId);
-        if (toolGroup) { csTools.ToolGroupManager.destroyToolGroup(toolGroupId); }
-        if (csCore.cache.getVolume(volumeId)) { csCore.cache.removeVolumeLoadObject(volumeId); }
+        if (toolGroup) {
+          csTools.ToolGroupManager.destroyToolGroup(toolGroupId);
+        }
+        if (csCore.cache.getVolume(volumeId)) {
+          csCore.cache.removeVolumeLoadObject(volumeId);
+        }
 
         // Crear Lienzos 3D
         renderingEngine = new csCore.RenderingEngine(renderingEngineId);
         toolGroup = csTools.ToolGroupManager.createToolGroup(toolGroupId);
 
         const viewportInputArray = [
-          { viewportId: 'AXIAL_VIEWPORT', type: csCore.Enums.ViewportType.ORTHOGRAPHIC, element: axialRef.current, defaultOptions: { orientation: csCore.Enums.OrientationAxis.AXIAL, background: [0, 0, 0] } },
-          { viewportId: 'SAGITTAL_VIEWPORT', type: csCore.Enums.ViewportType.ORTHOGRAPHIC, element: sagittalRef.current, defaultOptions: { orientation: csCore.Enums.OrientationAxis.SAGITTAL, background: [0, 0, 0] } },
-          { viewportId: 'CORONAL_VIEWPORT', type: csCore.Enums.ViewportType.ORTHOGRAPHIC, element: coronalRef.current, defaultOptions: { orientation: csCore.Enums.OrientationAxis.CORONAL, background: [0, 0, 0] } },
+          {
+            viewportId: "AXIAL_VIEWPORT",
+            type: csCore.Enums.ViewportType.ORTHOGRAPHIC,
+            element: axialRef.current,
+            defaultOptions: { orientation: csCore.Enums.OrientationAxis.AXIAL, background: [0, 0, 0] }
+          },
+          {
+            viewportId: "SAGITTAL_VIEWPORT",
+            type: csCore.Enums.ViewportType.ORTHOGRAPHIC,
+            element: sagittalRef.current,
+            defaultOptions: { orientation: csCore.Enums.OrientationAxis.SAGITTAL, background: [0, 0, 0] }
+          },
+          {
+            viewportId: "CORONAL_VIEWPORT",
+            type: csCore.Enums.ViewportType.ORTHOGRAPHIC,
+            element: coronalRef.current,
+            defaultOptions: { orientation: csCore.Enums.OrientationAxis.CORONAL, background: [0, 0, 0] }
+          }
         ];
 
         renderingEngine.setViewports(viewportInputArray);
@@ -134,26 +165,29 @@ export default function VisorMPR3D() {
         await csCore.setVolumesForViewports(
           renderingEngine,
           [{ volumeId }],
-          ['AXIAL_VIEWPORT', 'SAGITTAL_VIEWPORT', 'CORONAL_VIEWPORT']
+          ["AXIAL_VIEWPORT", "SAGITTAL_VIEWPORT", "CORONAL_VIEWPORT"]
         );
 
-        renderingEngine.renderViewports(['AXIAL_VIEWPORT', 'SAGITTAL_VIEWPORT', 'CORONAL_VIEWPORT']);
+        renderingEngine.renderViewports(["AXIAL_VIEWPORT", "SAGITTAL_VIEWPORT", "CORONAL_VIEWPORT"]);
 
         // Herramienta de cruce ortogonal
-        try { csTools.addTool(csTools.CrosshairsTool); } catch (e) {}
+        try {
+          csTools.addTool(csTools.CrosshairsTool);
+        } catch (e) {}
         try {
           toolGroup.addTool(csTools.CrosshairsTool.toolName);
-          toolGroup.setToolActive(csTools.CrosshairsTool.toolName, { bindings: [{ mouseButton: csTools.Enums.MouseBindings.Primary }] });
-          toolGroup.addViewport('AXIAL_VIEWPORT', renderingEngineId);
-          toolGroup.addViewport('SAGITTAL_VIEWPORT', renderingEngineId);
-          toolGroup.addViewport('CORONAL_VIEWPORT', renderingEngineId);
+          toolGroup.setToolActive(csTools.CrosshairsTool.toolName, {
+            bindings: [{ mouseButton: csTools.Enums.MouseBindings.Primary }]
+          });
+          toolGroup.addViewport("AXIAL_VIEWPORT", renderingEngineId);
+          toolGroup.addViewport("SAGITTAL_VIEWPORT", renderingEngineId);
+          toolGroup.addViewport("CORONAL_VIEWPORT", renderingEngineId);
         } catch (e) {}
 
         setCargando(false);
-
       } catch (error) {
         console.error("❌ Error inicializando MPR:", error);
-        if (error && error.stack) console.error(error.stack); 
+        if (error && error.stack) console.error(error.stack);
         setCargando(false);
       }
     };
@@ -167,12 +201,12 @@ export default function VisorMPR3D() {
       if (tg) csTools.ToolGroupManager.destroyToolGroup(toolGroupId);
       csCore.cache.purgeCache();
     };
-  }, [currentId, activeToken, isGuest]);
+  }, [currentId, activeToken, isGuest, i18n.language]);
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h3 style={{ margin: 0, color: '#fbbf24' }}>
+        <h3 style={{ margin: 0, color: "#fbbf24" }}>
           {isEn
             ? "🧊 MI_PACS - 3D Multiplanar Reconstruction (MPR)"
             : "🧊 MI_PACS - Reconstrucción Multiplanar (MPR) 3D"}
@@ -200,15 +234,15 @@ export default function VisorMPR3D() {
       <div style={styles.gridContainer}>
         <div style={styles.viewportWrapper}>
           <div style={styles.label}>AXIAL</div>
-          <div ref={axialRef} style={styles.viewport} onContextMenu={e => e.preventDefault()} />
+          <div ref={axialRef} style={styles.viewport} onContextMenu={(e) => e.preventDefault()} />
         </div>
         <div style={styles.viewportWrapper}>
           <div style={styles.label}>CORONAL</div>
-          <div ref={coronalRef} style={styles.viewport} onContextMenu={e => e.preventDefault()} />
+          <div ref={coronalRef} style={styles.viewport} onContextMenu={(e) => e.preventDefault()} />
         </div>
         <div style={styles.viewportWrapper}>
           <div style={styles.label}>{isEn ? "SAGITTAL" : "SAGITAL"}</div>
-          <div ref={sagittalRef} style={styles.viewport} onContextMenu={e => e.preventDefault()} />
+          <div ref={sagittalRef} style={styles.viewport} onContextMenu={(e) => e.preventDefault()} />
         </div>
       </div>
     </div>
