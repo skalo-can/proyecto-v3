@@ -2,7 +2,7 @@
 - VisorMPR3D.jsx — MI_PACS
 - ---------------------------------------------------------
 - Reconstrucción Multiplanar 3D (Axial, Coronal, Sagital) en Cornerstone3D v5.10.8
-- Con marcadores anatómicos bilingües (EN/ES) y ajuste dinámico de Brillo/Contraste (WW/WC)
+- Con carga adaptativa (LAN / Túnel), selector de series, marcadores EN/ES y Brillo/Contraste dinámico
  */
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -43,6 +43,49 @@ function formatearFechaDicom(rawDate) {
   return rawDate;
 }
 
+async function cargarCortesPorLotes(
+  imageIds,
+  onProgress,
+  isCancelledFn,
+  { concurrencia = 8, pausaMs = 0, maxReintentos = 4 } = {}
+) {
+  let completados = 0;
+  let indiceActual = 0;
+
+  const worker = async () => {
+    while (indiceActual < imageIds.length) {
+      if (isCancelledFn()) return;
+      const idx = indiceActual++;
+      const id = imageIds[idx];
+      let intentos = 0;
+
+      while (intentos < maxReintentos) {
+        if (isCancelledFn()) return;
+        try {
+          await csCore.imageLoader.loadAndCacheImage(id);
+          break;
+        } catch (err) {
+          intentos++;
+          if (intentos >= maxReintentos) throw err;
+          await new Promise((r) => setTimeout(r, 600 * intentos));
+        }
+      }
+
+      completados++;
+      if (onProgress && !isCancelledFn()) {
+        onProgress(completados, imageIds.length);
+      }
+
+      if (pausaMs > 0 && indiceActual < imageIds.length && !isCancelledFn()) {
+        await new Promise((r) => setTimeout(r, pausaMs));
+      }
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(concurrencia, imageIds.length) }, () => worker());
+  await Promise.all(workers);
+}
+
 function vectorALetraAnatomica(vec, isEn) {
   if (!Array.isArray(vec) || vec.length < 3) return { code: "", label: "" };
   const [x, y, z] = vec;
@@ -50,7 +93,6 @@ function vectorALetraAnatomica(vec, isEn) {
   const ay = Math.abs(y);
   const az = Math.abs(z);
 
-  // Sistema de coordenadas DICOM LPS (+X = Left, +Y = Posterior, +Z = Superior)
   if (ax >= ay && ax >= az) {
     return x >= 0
       ? { code: isEn ? "L" : "I", label: isEn ? "Left" : "Izquierda" }
@@ -75,7 +117,6 @@ function calcularMarcadoresViewport(vp, isEn) {
   const bottomVec = [-topVec[0], -topVec[1], -topVec[2]];
   const n = camera.viewPlaneNormal;
 
-  // Producto cruz (viewUp × viewPlaneNormal) apunta al borde derecho de la pantalla
   const rightVec = [
     topVec[1] * n[2] - topVec[2] * n[1],
     topVec[2] * n[0] - topVec[0] * n[2],
@@ -223,9 +264,12 @@ export default function VisorMPR3D() {
   const isGuest = !!tokenUrl;
 
   const [cargando, setCargando] = useState(true);
+  const [progresoCarga, setProgresoCarga] = useState({ actual: 0, total: 0 });
   const [errorMsg, setErrorMsg] = useState("");
+  const [seriesDisponibles, setSeriesDisponibles] = useState([]);
+  const [serieIdx, setSerieIdx] = useState(0);
   const [presetActivo, setPresetActivo] = useState("brain");
-  const [toolMode, setToolMode] = useState("crosshairs"); // "crosshairs" | "wl"
+  const [toolMode, setToolMode] = useState("crosshairs");
   const [ventanaActual, setVentanaActual] = useState({ ww: 80, wc: 40 });
   const [velocidadRueda, setVelocidadRueda] = useState(1);
   const [mostrarInfo, setMostrarInfo] = useState(true);
@@ -250,7 +294,6 @@ export default function VisorMPR3D() {
   const renderingEngineId = "my_mpr_rendering_engine";
   const toolGroupId = "mpr_tool_group";
 
-  // Escuchar cambios de idioma si el radiólogo lo cambia en la ventana principal
   useEffect(() => {
     const syncLang = () => setStoredLang(localStorage.getItem("i18nextLng") || "");
     window.addEventListener("storage", syncLang);
@@ -268,7 +311,6 @@ export default function VisorMPR3D() {
     });
   }, []);
 
-  // Recalcular letras R/L <-> D/I cuando cambie el idioma activo
   useEffect(() => {
     actualizarOrientaciones(isEn);
   }, [isEn, actualizarOrientaciones]);
@@ -309,7 +351,6 @@ export default function VisorMPR3D() {
           bindings: [{ mouseButton: csTools.Enums.MouseBindings.Primary }],
         });
       } else {
-        // Mantiene visibles las líneas verdes de referencia mientras el clic izquierdo ajusta brillo/contraste
         toolGroup.setToolEnabled(csTools.CrosshairsTool.toolName);
       }
     } catch (e) {}
@@ -361,7 +402,6 @@ export default function VisorMPR3D() {
     engine.renderViewports(VIEWPORT_IDS);
   }, [presetActivo, actualizarOrientaciones, i18n.language]);
 
-  // Manejador global de arrastre dinámico de Brillo/Contraste (WW/WC)
   useEffect(() => {
     let arrastrandoWL = false;
     let startX = 0;
@@ -375,7 +415,6 @@ export default function VisorMPR3D() {
       if (e.button !== 0) return;
       if (toolModeRef.current !== "wl" && !e.shiftKey) return;
 
-      // Evita que CrosshairsTool mueva los ejes mientras se ajusta brillo/contraste con Shift+Clic
       e.preventDefault();
       e.stopPropagation();
 
@@ -416,7 +455,7 @@ export default function VisorMPR3D() {
 
   useEffect(() => {
     let cancelado = false;
-    const volumeId = "cornerstoneStreamingImageVolume:my_mpr_volume";
+    const volumeId = `cornerstoneStreamingImageVolume:my_mpr_volume_s${serieIdx}`;
     const enIngles = (localStorage.getItem("i18nextLng") || i18n.language || "").toLowerCase().startsWith("en");
 
     const manejarRueda = (viewportId) => (e) => {
@@ -485,7 +524,9 @@ export default function VisorMPR3D() {
 
     const inicializarMPR = async () => {
       try {
+        setCargando(true);
         setErrorMsg("");
+        setProgresoCarga({ actual: 0, total: 0 });
 
         if (typeof SharedArrayBuffer === "undefined") {
           throw new Error(
@@ -513,17 +554,24 @@ export default function VisorMPR3D() {
           throw new Error(enIngles ? "No images found" : "No hay imágenes en este estudio");
         }
 
-        const seriePrincipal = data.reduce((prev, current) =>
-          (prev.imagenes?.length || 0) > (current.imagenes?.length || 0) ? prev : current
-        );
+        const candidatas = data
+          .filter((s) => (s.imagenes?.length || 0) >= 3)
+          .sort((a, b) => (b.imagenes?.length || 0) - (a.imagenes?.length || 0));
 
-        if (!seriePrincipal.imagenes || seriePrincipal.imagenes.length < 3) {
+        if (candidatas.length === 0) {
           throw new Error(
             enIngles
-              ? "3D MPR requires a volumetric series with at least 3 slices."
-              : "El MPR 3D requiere una serie volumétrica con al menos 3 cortes."
+              ? "This study has no volumetric series (minimum 3 slices required for 3D MPR)."
+              : "Este estudio no tiene series volumétricas (se requieren al menos 3 cortes para MPR 3D)."
           );
         }
+
+        if (!cancelado) {
+          setSeriesDisponibles(candidatas);
+        }
+
+        const idxSeguro = Math.min(serieIdx, candidatas.length - 1);
+        const seriePrincipal = candidatas[idxSeguro];
 
         const rawImageIds = seriePrincipal.imagenes.map((img) =>
           isGuest
@@ -531,7 +579,20 @@ export default function VisorMPR3D() {
             : `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${activeToken}`
         );
 
-        await Promise.all(rawImageIds.map((id) => csCore.imageLoader.loadAndCacheImage(id)));
+        setProgresoCarga({ actual: 0, total: rawImageIds.length });
+
+        // Carga adaptativa: rápida en LAN (8 hilos), regulada por túnel (3 hilos + pausa) para evitar HTTP 500
+        await cargarCortesPorLotes(
+          rawImageIds,
+          (actual, total) => setProgresoCarga({ actual, total }),
+          () => cancelado,
+          isLocalhost
+            ? { concurrencia: 8, pausaMs: 0, maxReintentos: 3 }
+            : { concurrencia: 3, pausaMs: 60, maxReintentos: 5 }
+        );
+
+        if (cancelado) return;
+
         const { sortedIds: imageIds, realZStep } = ordenarCortesEspacialmente(rawImageIds);
         sliceSpacingRef.current = realZStep;
 
@@ -553,7 +614,7 @@ export default function VisorMPR3D() {
           seriesMod.seriesDescription ||
           seriePrincipal.descripcion ||
           seriePrincipal.series_description ||
-          "Volumetric Series";
+          `Series #${idxSeguro + 1}`;
 
         const extractedInfo = {
           patientName: (nativeMeta.patientName || patientMod.patientName || "Unknown Patient").replace(/\^+/g, " ").trim(),
@@ -572,8 +633,6 @@ export default function VisorMPR3D() {
           setInfoPaciente(extractedInfo);
           setMostrarInfo(true);
         }
-
-        if (cancelado) return;
 
         const prevEngine = csCore.getRenderingEngine(renderingEngineId);
         if (prevEngine) prevEngine.destroy();
@@ -614,7 +673,9 @@ export default function VisorMPR3D() {
 
         const descUpper = `${estudioDesc} ${serieDesc}`.toUpperCase();
         let initialPresetKey = "brain";
-        if (descUpper.includes("TORAX") || descUpper.includes("CHEST") || descUpper.includes("PULMON") || descUpper.includes("LUNG")) {
+        if (descUpper.includes("HUESO") || descUpper.includes("BONE") || descUpper.includes("OSEO") || descUpper.includes("COSTAL")) {
+          initialPresetKey = "bone";
+        } else if (descUpper.includes("TORAX") || descUpper.includes("CHEST") || descUpper.includes("PULMON") || descUpper.includes("LUNG")) {
           initialPresetKey = "lung";
         } else if (descUpper.includes("ABDOM") || descUpper.includes("PELV") || descUpper.includes("UROTAC")) {
           initialPresetKey = "soft";
@@ -672,7 +733,11 @@ export default function VisorMPR3D() {
       } catch (error) {
         console.error("❌ Error inicializando MPR:", error);
         if (!cancelado) {
-          setErrorMsg(error?.message || (enIngles ? "Error building 3D volume" : "Error construyendo volumen 3D"));
+          const msg =
+            error?.message ||
+            error?.error?.statusText ||
+            (enIngles ? "Error building 3D volume" : "Error construyendo volumen 3D");
+          setErrorMsg(msg);
           setCargando(false);
         }
       }
@@ -691,19 +756,38 @@ export default function VisorMPR3D() {
       if (tg) csTools.ToolGroupManager.destroyToolGroup(toolGroupId);
       csCore.cache.purgeCache();
     };
-  }, [currentId, idRealUrl, activeToken, isGuest, i18n.language]);
+  }, [currentId, idRealUrl, activeToken, isGuest, serieIdx, i18n.language]);
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h3 style={{ margin: 0, color: "#fbbf24", fontSize: "15px" }}>
-          {isEn
-            ? "🧊 MI_PACS - 3D Multiplanar Reconstruction (MPR)"
-            : "🧊 MI_PACS - Reconstrucción Multiplanar (MPR) 3D"}
-        </h3>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0, color: "#fbbf24", fontSize: "15px" }}>
+            {isEn
+              ? "🧊 MI_PACS - 3D Multiplanar Reconstruction (MPR)"
+              : "🧊 MI_PACS - Reconstrucción Multiplanar (MPR) 3D"}
+          </h3>
+
+          {seriesDisponibles.length > 1 && (
+            <select
+              value={serieIdx}
+              onChange={(e) => setSerieIdx(Number(e.target.value))}
+              style={styles.seriesSelect}
+              title={isEn ? "Select Volumetric Series" : "Seleccionar Serie Volumétrica"}
+            >
+              {seriesDisponibles.map((s, idx) => {
+                const desc = s.descripcion || s.series_description || (isEn ? `Series #${idx + 1}` : `Serie #${idx + 1}`);
+                return (
+                  <option key={idx} value={idx}>
+                    {desc} ({s.imagenes?.length || 0} img)
+                  </option>
+                );
+              })}
+            </select>
+          )}
+        </div>
 
         <div style={{ display: "flex", gap: "7px", alignItems: "center", flexWrap: "wrap" }}>
-          {/* Selector de Herramienta Principal (Clic Izquierdo): Ejes 3D vs Brillo/Contraste */}
           <div style={styles.modeGroup}>
             <button
               onClick={() => cambiarModoHerramienta("crosshairs")}
@@ -729,7 +813,6 @@ export default function VisorMPR3D() {
             </button>
           </div>
 
-          {/* Presets Clínicos CT */}
           {Object.entries(CT_PRESETS).map(([key, item]) => (
             <button
               key={key}
@@ -744,13 +827,11 @@ export default function VisorMPR3D() {
             </button>
           ))}
 
-          {/* Lectura en vivo de Ancho y Nivel de Ventana (WW / WC) */}
           <div style={styles.wlBadge} title={isEn ? "Window Width / Window Center" : "Ancho de Ventana / Nivel de Ventana"}>
             WW: <strong style={{ color: "#38bdf8" }}>{ventanaActual.ww}</strong> | WC:{" "}
             <strong style={{ color: "#38bdf8" }}>{ventanaActual.wc}</strong>
           </div>
 
-          {/* Velocidad de rueda */}
           <div style={styles.speedGroup}>
             <span style={{ color: "#94a3b8", fontSize: "11px", padding: "0 6px" }}>
               {isEn ? "Scroll:" : "Rueda:"}
@@ -800,9 +881,13 @@ export default function VisorMPR3D() {
               : "Reconstruyendo Volumen 3D en la GPU..."}
           </h2>
           <p>
-            {isEn
-              ? "Sorting slices spatially and building orthogonal planes."
-              : "Ordenando cortes espacialmente y construyendo planos ortogonales."}
+            {progresoCarga.total > 0
+              ? isEn
+                ? `Loading slices safely: ${progresoCarga.actual} / ${progresoCarga.total}`
+                : `Cargando cortes de forma segura: ${progresoCarga.actual} / ${progresoCarga.total}`
+              : isEn
+                ? "Preparing volumetric series..."
+                : "Preparando serie volumétrica..."}
           </p>
         </div>
       )}
@@ -814,7 +899,6 @@ export default function VisorMPR3D() {
       )}
 
       <div style={styles.gridContainer}>
-        {/* Cuadrante Superior Izquierdo: AXIAL */}
         <div style={styles.viewportWrapper}>
           <div style={styles.label}>AXIAL</div>
           <OrientationOverlay markers={orientaciones.AXIAL_VIEWPORT} />
@@ -825,7 +909,6 @@ export default function VisorMPR3D() {
           />
         </div>
 
-        {/* Cuadrante Superior Derecho: CORONAL */}
         <div style={styles.viewportWrapper}>
           <div style={styles.label}>CORONAL</div>
           <OrientationOverlay markers={orientaciones.CORONAL_VIEWPORT} />
@@ -836,7 +919,6 @@ export default function VisorMPR3D() {
           />
         </div>
 
-        {/* Cuadrante Inferior Izquierdo: SAGITAL */}
         <div style={styles.viewportWrapper}>
           <div style={styles.label}>{isEn ? "SAGITTAL" : "SAGITAL"}</div>
           <OrientationOverlay markers={orientaciones.SAGITTAL_VIEWPORT} />
@@ -847,7 +929,6 @@ export default function VisorMPR3D() {
           />
         </div>
 
-        {/* Cuadrante Inferior Derecho: METADATOS DEL PACIENTE (CENTRADO) */}
         <div style={styles.infoQuadrant}>
           {!cargando && mostrarInfo && infoPaciente && (
             <div style={styles.metadataCard}>
@@ -928,6 +1009,7 @@ export default function VisorMPR3D() {
 const styles = {
   container: { display: "flex", flexDirection: "column", height: "100vh", width: "100vw", backgroundColor: "#000", fontFamily: "system-ui, sans-serif", overflow: "hidden" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px", backgroundColor: "#111418", borderBottom: "1px solid #1e293b", flexShrink: 0, gap: "10px", flexWrap: "wrap" },
+  seriesSelect: { backgroundColor: "#1e293b", color: "#38bdf8", border: "1px solid #38bdf8", borderRadius: "4px", padding: "4px 8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", maxWidth: "240px" },
   modeGroup: { display: "flex", alignItems: "center", backgroundColor: "#0f172a", border: "1px solid #334155", borderRadius: "4px", padding: "2px", gap: "2px" },
   btnMode: { border: "none", padding: "5px 10px", borderRadius: "3px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" },
   btnPreset: { color: "#e2e8f0", border: "1px solid #334155", padding: "5px 9px", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "600" },

@@ -18,7 +18,6 @@ import dicomParser from "dicom-parser";
 
 let initPromise = null;
 let currentAuthToken = "";
-let workerHangs = false;
 const parsedDataSets = new Map();
 
 export function setCornerstoneAuthToken(token) {
@@ -174,7 +173,7 @@ function directMetaDataProvider(type, imageId) {
   return undefined;
 }
 
-function loadImageDirectWithDicomParser(imageId) {
+function loadImageDirectWithDicomParser(imageId, fallbackLoader) {
   const parser = dicomParser.default || dicomParser;
   const url = imageId.replace(/^wadouri:/, "");
   const token =
@@ -194,6 +193,17 @@ function loadImageDirectWithDicomParser(imageId) {
       const byteArray = new Uint8Array(arrayBuffer);
       const dataSet = parser.parseDicom(byteArray);
 
+      const pixelElement = dataSet.elements.x7fe00010;
+      if (!pixelElement) {
+        throw new Error("El archivo DICOM no contiene tag de píxeles (7FE0,0010)");
+      }
+      if (pixelElement.encapsulatedPixelData) {
+        if (typeof fallbackLoader === "function") {
+          return fallbackLoader(imageId).promise;
+        }
+        throw new Error("Sintaxis DICOM comprimida: requiere decodificador nativo.");
+      }
+
       const rows = dataSet.uint16("x00280010") || 512;
       const columns = dataSet.uint16("x00280011") || 512;
       const bitsAllocated = dataSet.uint16("x00280100") || 16;
@@ -206,14 +216,6 @@ function loadImageDirectWithDicomParser(imageId) {
       const effectiveSlope = Number.isNaN(rawSlope) ? 1 : rawSlope;
       const wc = parseFloatList(dataSet.string("x00281050"), [40]);
       const ww = parseFloatList(dataSet.string("x00281051"), [400]);
-
-      const pixelElement = dataSet.elements.x7fe00010;
-      if (!pixelElement) {
-        throw new Error("El archivo DICOM no contiene tag de píxeles (7FE0,0010)");
-      }
-      if (pixelElement.encapsulatedPixelData) {
-        throw new Error("Sintaxis DICOM comprimida: requiere decodificador nativo.");
-      }
 
       const alignedBuffer = byteArray.buffer.slice(
         byteArray.byteOffset + pixelElement.dataOffset,
@@ -292,7 +294,6 @@ export function initCornerstone() {
     await csInit();
     csTools.init();
 
-    // 1. Registrar herramientas 3D disponibles
     const toolCandidates = [
       "PanTool",
       "ZoomTool",
@@ -319,7 +320,6 @@ export function initCornerstone() {
       }
     });
 
-    // 2. Configurar autenticación y WebWorkers en @cornerstonejs/dicom-image-loader v5
     const dicomLoader = cornerstoneDICOMImageLoader.default || cornerstoneDICOMImageLoader;
 
     const beforeSend = (xhr) => {
@@ -336,23 +336,14 @@ export function initCornerstone() {
 
     if (typeof dicomLoader.init === "function") {
       try {
-        await dicomLoader.init({
-          maxWebWorkers: Math.min(navigator.hardwareConcurrency || 2, 2),
-          beforeSend,
-        });
-      } catch (e) {
-        console.warn("MI_PACS → Aviso inicializando dicomLoader:", e);
-      }
+        await dicomLoader.init({ maxWebWorkers: 0, beforeSend });
+      } catch (e) {}
     }
 
     if (typeof dicomLoader.setOptions === "function") {
       dicomLoader.setOptions({ beforeSend });
     }
-    if (dicomLoader.internal && typeof dicomLoader.internal.setOptions === "function") {
-      dicomLoader.internal.setOptions({ beforeSend });
-    }
 
-    // 3. Registrar proveedores de metadatos
     const nativeProvider =
       dicomLoader.wadouri?.metaData?.metaDataProvider ||
       dicomLoader.wadouri?.metaDataProvider ||
@@ -363,40 +354,11 @@ export function initCornerstone() {
     }
     metaData.addProvider(directMetaDataProvider, 10001);
 
-    // 4. Registrar wadouri con detección automática de worker bloqueado
-    imageLoader.registerImageLoader("wadouri", (imageId) => {
-      if (workerHangs || !dicomLoader.wadouri?.loadImage) {
-        return loadImageDirectWithDicomParser(imageId);
-      }
+    // Decodificación directa sin duplicar peticiones HTTP
+    imageLoader.registerImageLoader("wadouri", (imageId) =>
+      loadImageDirectWithDicomParser(imageId, dicomLoader.wadouri?.loadImage)
+    );
 
-      const nativeTask = dicomLoader.wadouri.loadImage(imageId);
-      const promise = new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          console.warn("MI_PACS → WebWorker DICOM sin respuesta en Vite; cambiando a decodificación directa.");
-          workerHangs = true;
-          loadImageDirectWithDicomParser(imageId).promise.then(resolve, reject);
-        }, 2500);
-
-        nativeTask.promise.then(
-          (img) => {
-            clearTimeout(timer);
-            resolve(img);
-          },
-          (err) => {
-            clearTimeout(timer);
-            reject(err);
-          }
-        );
-      });
-
-      return {
-        promise,
-        cancelFn: nativeTask.cancelFn || (() => {}),
-        decache: nativeTask.decache || (() => {}),
-      };
-    });
-
-    // 5. Registrar cargador de volúmenes nativo de @cornerstonejs/core v5
     volumeLoader.registerVolumeLoader(
       "cornerstoneStreamingImageVolume",
       cornerstoneStreamingImageVolumeLoader
