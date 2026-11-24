@@ -1,800 +1,1061 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import {
-  RenderingEngine,
-  Enums,
-  volumeLoader,
-  setVolumesForViewports,
-  cache,
-  metaData,
-  getRenderingEngine,
-} from '@cornerstonejs/core';
-import {
-  ToolGroupManager,
-  WindowLevelTool,
-  PanTool,
-  ZoomTool,
-  StackScrollMouseWheelTool,
-  CrosshairsTool,
-  Enums as csToolsEnums,
-  addTool,
-} from '@cornerstonejs/tools';
-import * as cornerstoneInitModule from '../cornerstoneInit';
+/**
+- VisorMPR3D.jsx — MI_PACS
+- ---------------------------------------------------------
+- Reconstrucción Multiplanar 3D (Axial, Coronal, Sagital) en Cornerstone3D v5.10.8
+- Con carga adaptativa (LAN / Túnel), selector de series, marcadores EN/ES, Brillo/Contraste dinámico y Escudo de Memoria
+ */
 
-const RENDERING_ENGINE_ID = 'miPacsMpr3dEngine';
-const TOOL_GROUP_ID = 'miPacsMpr3dToolGroup';
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useParams, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
-const VIEWPORT_IDS = {
-  AXIAL: 'MPR_AXIAL',
-  CORONAL: 'MPR_CORONAL',
-  SAGITTAL: 'MPR_SAGITTAL',
+import * as csCore from "@cornerstonejs/core";
+import * as csTools from "@cornerstonejs/tools";
+import { initCornerstone, setCornerstoneAuthToken } from "../cornerstoneInit";
+
+const isLocalhost =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1";
+
+const API_BASE = isLocalhost
+  ? "http://192.168.5.21:8000"
+  : import.meta.env.VITE_API_URL || window.API_URL || window.location.origin;
+
+const CT_PRESETS = {
+  brain: { labelEs: "Cerebro", labelEn: "Brain", ww: 80, wc: 40 },
+  soft: { labelEs: "Tejido Blando", labelEn: "Soft Tissue", ww: 350, wc: 50 },
+  bone: { labelEs: "Hueso", labelEn: "Bone", ww: 2000, wc: 400 },
+  lung: { labelEs: "Pulmón", labelEn: "Lung", ww: 1500, wc: -600 },
 };
 
-const PRESETS_WL = [
-  { key: 'soft', labelEn: 'Soft Tissue', labelEs: 'Tejido Blando', ww: 400, wc: 40 },
-  { key: 'bone', labelEn: 'Bone', labelEs: 'Hueso', ww: 2000, wc: 500 },
-  { key: 'lung', labelEn: 'Lung', labelEs: 'Pulmón', ww: 1500, wc: -600 },
-  { key: 'brain', labelEn: 'Brain', labelEs: 'Cerebro', ww: 80, wc: 40 },
-];
+const VIEWPORT_IDS = ["AXIAL_VIEWPORT", "SAGITTAL_VIEWPORT", "CORONAL_VIEWPORT"];
 
-export default function VisorMPR3D() {
-  const { id } = useParams();
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { i18n } = useTranslation();
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(max, val));
+}
 
-  const isEs = (i18n?.language || localStorage.getItem('i18nextLng') || 'en')
-    .toLowerCase()
-    .startsWith('es');
+function formatearFechaDicom(rawDate) {
+  if (!rawDate) return "N/A";
+  const clean = String(rawDate).replace(/[^0-9]/g, "");
+  if (clean.length === 8) {
+    return `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`;
+  }
+  return rawDate;
+}
 
-  const axialRef = useRef(null);
-  const coronalRef = useRef(null);
-  const sagittalRef = useRef(null);
-  const activeVolumeIdRef = useRef(null);
+async function cargarCortesPorLotes(
+  imageIds,
+  onProgress,
+  isCancelledFn,
+  { concurrencia = 8, pausaMs = 0, maxReintentos = 4 } = {}
+) {
+  let completados = 0;
+  let indiceActual = 0;
 
-  const [estudio, setEstudio] = useState(null);
-  const [seriesList, setSeriesList] = useState([]);
-  const [selectedSeriesIdx, setSelectedSeriesIdx] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState({ loaded: 0, total: 0 });
-  const [errorMsg, setErrorMsg] = useState('');
-  const [wlModeActive, setWlModeActive] = useState(false);
-  const [wlValues, setWlValues] = useState({ ww: 400, wc: 40 });
-  const [activePreset, setActivePreset] = useState('soft');
-  const [showInfoCard, setShowInfoCard] = useState(true);
-  const [volumeStats, setVolumeStats] = useState({
-    dims: '512 × 512',
-    spacing: '1 mm',
-    seriesDesc: '',
+  const worker = async () => {
+    while (indiceActual < imageIds.length) {
+      if (isCancelledFn()) return;
+      const idx = indiceActual++;
+      const id = imageIds[idx];
+      let intentos = 0;
+
+      while (intentos < maxReintentos) {
+        if (isCancelledFn()) return;
+        try {
+          await csCore.imageLoader.loadAndCacheImage(id);
+          break;
+        } catch (err) {
+          intentos++;
+          if (intentos >= maxReintentos) throw err;
+          await new Promise((r) => setTimeout(r, 600 * intentos));
+        }
+      }
+
+      completados++;
+      if (onProgress && !isCancelledFn()) {
+        onProgress(completados, imageIds.length);
+      }
+
+      if (pausaMs > 0 && indiceActual < imageIds.length && !isCancelledFn()) {
+        await new Promise((r) => setTimeout(r, pausaMs));
+      }
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(concurrencia, imageIds.length) }, () => worker());
+  await Promise.all(workers);
+}
+
+function vectorALetraAnatomica(vec, isEn) {
+  if (!Array.isArray(vec) || vec.length < 3) return { code: "", label: "" };
+  const [x, y, z] = vec;
+  const ax = Math.abs(x);
+  const ay = Math.abs(y);
+  const az = Math.abs(z);
+
+  if (ax >= ay && ax >= az) {
+    return x >= 0
+      ? { code: isEn ? "L" : "I", label: isEn ? "Left" : "Izquierda" }
+      : { code: isEn ? "R" : "D", label: isEn ? "Right" : "Derecha" };
+  }
+  if (ay >= ax && ay >= az) {
+    return y >= 0
+      ? { code: "P", label: "Posterior" }
+      : { code: "A", label: "Anterior" };
+  }
+  return z >= 0
+    ? { code: "S", label: "Superior" }
+    : { code: "I", label: "Inferior" };
+}
+
+function calcularMarcadoresViewport(vp, isEn) {
+  if (!vp || typeof vp.getCamera !== "function") return null;
+  const camera = vp.getCamera();
+  if (!camera?.viewUp || !camera?.viewPlaneNormal) return null;
+
+  const topVec = camera.viewUp;
+  const bottomVec = [-topVec[0], -topVec[1], -topVec[2]];
+  const n = camera.viewPlaneNormal;
+
+  const rightVec = [
+    topVec[1] * n[2] - topVec[2] * n[1],
+    topVec[2] * n[0] - topVec[0] * n[2],
+    topVec[0] * n[1] - topVec[1] * n[0],
+  ];
+  const leftVec = [-rightVec[0], -rightVec[1], -rightVec[2]];
+
+  return {
+    top: vectorALetraAnatomica(topVec, isEn),
+    bottom: vectorALetraAnatomica(bottomVec, isEn),
+    left: vectorALetraAnatomica(leftVec, isEn),
+    right: vectorALetraAnatomica(rightVec, isEn),
+  };
+}
+
+function ordenarCortesEspacialmente(imageIds) {
+  const conPosicion = imageIds.map((id, idx) => {
+    const plane = csCore.metaData.get("imagePlaneModule", id);
+    const general = csCore.metaData.get("generalImageModule", id);
+    const ipp = plane?.imagePositionPatient;
+    const iop = plane?.imageOrientationPatient;
+
+    let zProj = null;
+    if (Array.isArray(ipp) && ipp.length >= 3 && Array.isArray(iop) && iop.length >= 6) {
+      const normal = [
+        iop[1] * iop[5] - iop[2] * iop[4],
+        iop[2] * iop[3] - iop[0] * iop[5],
+        iop[0] * iop[4] - iop[1] * iop[3],
+      ];
+      zProj = ipp[0] * normal[0] + ipp[1] * normal[1] + ipp[2] * normal[2];
+    } else if (typeof plane?.sliceLocation === "number") {
+      zProj = plane.sliceLocation;
+    }
+
+    return {
+      id,
+      zProj,
+      instanceNumber: general?.instanceNumber ?? idx,
+      originalIndex: idx,
+    };
   });
 
-  // Detecta si la conexión es LAN directa o túnel público (Cloudflare)
-  const isLocalNetwork = useCallback(() => {
-    const host = window.location.hostname;
-    return (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host.startsWith('192.168.') ||
-      host.startsWith('10.') ||
-      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
-    );
-  }, []);
+  const todosConZ = conPosicion.every((item) => typeof item.zProj === "number" && !Number.isNaN(item.zProj));
 
-  // Purga segura de memoria GPU/RAM de volúmenes previos
-  const cleanupPreviousVolume = useCallback(() => {
-    if (activeVolumeIdRef.current) {
-      try {
-        cache.removeVolumeLoadObject(activeVolumeIdRef.current);
-      } catch (_) {
-        // Ignorar si ya fue liberado
-      }
-      activeVolumeIdRef.current = null;
+  conPosicion.sort((a, b) => {
+    if (todosConZ) return a.zProj - b.zProj;
+    if (a.instanceNumber !== b.instanceNumber) return a.instanceNumber - b.instanceNumber;
+    return a.originalIndex - b.originalIndex;
+  });
+
+  let realZStep = 5.0;
+  if (todosConZ && conPosicion.length >= 2) {
+    const diff = Math.abs(conPosicion[1].zProj - conPosicion[0].zProj);
+    if (diff > 0.1) {
+      realZStep = diff;
     }
-  }, []);
+  }
 
-  // Carga inicial de metadatos del estudio y agrupación por series
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchStudyMetadata() {
-      try {
-        setLoading(true);
-        setErrorMsg('');
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const res = await fetch(`/api/estudios/${id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (cancelled) return;
-
-        setEstudio(data);
-
-        const rawImages = data.imagenes || data.images || data.slices || [];
-        if (!rawImages.length) {
-          throw new Error(
-            isEs
-              ? 'El estudio no contiene imágenes DICOM disponibles.'
-              : 'No DICOM images available for this study.'
-          );
-        }
-
-        // Agrupar imágenes por Serie (SeriesInstanceUID o series_number)
-        const groupsMap = new Map();
-        rawImages.forEach((img, index) => {
-          const uid =
-            img.series_instance_uid ||
-            img.series_uid ||
-            `SERIE_${img.series_number ?? 1}`;
-          if (!groupsMap.has(uid)) {
-            groupsMap.set(uid, {
-              uid,
-              seriesNumber: img.series_number ?? groupsMap.size + 1,
-              description:
-                img.series_description ||
-                img.descripcion ||
-                `Series #${img.series_number ?? groupsMap.size + 1}`,
-              images: [],
-            });
-          }
-          groupsMap.get(uid).images.push({ ...img, _origIdx: index });
-        });
-
-        const grouped = Array.from(groupsMap.values()).map((s) => {
-          // Ordenar cortes por InstanceNumber o SliceLocation para coherencia anatómica
-          s.images.sort((a, b) => {
-            const locA = parseFloat(a.slice_location ?? a.posicion_z);
-            const locB = parseFloat(b.slice_location ?? b.posicion_z);
-            if (!Number.isNaN(locA) && !Number.isNaN(locB) && locA !== locB) {
-              return locA - locB;
-            }
-            const instA = parseInt(a.instance_number ?? a.numero_imagen ?? a._origIdx, 10);
-            const instB = parseInt(b.instance_number ?? b.numero_imagen ?? b._origIdx, 10);
-            return instA - instB;
-          });
-          return s;
-        });
-
-        // Seleccionar por defecto la serie volumétrica con mayor cantidad de cortes
-        let bestIdx = 0;
-        grouped.forEach((s, idx) => {
-          if (s.images.length > grouped[bestIdx].images.length) {
-            bestIdx = idx;
-          }
-        });
-
-        setSeriesList(grouped);
-        setSelectedSeriesIdx(bestIdx);
-      } catch (err) {
-        if (!cancelled) {
-          setErrorMsg(
-            isEs
-              ? `Error cargando metadatos del estudio: ${err.message}`
-              : `Error loading study metadata: ${err.message}`
-          );
-          setLoading(false);
-        }
-      }
-    }
-
-    fetchStudyMetadata();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, isEs]);
-
-  // Construcción y renderizado del volumen 3D con escudo de memoria
-  useEffect(() => {
-    if (!seriesList.length || !seriesList[selectedSeriesIdx]) return;
-    let cancelled = false;
-
-    async function buildVolumeAndViewports() {
-      try {
-        setLoading(true);
-        setErrorMsg('');
-
-        // Inicializar Cornerstone3D y decodificador en memoria
-        if (typeof cornerstoneInitModule.initCornerstone === 'function') {
-          await cornerstoneInitModule.initCornerstone();
-        } else if (typeof cornerstoneInitModule.default === 'function') {
-          await cornerstoneInitModule.default();
-        }
-
-        const currentSeries = seriesList[selectedSeriesIdx];
-        const slices = currentSeries.images;
-        if (slices.length < 3) {
-          throw new Error(
-            isEs
-              ? 'Se requieren al menos 3 cortes contiguos para reconstrucción MPR 3D.'
-              : 'At least 3 contiguous slices are required for 3D MPR reconstruction.'
-          );
-        }
-
-        // Liberar volumen anterior antes de asignar nueva memoria GPU
-        cleanupPreviousVolume();
-
-        const origin = window.location.origin;
-        const imageIds = slices.map((img) => {
-          const streamPath = img.stream_url || `/api/dicom/stream/${img.id}`;
-          const fullUrl = streamPath.startsWith('http')
-            ? streamPath
-            : `${origin}${streamPath}`;
-          return `wadouri:${fullUrl}`;
-        });
-
-        setProgress({ loaded: 0, total: imageIds.length });
-
-        // Descarga adaptativa por lotes (protege túnel Cloudflare y estudios de 1,000+ cortes)
-        const lan = isLocalNetwork();
-        const isMassive = imageIds.length >= 800;
-        const batchSize = lan ? (isMassive ? 6 : 8) : 3;
-        const batchDelayMs = lan ? (isMassive ? 15 : 0) : isMassive ? 80 : 60;
-
-        const { imageLoader } = await import('@cornerstonejs/core');
-
-        const loadWithRetry = async (imageId, retries = 3) => {
-          for (let attempt = 1; attempt <= retries; attempt++) {
-            try {
-              await imageLoader.loadAndCacheImage(imageId);
-              return;
-            } catch (err) {
-              if (attempt === retries) throw err;
-              await new Promise((r) => setTimeout(r, 250 * attempt));
-            }
-          }
-        };
-
-        let completed = 0;
-        for (let i = 0; i < imageIds.length; i += batchSize) {
-          if (cancelled) return;
-          const batch = imageIds.slice(i, i + batchSize);
-          await Promise.all(batch.map((imgId) => loadWithRetry(imgId)));
-          completed += batch.length;
-          if (!cancelled) {
-            setProgress({ loaded: Math.min(completed, imageIds.length), total: imageIds.length });
-          }
-          if (batchDelayMs > 0 && i + batchSize < imageIds.length) {
-            await new Promise((r) => setTimeout(r, batchDelayMs));
-          }
-        }
-
-        if (cancelled) return;
-
-        // Configurar RenderingEngine
-        let renderingEngine = getRenderingEngine(RENDERING_ENGINE_ID);
-        if (renderingEngine) {
-          renderingEngine.destroy();
-        }
-        renderingEngine = new RenderingEngine(RENDERING_ENGINE_ID);
-
-        const viewportInputArray = [
-          {
-            viewportId: VIEWPORT_IDS.AXIAL,
-            type: Enums.ViewportType.ORTHOGRAPHIC,
-            element: axialRef.current,
-            defaultOptions: {
-              orientation: Enums.OrientationAxis.AXIAL,
-              background: [0, 0, 0],
-            },
-          },
-          {
-            viewportId: VIEWPORT_IDS.CORONAL,
-            type: Enums.ViewportType.ORTHOGRAPHIC,
-            element: coronalRef.current,
-            defaultOptions: {
-              orientation: Enums.OrientationAxis.CORONAL,
-              background: [0, 0, 0],
-            },
-          },
-          {
-            viewportId: VIEWPORT_IDS.SAGITTAL,
-            type: Enums.ViewportType.ORTHOGRAPHIC,
-            element: sagittalRef.current,
-            defaultOptions: {
-              orientation: Enums.OrientationAxis.SAGITTAL,
-              background: [0, 0, 0],
-            },
-          },
-        ];
-
-        renderingEngine.setViewports(viewportInputArray);
-
-        // Ensamblar el volumen 3D en la GPU
-        const volumeId = `cornerstoneStreamingImageVolume:MPR_${id}_S${selectedSeriesIdx}_${Date.now()}`;
-        activeVolumeIdRef.current = volumeId;
-
-        const volume = await volumeLoader.createAndCacheVolume(volumeId, {
-          imageIds,
-        });
-
-        await volume.load();
-        if (cancelled) return;
-
-        // Extraer dimensiones reales del volumen para la tarjeta de metadatos
-        const dims = volume.dimensions || [512, 512, imageIds.length];
-        const spacing = volume.spacing || [1, 1, 1];
-        setVolumeStats({
-          dims: `${dims[0]}×${dims[1]} px`,
-          spacing: `${Number(spacing[2] || 1).toFixed(2).replace(/\.00$/, '')} mm`,
-          seriesDesc: currentSeries.description,
-        });
-
-        // 🛡️ ESCUDO DE MEMORIA: Una vez subido el volumen 3D a la GPU, liberar los cortes 2D individuales de la RAM
-        imageIds.forEach((imgId) => {
-          try {
-            cache.removeImageLoadObject(imgId);
-          } catch (_) {
-            // Ignorar entradas ya limpiadas
-          }
-        });
-
-        await setVolumesForViewports(
-          renderingEngine,
-          [{ volumeId }],
-          [VIEWPORT_IDS.AXIAL, VIEWPORT_IDS.CORONAL, VIEWPORT_IDS.SAGITTAL]
-        );
-
-        // Registrar y configurar herramientas interactivas
-        [
-          WindowLevelTool,
-          PanTool,
-          ZoomTool,
-          StackScrollMouseWheelTool,
-          CrosshairsTool,
-        ].forEach((tool) => {
-          try {
-            addTool(tool);
-          } catch (_) {
-            // Ya registrada
-          }
-        });
-
-        let toolGroup = ToolGroupManager.getToolGroup(TOOL_GROUP_ID);
-        if (toolGroup) {
-          ToolGroupManager.destroyToolGroup(TOOL_GROUP_ID);
-        }
-        toolGroup = ToolGroupManager.createToolGroup(TOOL_GROUP_ID);
-
-        toolGroup.addTool(WindowLevelTool.toolName);
-        toolGroup.addTool(PanTool.toolName);
-        toolGroup.addTool(ZoomTool.toolName);
-        toolGroup.addTool(StackScrollMouseWheelTool.toolName);
-        toolGroup.addTool(CrosshairsTool.toolName, {
-          getReferenceLineColor: (viewportId) => {
-            if (viewportId === VIEWPORT_IDS.AXIAL) return [56, 189, 248];
-            if (viewportId === VIEWPORT_IDS.CORONAL) return [34, 197, 94];
-            return [250, 204, 21];
-          },
-        });
-
-        toolGroup.addViewport(VIEWPORT_IDS.AXIAL, RENDERING_ENGINE_ID);
-        toolGroup.addViewport(VIEWPORT_IDS.CORONAL, RENDERING_ENGINE_ID);
-        toolGroup.addViewport(VIEWPORT_IDS.SAGITTAL, RENDERING_ENGINE_ID);
-
-        // Configuración inicial: Ejes 3D en clic izquierdo, Paneo en central, Zoom en derecho, Rueda para cortes
-        toolGroup.setToolActive(CrosshairsTool.toolName, {
-          bindings: [{ mouseButton: csToolsEnums.MouseBindings.Primary }],
-        });
-        toolGroup.setToolActive(PanTool.toolName, {
-          bindings: [{ mouseButton: csToolsEnums.MouseBindings.Auxiliary }],
-        });
-        toolGroup.setToolActive(ZoomTool.toolName, {
-          bindings: [{ mouseButton: csToolsEnums.MouseBindings.Secondary }],
-        });
-        toolGroup.setToolActive(StackScrollMouseWheelTool.toolName);
-        toolGroup.setToolPassive(WindowLevelTool.toolName);
-
-        // Aplicar ventana inicial según modalidad (Cerebro/Tejido blando)
-        const isBrain = /brain|cerebro|craneo|head/i.test(
-          `${estudio?.descripcion || ''} ${currentSeries.description}`
-        );
-        const initialPreset = isBrain
-          ? PRESETS_WL.find((p) => p.key === 'brain')
-          : PRESETS_WL[0];
-        applyWindowLevel(initialPreset.ww, initialPreset.wc, initialPreset.key);
-
-        renderingEngine.renderViewports([
-          VIEWPORT_IDS.AXIAL,
-          VIEWPORT_IDS.CORONAL,
-          VIEWPORT_IDS.SAGITTAL,
-        ]);
-
-        setLoading(false);
-      } catch (err) {
-        if (!cancelled) {
-          setErrorMsg(
-            isEs
-              ? `Error reconstruyendo volumen 3D: ${err.message}`
-              : `Error building 3D volume: ${err.message}`
-          );
-          setLoading(false);
-        }
-      }
-    }
-
-    buildVolumeAndViewports();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [seriesList, selectedSeriesIdx, id, isLocalNetwork, cleanupPreviousVolume, isEs, estudio]);
-
-  // Limpieza total al desmontar el componente
-  useEffect(() => {
-    return () => {
-      try {
-        ToolGroupManager.destroyToolGroup(TOOL_GROUP_ID);
-      } catch (_) {}
-      try {
-        const engine = getRenderingEngine(RENDERING_ENGINE_ID);
-        if (engine) engine.destroy();
-      } catch (_) {}
-      cleanupPreviousVolume();
-    };
-  }, [cleanupPreviousVolume]);
-
-  // Escuchar cambios en tiempo real de Brillo/Contraste (WW/WC)
-  useEffect(() => {
-    const elements = [axialRef.current, coronalRef.current, sagittalRef.current].filter(Boolean);
-    const handleVoiModified = (evt) => {
-      const range = evt.detail?.range;
-      if (range && typeof range.lower === 'number' && typeof range.upper === 'number') {
-        const ww = Math.round(range.upper - range.lower);
-        const wc = Math.round((range.upper + range.lower) / 2);
-        setWlValues({ ww, wc });
-        setActivePreset('custom');
-      }
-    };
-
-    elements.forEach((el) =>
-      el.addEventListener(Enums.Events.VOI_MODIFIED, handleVoiModified)
-    );
-    return () => {
-      elements.forEach((el) =>
-        el.removeEventListener(Enums.Events.VOI_MODIFIED, handleVoiModified)
-      );
-    };
-  }, [loading]);
-
-  const applyWindowLevel = (ww, wc, presetKey = 'custom') => {
-    const renderingEngine = getRenderingEngine(RENDERING_ENGINE_ID);
-    if (!renderingEngine) return;
-
-    const lower = wc - ww / 2;
-    const upper = wc + ww / 2;
-
-    Object.values(VIEWPORT_IDS).forEach((vpId) => {
-      const vp = renderingEngine.getViewport(vpId);
-      if (vp) {
-        vp.setProperties({ voiRange: { lower, upper } });
-        vp.render();
-      }
-    });
-
-    setWlValues({ ww: Math.round(ww), wc: Math.round(wc) });
-    setActivePreset(presetKey);
+  return {
+    sortedIds: conPosicion.map((item) => item.id),
+    realZStep,
   };
+}
 
-  const toggleWlMouseMode = () => {
-    const toolGroup = ToolGroupManager.getToolGroup(TOOL_GROUP_ID);
-    if (!toolGroup) return;
+function vincularHerramientasMPR(renderingEngineId, toolGroupId, modoInicial = "crosshairs") {
+  const prevToolGroup = csTools.ToolGroupManager.getToolGroup(toolGroupId);
+  if (prevToolGroup) {
+    csTools.ToolGroupManager.destroyToolGroup(toolGroupId);
+  }
 
-    const nextMode = !wlModeActive;
-    if (nextMode) {
-      toolGroup.setToolPassive(CrosshairsTool.toolName);
-      toolGroup.setToolActive(WindowLevelTool.toolName, {
-        bindings: [{ mouseButton: csToolsEnums.MouseBindings.Primary }],
+  const toolGroup = csTools.ToolGroupManager.createToolGroup(toolGroupId);
+  VIEWPORT_IDS.forEach((vpId) => toolGroup.addViewport(vpId, renderingEngineId));
+
+  if (csTools.CrosshairsTool) {
+    try { csTools.addTool(csTools.CrosshairsTool); } catch (e) {}
+    toolGroup.addTool(csTools.CrosshairsTool.toolName);
+    if (modoInicial === "crosshairs") {
+      toolGroup.setToolActive(csTools.CrosshairsTool.toolName, {
+        bindings: [{ mouseButton: csTools.Enums.MouseBindings.Primary }],
       });
     } else {
-      toolGroup.setToolPassive(WindowLevelTool.toolName);
-      toolGroup.setToolActive(CrosshairsTool.toolName, {
-        bindings: [{ mouseButton: csToolsEnums.MouseBindings.Primary }],
-      });
+      toolGroup.setToolEnabled(csTools.CrosshairsTool.toolName);
     }
-    setWlModeActive(nextMode);
+  }
+  if (csTools.ZoomTool) {
+    try { csTools.addTool(csTools.ZoomTool); } catch (e) {}
+    toolGroup.addTool(csTools.ZoomTool.toolName);
+    toolGroup.setToolActive(csTools.ZoomTool.toolName, {
+      bindings: [{ mouseButton: csTools.Enums.MouseBindings.Secondary }],
+    });
+  }
+  if (csTools.PanTool) {
+    try { csTools.addTool(csTools.PanTool); } catch (e) {}
+    toolGroup.addTool(csTools.PanTool.toolName);
+    toolGroup.setToolActive(csTools.PanTool.toolName, {
+      bindings: [{ mouseButton: csTools.Enums.MouseBindings.Auxiliary }],
+    });
+  }
+}
+
+function OrientationOverlay({ markers }) {
+  if (!markers) return null;
+  return (
+    <>
+      {markers.top?.code && (
+        <div style={{ ...styles.orientBadge, top: "8px", left: "50%", transform: "translateX(-50%)" }} title={markers.top.label}>
+          {markers.top.code}
+        </div>
+      )}
+      {markers.bottom?.code && (
+        <div style={{ ...styles.orientBadge, bottom: "8px", left: "50%", transform: "translateX(-50%)" }} title={markers.bottom.label}>
+          {markers.bottom.code}
+        </div>
+      )}
+      {markers.left?.code && (
+        <div style={{ ...styles.orientBadge, left: "10px", top: "50%", transform: "translateY(-50%)" }} title={markers.left.label}>
+          {markers.left.code}
+        </div>
+      )}
+      {markers.right?.code && (
+        <div style={{ ...styles.orientBadge, right: "10px", top: "50%", transform: "translateY(-50%)" }} title={markers.right.label}>
+          {markers.right.code}
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function VisorMPR3D() {
+  const { id: currentId } = useParams();
+  const location = useLocation();
+  const { i18n } = useTranslation();
+
+  const [storedLang, setStoredLang] = useState(() => localStorage.getItem("i18nextLng") || "");
+  const effectiveLang = i18n.language || storedLang || "es";
+  const isEn = effectiveLang.toLowerCase().startsWith("en");
+
+  const searchParams = new URLSearchParams(location.search);
+  const tokenUrl = searchParams.get("token");
+  const idRealUrl = searchParams.get("id_real");
+  const rawLocalToken = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  const cleanLocalToken = rawLocalToken.replace(/['"]+/g, "").trim();
+
+  const activeToken = tokenUrl || cleanLocalToken;
+  const isGuest = !!tokenUrl;
+
+  const [cargando, setCargando] = useState(true);
+  const [progresoCarga, setProgresoCarga] = useState({ actual: 0, total: 0 });
+  const [errorMsg, setErrorMsg] = useState("");
+  const [seriesDisponibles, setSeriesDisponibles] = useState([]);
+  const [serieIdx, setSerieIdx] = useState(0);
+  const [presetActivo, setPresetActivo] = useState("brain");
+  const [toolMode, setToolMode] = useState("crosshairs");
+  const [ventanaActual, setVentanaActual] = useState({ ww: 80, wc: 40 });
+  const [velocidadRueda, setVelocidadRueda] = useState(1);
+  const [mostrarInfo, setMostrarInfo] = useState(true);
+  const [infoPaciente, setInfoPaciente] = useState(null);
+  const [orientaciones, setOrientaciones] = useState({
+    AXIAL_VIEWPORT: null,
+    CORONAL_VIEWPORT: null,
+    SAGITTAL_VIEWPORT: null,
+  });
+
+  const axialRef = useRef(null);
+  const sagittalRef = useRef(null);
+  const coronalRef = useRef(null);
+
+  const sliceSpacingRef = useRef(5.0);
+  const velocidadRef = useRef(1);
+  const volumeBoundsRef = useRef(null);
+  const toolModeRef = useRef("crosshairs");
+  const ventanaRef = useRef({ ww: 80, wc: 40 });
+  const defaultPresetRef = useRef("brain");
+
+  const renderingEngineId = "my_mpr_rendering_engine";
+  const toolGroupId = "mpr_tool_group";
+
+  useEffect(() => {
+    const syncLang = () => setStoredLang(localStorage.getItem("i18nextLng") || "");
+    window.addEventListener("storage", syncLang);
+    return () => window.removeEventListener("storage", syncLang);
+  }, []);
+
+  const actualizarOrientaciones = useCallback((langIsEn) => {
+    const engine = csCore.getRenderingEngine(renderingEngineId);
+    if (!engine) return;
+
+    setOrientaciones({
+      AXIAL_VIEWPORT: calcularMarcadoresViewport(engine.getViewport("AXIAL_VIEWPORT"), langIsEn),
+      CORONAL_VIEWPORT: calcularMarcadoresViewport(engine.getViewport("CORONAL_VIEWPORT"), langIsEn),
+      SAGITTAL_VIEWPORT: calcularMarcadoresViewport(engine.getViewport("SAGITTAL_VIEWPORT"), langIsEn),
+    });
+  }, []);
+
+  useEffect(() => {
+    actualizarOrientaciones(isEn);
+  }, [isEn, actualizarOrientaciones]);
+
+  const aplicarVoiRango = useCallback((ww, wc) => {
+    const safeWW = Math.max(1, Math.round(ww));
+    const safeWC = Math.round(wc);
+    ventanaRef.current = { ww: safeWW, wc: safeWC };
+    setVentanaActual({ ww: safeWW, wc: safeWC });
+
+    const engine = csCore.getRenderingEngine(renderingEngineId);
+    if (!engine) return;
+
+    const lower = safeWC - safeWW / 2;
+    const upper = safeWC + safeWW / 2;
+
+    VIEWPORT_IDS.forEach((vpId) => {
+      const vp = engine.getViewport(vpId);
+      if (vp && typeof vp.setProperties === "function") {
+        try {
+          vp.setProperties({ voiRange: { lower, upper } });
+          vp.render();
+        } catch (e) {}
+      }
+    });
+  }, []);
+
+  const cambiarModoHerramienta = useCallback((nuevoModo) => {
+    setToolMode(nuevoModo);
+    toolModeRef.current = nuevoModo;
+
+    const toolGroup = csTools.ToolGroupManager.getToolGroup(toolGroupId);
+    if (!toolGroup || !csTools.CrosshairsTool) return;
+
+    try {
+      if (nuevoModo === "crosshairs") {
+        toolGroup.setToolActive(csTools.CrosshairsTool.toolName, {
+          bindings: [{ mouseButton: csTools.Enums.MouseBindings.Primary }],
+        });
+      } else {
+        toolGroup.setToolEnabled(csTools.CrosshairsTool.toolName);
+      }
+    } catch (e) {}
+  }, []);
+
+  const cambiarVelocidad = (mult) => {
+    setVelocidadRueda(mult);
+    velocidadRef.current = mult;
   };
 
-  const handleResetView = () => {
-    const renderingEngine = getRenderingEngine(RENDERING_ENGINE_ID);
-    if (!renderingEngine) return;
+  const aplicarVentanaCT = useCallback((presetKey) => {
+    setPresetActivo(presetKey);
+    const preset = CT_PRESETS[presetKey];
+    if (!preset) return;
+    aplicarVoiRango(preset.ww, preset.wc);
+  }, [aplicarVoiRango]);
 
-    Object.values(VIEWPORT_IDS).forEach((vpId) => {
-      const vp = renderingEngine.getViewport(vpId);
+  const reiniciarVista = useCallback(() => {
+    const engine = csCore.getRenderingEngine(renderingEngineId);
+    if (!engine) return;
+
+    const targetPresetKey = CT_PRESETS[presetActivo] ? presetActivo : defaultPresetRef.current;
+    const preset = CT_PRESETS[targetPresetKey] || CT_PRESETS.brain;
+    setPresetActivo(targetPresetKey);
+
+    const lower = preset.wc - preset.ww / 2;
+    const upper = preset.wc + preset.ww / 2;
+    ventanaRef.current = { ww: preset.ww, wc: preset.wc };
+    setVentanaActual({ ww: preset.ww, wc: preset.wc });
+
+    engine.resize(true);
+    VIEWPORT_IDS.forEach((vpId) => {
+      const vp = engine.getViewport(vpId);
       if (vp) {
         vp.resetCamera();
-        vp.render();
+        if (typeof vp.setProperties === "function") {
+          try {
+            vp.setProperties({ voiRange: { lower, upper } });
+          } catch (e) {}
+        }
       }
     });
-  };
 
-  const handleClose = () => {
-    const returnTo = searchParams.get('from');
-    if (returnTo) {
-      navigate(returnTo);
-    } else {
-      navigate(-1);
-    }
-  };
+    try {
+      vincularHerramientasMPR(renderingEngineId, toolGroupId, toolModeRef.current);
+    } catch (e) {}
 
-  const pct =
-    progress.total > 0 ? Math.min(100, Math.round((progress.loaded / progress.total) * 100)) : 0;
+    actualizarOrientaciones((localStorage.getItem("i18nextLng") || i18n.language || "").toLowerCase().startsWith("en"));
+    engine.renderViewports(VIEWPORT_IDS);
+  }, [presetActivo, actualizarOrientaciones, i18n.language]);
+
+  useEffect(() => {
+    let arrastrandoWL = false;
+    let startX = 0;
+    let startY = 0;
+    let startWW = 80;
+    let startWC = 40;
+
+    const elementos = [axialRef.current, coronalRef.current, sagittalRef.current].filter(Boolean);
+
+    const onMouseDown = (e) => {
+      if (e.button !== 0) return;
+      if (toolModeRef.current !== "wl" && !e.shiftKey) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      arrastrandoWL = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startWW = ventanaRef.current.ww;
+      startWC = ventanaRef.current.wc;
+    };
+
+    const onMouseMove = (e) => {
+      if (!arrastrandoWL) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      const sensibilidad = Math.max(1, Math.abs(startWW) / 220);
+      const nextWW = Math.max(1, Math.round(startWW + dx * sensibilidad));
+      const nextWC = Math.round(startWC + dy * sensibilidad);
+
+      setPresetActivo("custom");
+      aplicarVoiRango(nextWW, nextWC);
+    };
+
+    const onMouseUp = () => {
+      arrastrandoWL = false;
+    };
+
+    elementos.forEach((el) => el.addEventListener("mousedown", onMouseDown, { capture: true }));
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      elementos.forEach((el) => el.removeEventListener("mousedown", onMouseDown, { capture: true }));
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [aplicarVoiRango]);
+
+  useEffect(() => {
+    let cancelado = false;
+    const volumeId = `cornerstoneStreamingImageVolume:my_mpr_volume_s${serieIdx}`;
+    const enIngles = (localStorage.getItem("i18nextLng") || i18n.language || "").toLowerCase().startsWith("en");
+
+    const manejarRueda = (viewportId) => (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const dir = Math.sign(e.deltaY);
+      if (dir === 0) return;
+
+      const engine = csCore.getRenderingEngine(renderingEngineId);
+      if (!engine) return;
+      const vp = engine.getViewport(viewportId);
+      if (!vp) return;
+
+      const camera = vp.getCamera();
+      if (!camera?.viewPlaneNormal || !camera?.focalPoint || !camera?.position) return;
+
+      const baseMm =
+        viewportId === "AXIAL_VIEWPORT"
+          ? sliceSpacingRef.current
+          : Math.max(sliceSpacingRef.current, 4.0);
+
+      const step = dir * baseMm * velocidadRef.current;
+      const [nx, ny, nz] = camera.viewPlaneNormal;
+
+      let nextFocal = [
+        camera.focalPoint[0] + nx * step,
+        camera.focalPoint[1] + ny * step,
+        camera.focalPoint[2] + nz * step,
+      ];
+
+      const bounds = volumeBoundsRef.current;
+      if (Array.isArray(bounds) && bounds.length === 6) {
+        nextFocal = [
+          clamp(nextFocal[0], bounds[0], bounds[1]),
+          clamp(nextFocal[1], bounds[2], bounds[3]),
+          clamp(nextFocal[2], bounds[4], bounds[5]),
+        ];
+      }
+
+      const deltaVec = [
+        nextFocal[0] - camera.focalPoint[0],
+        nextFocal[1] - camera.focalPoint[1],
+        nextFocal[2] - camera.focalPoint[2],
+      ];
+
+      const nextPos = [
+        camera.position[0] + deltaVec[0],
+        camera.position[1] + deltaVec[1],
+        camera.position[2] + deltaVec[2],
+      ];
+
+      vp.setCamera({ focalPoint: nextFocal, position: nextPos });
+      engine.renderViewports(VIEWPORT_IDS);
+    };
+
+    const wheelHandlers = [
+      { el: axialRef.current, fn: manejarRueda("AXIAL_VIEWPORT") },
+      { el: coronalRef.current, fn: manejarRueda("CORONAL_VIEWPORT") },
+      { el: sagittalRef.current, fn: manejarRueda("SAGITTAL_VIEWPORT") },
+    ];
+
+    wheelHandlers.forEach(({ el, fn }) => {
+      if (el) el.addEventListener("wheel", fn, { passive: false, capture: true });
+    });
+
+    const inicializarMPR = async () => {
+      try {
+        setCargando(true);
+        setErrorMsg("");
+        setProgresoCarga({ actual: 0, total: 0 });
+
+        if (typeof SharedArrayBuffer === "undefined") {
+          throw new Error(
+            enIngles
+              ? "SharedArrayBuffer is disabled. Check COOP/COEP headers."
+              : "SharedArrayBuffer deshabilitado. Revisa las cabeceras COOP/COEP."
+          );
+        }
+
+        setCornerstoneAuthToken(isGuest ? "" : activeToken);
+        await initCornerstone();
+
+        const urlFetch = isGuest
+          ? `${API_BASE}/api/secure-links/imagenes/${activeToken}`
+          : `${API_BASE}/api/estudios/${currentId}/imagenes`;
+
+        const headersFetch = isGuest ? {} : { Authorization: `Bearer ${activeToken}` };
+        const response = await fetch(urlFetch, { headers: headersFetch });
+        if (!response.ok) {
+          throw new Error(enIngles ? "Authentication or server error" : "Error de autenticación o servidor");
+        }
+
+        const data = await response.json();
+        if (!data || data.length === 0) {
+          throw new Error(enIngles ? "No images found" : "No hay imágenes en este estudio");
+        }
+
+        const candidatas = data
+          .filter((s) => (s.imagenes?.length || 0) >= 3)
+          .sort((a, b) => (b.imagenes?.length || 0) - (a.imagenes?.length || 0));
+
+        if (candidatas.length === 0) {
+          throw new Error(
+            enIngles
+              ? "This study has no volumetric series (minimum 3 slices required for 3D MPR)."
+              : "Este estudio no tiene series volumétricas (se requieren al menos 3 cortes para MPR 3D)."
+          );
+        }
+
+        if (!cancelado) {
+          setSeriesDisponibles(candidatas);
+        }
+
+        const idxSeguro = Math.min(serieIdx, candidatas.length - 1);
+        const seriePrincipal = candidatas[idxSeguro];
+
+        const rawImageIds = seriePrincipal.imagenes.map((img) =>
+          isGuest
+            ? `wadouri:${API_BASE}/api/secure-links/stream/${img.id}?token=${activeToken}`
+            : `wadouri:${API_BASE}/api/dicom/stream/${img.id}?token=${activeToken}`
+        );
+
+        setProgresoCarga({ actual: 0, total: rawImageIds.length });
+
+        // Carga adaptativa: rápida en LAN (6-8 hilos), regulada por túnel (3 hilos + pausa) para estudios de hasta 1,000+ cortes
+        const esMasivo = rawImageIds.length >= 800;
+        await cargarCortesPorLotes(
+          rawImageIds,
+          (actual, total) => setProgresoCarga({ actual, total }),
+          () => cancelado,
+          isLocalhost
+            ? { concurrencia: esMasivo ? 6 : 8, pausaMs: esMasivo ? 15 : 0, maxReintentos: 3 }
+            : { concurrencia: 3, pausaMs: esMasivo ? 80 : 60, maxReintentos: 5 }
+        );
+
+        if (cancelado) return;
+
+        const { sortedIds: imageIds, realZStep } = ordenarCortesEspacialmente(rawImageIds);
+        sliceSpacingRef.current = realZStep;
+
+        const firstId = imageIds[0];
+        const nativeMeta = csCore.metaData.get("miPacsNativeMetadata", firstId) || {};
+        const patientMod = csCore.metaData.get("patientModule", firstId) || {};
+        const studyMod = csCore.metaData.get("generalStudyModule", firstId) || {};
+        const seriesMod = csCore.metaData.get("generalSeriesModule", firstId) || {};
+        const planeMod = csCore.metaData.get("imagePlaneModule", firstId) || {};
+
+        const estudioDesc =
+          nativeMeta.studyDescription ||
+          studyMod.studyDescription ||
+          seriePrincipal.descripcion_estudio ||
+          "N/A";
+
+        const serieDesc =
+          nativeMeta.seriesDescription ||
+          seriesMod.seriesDescription ||
+          seriePrincipal.descripcion ||
+          seriePrincipal.series_description ||
+          `Series #${idxSeguro + 1}`;
+
+        const extractedInfo = {
+          patientName: (nativeMeta.patientName || patientMod.patientName || "Unknown Patient").replace(/\^+/g, " ").trim(),
+          patientId: nativeMeta.patientId || patientMod.patientId || idRealUrl || currentId || "N/A",
+          patientSex: nativeMeta.patientSex || patientMod.patientSex || "",
+          modality: nativeMeta.modality || seriesMod.modality || "CT",
+          studyDate: formatearFechaDicom(nativeMeta.studyDate || studyMod.studyDate),
+          studyDescription: estudioDesc,
+          seriesDescription: serieDesc,
+          totalSlices: imageIds.length,
+          sliceThickness: Number((nativeMeta.sliceThickness || planeMod.sliceThickness || realZStep).toFixed(2)),
+          matrix: `${nativeMeta.columns || planeMod.columns || 512}×${nativeMeta.rows || planeMod.rows || 512}`,
+        };
+
+        if (!cancelado) {
+          setInfoPaciente(extractedInfo);
+          setMostrarInfo(true);
+        }
+
+        const prevEngine = csCore.getRenderingEngine(renderingEngineId);
+        if (prevEngine) prevEngine.destroy();
+
+        // Liberar cualquier volumen MPR previo de la memoria GPU/RAM al cambiar de serie
+        try {
+          const cachedVolumes = csCore.cache.getVolumes?.() || [];
+          cachedVolumes.forEach((vol) => {
+            if (vol?.volumeId?.includes("my_mpr_volume_")) {
+              csCore.cache.removeVolumeLoadObject(vol.volumeId);
+            }
+          });
+        } catch (e) {}
+
+        if (csCore.cache.getVolume(volumeId)) {
+          csCore.cache.removeVolumeLoadObject(volumeId);
+        }
+
+        const renderingEngine = new csCore.RenderingEngine(renderingEngineId);
+
+        renderingEngine.setViewports([
+          {
+            viewportId: "AXIAL_VIEWPORT",
+            type: csCore.Enums.ViewportType.ORTHOGRAPHIC,
+            element: axialRef.current,
+            defaultOptions: { orientation: csCore.Enums.OrientationAxis.AXIAL, background: [0, 0, 0] },
+          },
+          {
+            viewportId: "SAGITTAL_VIEWPORT",
+            type: csCore.Enums.ViewportType.ORTHOGRAPHIC,
+            element: sagittalRef.current,
+            defaultOptions: { orientation: csCore.Enums.OrientationAxis.SAGITTAL, background: [0, 0, 0] },
+          },
+          {
+            viewportId: "CORONAL_VIEWPORT",
+            type: csCore.Enums.ViewportType.ORTHOGRAPHIC,
+            element: coronalRef.current,
+            defaultOptions: { orientation: csCore.Enums.OrientationAxis.CORONAL, background: [0, 0, 0] },
+          },
+        ]);
+
+        const volume = await csCore.volumeLoader.createAndCacheVolume(volumeId, { imageIds });
+        if (typeof volume.load === "function") {
+          await volume.load();
+        }
+
+        if (cancelado) return;
+
+        // 🛡️ ESCUDO DE MEMORIA: Liberar cortes 2D individuales de la RAM una vez ensamblado el volumen 3D en GPU
+        imageIds.forEach((imgId) => {
+          try {
+            if (csCore.cache && typeof csCore.cache.removeImageLoadObject === "function") {
+              csCore.cache.removeImageLoadObject(imgId);
+            }
+          } catch (e) {}
+        });
+
+        await csCore.setVolumesForViewports(renderingEngine, [{ volumeId }], VIEWPORT_IDS);
+
+        const descUpper = `${estudioDesc} ${serieDesc}`.toUpperCase();
+        let initialPresetKey = "brain";
+        if (descUpper.includes("HUESO") || descUpper.includes("BONE") || descUpper.includes("OSEO") || descUpper.includes("COSTAL")) {
+          initialPresetKey = "bone";
+        } else if (descUpper.includes("TORAX") || descUpper.includes("CHEST") || descUpper.includes("PULMON") || descUpper.includes("LUNG")) {
+          initialPresetKey = "lung";
+        } else if (descUpper.includes("ABDOM") || descUpper.includes("PELV") || descUpper.includes("UROTAC")) {
+          initialPresetKey = "soft";
+        }
+
+        defaultPresetRef.current = initialPresetKey;
+        const presetInicial = CT_PRESETS[initialPresetKey];
+        ventanaRef.current = { ww: presetInicial.ww, wc: presetInicial.wc };
+
+        if (!cancelado) {
+          setPresetActivo(initialPresetKey);
+          setVentanaActual({ ww: presetInicial.ww, wc: presetInicial.wc });
+        }
+
+        const lower = presetInicial.wc - presetInicial.ww / 2;
+        const upper = presetInicial.wc + presetInicial.ww / 2;
+
+        renderingEngine.resize(true);
+        VIEWPORT_IDS.forEach((vpId) => {
+          const vp = renderingEngine.getViewport(vpId);
+          if (vp) {
+            vp.resetCamera();
+            if (typeof vp.setProperties === "function") {
+              try {
+                vp.setProperties({ voiRange: { lower, upper } });
+              } catch (e) {}
+            }
+          }
+        });
+
+        const axialVp = renderingEngine.getViewport("AXIAL_VIEWPORT");
+        const bounds = axialVp?.getDefaultActor?.()?.actor?.getBounds?.();
+        if (Array.isArray(bounds) && bounds.length === 6) {
+          volumeBoundsRef.current = bounds;
+        }
+
+        renderingEngine.renderViewports(VIEWPORT_IDS);
+
+        if (!cancelado) {
+          const activeLangEn = (localStorage.getItem("i18nextLng") || i18n.language || "").toLowerCase().startsWith("en");
+          setOrientaciones({
+            AXIAL_VIEWPORT: calcularMarcadoresViewport(renderingEngine.getViewport("AXIAL_VIEWPORT"), activeLangEn),
+            CORONAL_VIEWPORT: calcularMarcadoresViewport(renderingEngine.getViewport("CORONAL_VIEWPORT"), activeLangEn),
+            SAGITTAL_VIEWPORT: calcularMarcadoresViewport(renderingEngine.getViewport("SAGITTAL_VIEWPORT"), activeLangEn),
+          });
+        }
+
+        try {
+          vincularHerramientasMPR(renderingEngineId, toolGroupId, toolModeRef.current);
+        } catch (e) {
+          console.warn("Aviso configurando herramientas MPR:", e);
+        }
+
+        if (!cancelado) setCargando(false);
+      } catch (error) {
+        console.error("❌ Error inicializando MPR:", error);
+        if (!cancelado) {
+          const msg =
+            error?.message ||
+            error?.error?.statusText ||
+            (enIngles ? "Error building 3D volume" : "Error construyendo volumen 3D");
+          setErrorMsg(msg);
+          setCargando(false);
+        }
+      }
+    };
+
+    inicializarMPR();
+
+    return () => {
+      cancelado = true;
+      wheelHandlers.forEach(({ el, fn }) => {
+        if (el) el.removeEventListener("wheel", fn, { capture: true });
+      });
+      const engine = csCore.getRenderingEngine(renderingEngineId);
+      if (engine) engine.destroy();
+      const tg = csTools.ToolGroupManager.getToolGroup(toolGroupId);
+      if (tg) csTools.ToolGroupManager.destroyToolGroup(toolGroupId);
+      csCore.cache.purgeCache();
+    };
+  }, [currentId, idRealUrl, activeToken, isGuest, serieIdx, i18n.language]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black text-slate-100 select-none">
-      {/* BARRA SUPERIOR DE HERRAMIENTAS */}
-      <header className="flex flex-wrap items-center justify-between gap-2 bg-[#0b1120] border-b border-slate-800 px-3 py-2 text-xs">
-        <div className="flex items-center gap-3">
-          <span className="font-semibold text-sky-400 tracking-wide">
-            🧊 MI_PACS —{' '}
-            {isEs
-              ? 'Reconstrucción Multiplanar 3D (MPR)'
-              : '3D Multiplanar Reconstruction (MPR)'}
-          </span>
+    <div style={styles.container}>
+      <div style={styles.header}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0, color: "#fbbf24", fontSize: "15px" }}>
+            {isEn
+              ? "🧊 MI_PACS - 3D Multiplanar Reconstruction (MPR)"
+              : "🧊 MI_PACS - Reconstrucción Multiplanar (MPR) 3D"}
+          </h3>
 
-          {seriesList.length > 0 && (
+          {seriesDisponibles.length > 1 && (
             <select
-              value={selectedSeriesIdx}
-              onChange={(e) => setSelectedSeriesIdx(Number(e.target.value))}
-              disabled={loading}
-              className="bg-slate-900 border border-sky-500/50 text-sky-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-sky-400"
+              value={serieIdx}
+              onChange={(e) => setSerieIdx(Number(e.target.value))}
+              style={styles.seriesSelect}
+              title={isEn ? "Select Volumetric Series" : "Seleccionar Serie Volumétrica"}
             >
-              {seriesList.map((s, idx) => (
-                <option key={s.uid} value={idx}>
-                  {isEs ? `Serie #${s.seriesNumber}` : `Series #${s.seriesNumber}`} (
-                  {s.images.length} img)
-                </option>
-              ))}
+              {seriesDisponibles.map((s, idx) => {
+                const desc = s.descripcion || s.series_description || (isEn ? `Series #${idx + 1}` : `Serie #${idx + 1}`);
+                return (
+                  <option key={idx} value={idx}>
+                    {desc} ({s.imagenes?.length || 0} img)
+                  </option>
+                );
+              })}
             </select>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          {/* Modo Ejes 3D vs Brillo/Contraste continuo */}
-          <button
-            onClick={() => wlModeActive && toggleWlMouseMode()}
-            className={`px-2.5 py-1 rounded font-medium transition ${
-              !wlModeActive
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            ✚ {isEs ? 'Ejes 3D' : 'Crosshairs'}
-          </button>
+        <div style={{ display: "flex", gap: "7px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={styles.modeGroup}>
+            <button
+              onClick={() => cambiarModoHerramienta("crosshairs")}
+              style={{
+                ...styles.btnMode,
+                backgroundColor: toolMode === "crosshairs" ? "#10b981" : "transparent",
+                color: toolMode === "crosshairs" ? "#0f172a" : "#e2e8f0",
+              }}
+              title={isEn ? "Left Drag: Move 3D Crosshairs" : "Clic Izq: Mover Ejes 3D"}
+            >
+              {isEn ? "✚ Crosshairs" : "✚ Ejes 3D"}
+            </button>
+            <button
+              onClick={() => cambiarModoHerramienta("wl")}
+              style={{
+                ...styles.btnMode,
+                backgroundColor: toolMode === "wl" ? "#38bdf8" : "transparent",
+                color: toolMode === "wl" ? "#0f172a" : "#e2e8f0",
+              }}
+              title={isEn ? "Left Drag: Dynamic Brightness/Contrast" : "Clic Izq: Ajustar Brillo/Contraste"}
+            >
+              {isEn ? "☀ W/L (Contrast)" : "☀ Brillo/Contraste"}
+            </button>
+          </div>
 
-          <button
-            onClick={toggleWlMouseMode}
-            className={`px-2.5 py-1 rounded font-medium transition ${
-              wlModeActive
-                ? 'bg-amber-500 text-slate-950 font-semibold'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            ☀ {isEs ? 'W/L (Contraste)' : 'W/L (Contrast)'}
-          </button>
+          {Object.entries(CT_PRESETS).map(([key, item]) => (
+            <button
+              key={key}
+              onClick={() => aplicarVentanaCT(key)}
+              style={{
+                ...styles.btnPreset,
+                backgroundColor: presetActivo === key ? "#0284c7" : "#1e293b",
+                borderColor: presetActivo === key ? "#38bdf8" : "#334155",
+              }}
+            >
+              {isEn ? item.labelEn : item.labelEs}
+            </button>
+          ))}
 
-          {/* Presets Anatómicos */}
-          <div className="hidden md:flex items-center gap-1 mx-1">
-            {PRESETS_WL.map((p) => (
+          <div style={styles.wlBadge} title={isEn ? "Window Width / Window Center" : "Ancho de Ventana / Nivel de Ventana"}>
+            WW: <strong style={{ color: "#38bdf8" }}>{ventanaActual.ww}</strong> | WC:{" "}
+            <strong style={{ color: "#38bdf8" }}>{ventanaActual.wc}</strong>
+          </div>
+
+          <div style={styles.speedGroup}>
+            <span style={{ color: "#94a3b8", fontSize: "11px", padding: "0 6px" }}>
+              {isEn ? "Scroll:" : "Rueda:"}
+            </span>
+            {[1, 2, 4].map((mult) => (
               <button
-                key={p.key}
-                onClick={() => applyWindowLevel(p.ww, p.wc, p.key)}
-                className={`px-2 py-1 rounded transition ${
-                  activePreset === p.key
-                    ? 'bg-sky-600 text-white font-semibold'
-                    : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
-                }`}
+                key={mult}
+                onClick={() => cambiarVelocidad(mult)}
+                style={{
+                  ...styles.btnSpeed,
+                  backgroundColor: velocidadRueda === mult ? "#10b981" : "transparent",
+                  color: velocidadRueda === mult ? "#0f172a" : "#e2e8f0",
+                }}
               >
-                {isEs ? p.labelEs : p.labelEn}
+                {mult}x
               </button>
             ))}
           </div>
 
-          {/* Lectura en vivo WW / WC */}
-          <span className="px-2 py-1 rounded bg-slate-900 border border-slate-700 font-mono text-[11px] text-sky-300">
-            WW: {wlValues.ww} | WC: {wlValues.wc}
-          </span>
-
-          <button
-            onClick={handleResetView}
-            className="px-2.5 py-1 rounded bg-amber-600/90 hover:bg-amber-500 text-white font-medium transition"
-          >
-            ↺ {isEs ? 'Restaurar' : 'Reset View'}
+          <button style={styles.btnReset} onClick={reiniciarVista}>
+            {isEn ? "↺ Reset View" : "↺ Reiniciar Vista"}
           </button>
 
           <button
-            onClick={() => setShowInfoCard((prev) => !prev)}
-            className={`px-2.5 py-1 rounded font-medium transition ${
-              showInfoCard
-                ? 'bg-sky-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            onClick={() => setMostrarInfo((prev) => !prev)}
+            style={{
+              ...styles.btnInfo,
+              backgroundColor: mostrarInfo ? "#0891b2" : "#1e293b",
+              borderColor: mostrarInfo ? "#22d3ee" : "#334155",
+            }}
+            title={isEn ? "Show/Hide Patient Metadata" : "Mostrar/Ocultar Información del Paciente"}
           >
             ℹ Info
           </button>
 
-          <button
-            onClick={handleClose}
-            className="px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-semibold transition"
-          >
-            ✕ {isEs ? 'Cerrar MPR' : 'Close MPR'}
+          <button style={styles.btnCerrar} onClick={() => window.close()}>
+            {isEn ? "Close MPR" : "Cerrar MPR"}
           </button>
         </div>
-      </header>
+      </div>
 
-      {/* CUADRÍCULA ORTOGONAL 2x2 */}
-      <main className="relative flex-1 grid grid-cols-2 grid-rows-2 bg-black overflow-hidden">
-        {/* CUADRANTE SUPERIOR IZQUIERDO: AXIAL */}
-        <div className="relative border-r border-b border-slate-800">
-          <span className="absolute top-2 left-2 z-10 text-[11px] font-bold tracking-wider text-amber-400 pointer-events-none">
-            AXIAL
-          </span>
-          <span className="absolute top-2 left-1/2 -translate-x-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            A
-          </span>
-          <span className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            P
-          </span>
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            R
-          </span>
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            L
-          </span>
+      {cargando && (
+        <div style={styles.loadingOverlay}>
+          <h2>
+            {isEn
+              ? "Reconstructing 3D Volume on GPU..."
+              : "Reconstruyendo Volumen 3D en la GPU..."}
+          </h2>
+          <p>
+            {progresoCarga.total > 0
+              ? isEn
+                ? `Loading slices safely: ${progresoCarga.actual} / ${progresoCarga.total}`
+                : `Cargando cortes de forma segura: ${progresoCarga.actual} / ${progresoCarga.total}`
+              : isEn
+                ? "Preparing volumetric series..."
+                : "Preparando serie volumétrica..."}
+          </p>
+        </div>
+      )}
+
+      {!cargando && errorMsg && (
+        <div style={styles.loadingOverlay}>
+          <h3 style={{ color: "#f87171" }}>⚠️ {errorMsg}</h3>
+        </div>
+      )}
+
+      <div style={styles.gridContainer}>
+        <div style={styles.viewportWrapper}>
+          <div style={styles.label}>AXIAL</div>
+          <OrientationOverlay markers={orientaciones.AXIAL_VIEWPORT} />
           <div
             ref={axialRef}
+            style={{ ...styles.viewport, cursor: toolMode === "wl" ? "ns-resize" : "crosshair" }}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-full h-full"
           />
         </div>
 
-        {/* CUADRANTE SUPERIOR DERECHO: CORONAL */}
-        <div className="relative border-b border-slate-800">
-          <span className="absolute top-2 left-2 z-10 text-[11px] font-bold tracking-wider text-amber-400 pointer-events-none">
-            CORONAL
-          </span>
-          <span className="absolute top-2 left-1/2 -translate-x-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            S
-          </span>
-          <span className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            I
-          </span>
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            R
-          </span>
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            L
-          </span>
+        <div style={styles.viewportWrapper}>
+          <div style={styles.label}>CORONAL</div>
+          <OrientationOverlay markers={orientaciones.CORONAL_VIEWPORT} />
           <div
             ref={coronalRef}
+            style={{ ...styles.viewport, cursor: toolMode === "wl" ? "ns-resize" : "crosshair" }}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-full h-full"
           />
         </div>
 
-        {/* CUADRANTE INFERIOR IZQUIERDO: SAGITAL */}
-        <div className="relative border-r border-slate-800">
-          <span className="absolute top-2 left-2 z-10 text-[11px] font-bold tracking-wider text-amber-400 pointer-events-none">
-            {isEs ? 'SAGITAL' : 'SAGITTAL'}
-          </span>
-          <span className="absolute top-2 left-1/2 -translate-x-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            S
-          </span>
-          <span className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            I
-          </span>
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            A
-          </span>
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-[10px] font-bold text-sky-400 pointer-events-none">
-            P
-          </span>
+        <div style={styles.viewportWrapper}>
+          <div style={styles.label}>{isEn ? "SAGITTAL" : "SAGITAL"}</div>
+          <OrientationOverlay markers={orientaciones.SAGITTAL_VIEWPORT} />
           <div
             ref={sagittalRef}
+            style={{ ...styles.viewport, cursor: toolMode === "wl" ? "ns-resize" : "crosshair" }}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-full h-full"
           />
         </div>
 
-        {/* CUADRANTE INFERIOR DERECHO: TARJETA DE METADATOS */}
-        <div className="relative flex items-center justify-center bg-[#030712] p-4">
-          {showInfoCard && estudio && (
-            <div className="w-full max-w-md rounded-lg border border-slate-700/80 bg-[#0b1120]/95 p-4 shadow-xl text-xs">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
-                <span className="font-bold tracking-wider text-amber-400 uppercase">
-                  {isEs ? 'METADATOS NATIVOS DEL ESTUDIO' : 'NATIVE FILE METADATA'}
+        <div style={styles.infoQuadrant}>
+          {!cargando && mostrarInfo && infoPaciente && (
+            <div style={styles.metadataCard}>
+              <div style={styles.metadataHeader}>
+                <span>
+                  {isEn ? "NATIVE FILE METADATA" : "METADATOS NATIVOS DEL ESTUDIO"}
                 </span>
                 <button
-                  onClick={() => setShowInfoCard(false)}
-                  className="text-slate-400 hover:text-white px-1"
+                  onClick={() => setMostrarInfo(false)}
+                  style={styles.metadataCloseBtn}
+                  title={isEn ? "Hide" : "Ocultar"}
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="grid grid-cols-[120px_1fr] gap-y-1.5 text-[11px]">
-                <span className="text-slate-400">{isEs ? 'Paciente:' : 'Patient:'}</span>
-                <span className="font-semibold text-white truncate">
-                  {estudio.paciente_nombre || estudio.patient_name || 'N/A'}
-                </span>
-
-                <span className="text-slate-400">{isEs ? 'ID Clínico:' : 'Clinical ID:'}</span>
-                <span className="text-slate-200">
-                  {estudio.paciente_identificacion || estudio.patient_id || id}
-                </span>
-
-                <span className="text-slate-400">{isEs ? 'Modalidad:' : 'Modality:'}</span>
-                <span>
-                  <span className="inline-block rounded bg-sky-600/30 border border-sky-500/50 px-1.5 py-0.5 font-bold text-sky-300">
-                    {estudio.modalidad || 'CT'}
+              <div style={styles.metadataBody}>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaKey}>{isEn ? "Patient:" : "Paciente:"}</span>
+                  <span style={styles.metaValStrong}>{infoPaciente.patientName}</span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaKey}>{isEn ? "Original ID:" : "ID Paciente:"}</span>
+                  <span style={styles.metaVal}>
+                    {infoPaciente.patientId}
+                    {infoPaciente.patientSex ? `  •  ${infoPaciente.patientSex}` : ""}
                   </span>
-                </span>
-
-                <span className="text-slate-400">{isEs ? 'Fecha Estudio:' : 'Study Date:'}</span>
-                <span className="text-slate-200">
-                  {estudio.fecha_estudio || estudio.study_date || 'N/A'}
-                </span>
-
-                <span className="text-slate-400">{isEs ? 'Estudio:' : 'Study:'}</span>
-                <span className="text-slate-200 truncate">
-                  {estudio.descripcion || estudio.study_description || 'N/A'}
-                </span>
-
-                <span className="text-slate-400">{isEs ? 'Serie (Cortes):' : 'Series (Slices):'}</span>
-                <span className="text-slate-200 truncate">
-                  {volumeStats.seriesDesc} ({progress.total} img)
-                </span>
-
-                <span className="text-slate-400">{isEs ? 'Geometría 3D:' : '3D Geometry:'}</span>
-                <span className="text-slate-200">
-                  {volumeStats.dims} • {volumeStats.spacing}
-                </span>
-
-                <span className="text-slate-400">
-                  {isEs ? 'Ventana (WW/WC):' : 'Window (WW/WC):'}
-                </span>
-                <span className="font-mono text-sky-300">
-                  {wlValues.ww} / {wlValues.wc} HU
-                </span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaKey}>{isEn ? "Modality:" : "Modalidad:"}</span>
+                  <span style={styles.metaBadge}>{infoPaciente.modality}</span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaKey}>{isEn ? "Study Date:" : "Fecha Estudio:"}</span>
+                  <span style={styles.metaVal}>{infoPaciente.studyDate}</span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaKey}>{isEn ? "Study:" : "Estudio:"}</span>
+                  <span style={styles.metaVal}>{infoPaciente.studyDescription}</span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaKey}>{isEn ? "Series (Slices):" : "Serie (Cortes):"}</span>
+                  <span style={styles.metaVal}>
+                    {infoPaciente.seriesDescription} ({infoPaciente.totalSlices} img)
+                  </span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaKey}>{isEn ? "3D Geometry:" : "Geometría 3D:"}</span>
+                  <span style={styles.metaVal}>
+                    {infoPaciente.matrix} px  •  {infoPaciente.sliceThickness} mm
+                  </span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaKey}>{isEn ? "Window (WW/WC):" : "Ventana (WW/WC):"}</span>
+                  <span style={styles.metaVal}>
+                    {ventanaActual.ww} / {ventanaActual.wc} HU
+                  </span>
+                </div>
               </div>
             </div>
           )}
         </div>
+      </div>
 
-        {/* SUPERPOSICIÓN DE PROGRESO / ERROR */}
-        {(loading || errorMsg) && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm p-6">
-            {errorMsg ? (
-              <div className="max-w-md rounded-lg border border-rose-500/50 bg-rose-950/80 p-5 text-center">
-                <p className="text-sm font-semibold text-rose-200 mb-4">{errorMsg}</p>
-                <button
-                  onClick={handleClose}
-                  className="px-4 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold"
-                >
-                  {isEs ? 'Volver al visor' : 'Back to viewer'}
-                </button>
-              </div>
-            ) : (
-              <div className="w-full max-w-md rounded-lg border border-slate-700 bg-slate-900/95 p-6 text-center shadow-2xl">
-                <p className="text-sm font-semibold text-sky-400 mb-2">
-                  {isEs
-                    ? 'Construyendo Volumen 3D en GPU...'
-                    : 'Building 3D Volume on GPU...'}
-                </p>
-                <p className="text-xs text-slate-300 mb-3 font-mono">
-                  {progress.loaded} / {progress.total}{' '}
-                  {isEs ? 'cortes' : 'slices'} ({pct}%)
-                </p>
-                <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all duration-150"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
+      <div style={styles.footerBar}>
+        {toolMode === "wl"
+          ? isEn
+            ? "Controls: Wheel = Scroll Slices | Left Drag = Brightness/Contrast (WW/WC) | Right Drag = Zoom | Middle Drag = Pan"
+            : "Controles: Rueda = Cambiar Cortes | Clic Izq = Brillo/Contraste (WW/WC) | Clic Der = Zoom | Clic Central = Mover"
+          : isEn
+            ? "Controls: Wheel = Scroll Slices | Left Drag = Sync Crosshairs (Shift+Drag = W/L) | Right Drag = Zoom | Middle Drag = Pan"
+            : "Controles: Rueda = Cambiar Cortes | Clic Izq = Sincronizar Ejes (Shift+Arrastrar = Brillo/Contraste) | Clic Der = Zoom | Clic Central = Mover"}
+      </div>
     </div>
   );
 }
+
+const styles = {
+  container: { display: "flex", flexDirection: "column", height: "100vh", width: "100vw", backgroundColor: "#000", fontFamily: "system-ui, sans-serif", overflow: "hidden" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px", backgroundColor: "#111418", borderBottom: "1px solid #1e293b", flexShrink: 0, gap: "10px", flexWrap: "wrap" },
+  seriesSelect: { backgroundColor: "#1e293b", color: "#38bdf8", border: "1px solid #38bdf8", borderRadius: "4px", padding: "4px 8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", maxWidth: "240px" },
+  modeGroup: { display: "flex", alignItems: "center", backgroundColor: "#0f172a", border: "1px solid #334155", borderRadius: "4px", padding: "2px", gap: "2px" },
+  btnMode: { border: "none", padding: "5px 10px", borderRadius: "3px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" },
+  btnPreset: { color: "#e2e8f0", border: "1px solid #334155", padding: "5px 9px", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "600" },
+  wlBadge: { backgroundColor: "#0f172a", border: "1px solid #334155", color: "#cbd5e1", padding: "5px 9px", borderRadius: "4px", fontSize: "11.5px", fontFamily: "monospace" },
+  speedGroup: { display: "flex", alignItems: "center", backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "4px", padding: "2px" },
+  btnSpeed: { border: "none", padding: "4px 7px", borderRadius: "3px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" },
+  btnReset: { backgroundColor: "#f59e0b", color: "#0f172a", border: "none", padding: "6px 11px", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" },
+  btnInfo: { color: "#ffffff", border: "1px solid #22d3ee", padding: "5px 11px", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" },
+  btnCerrar: { backgroundColor: "#ef4444", color: "white", border: "none", padding: "6px 14px", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" },
+  gridContainer: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "2px", padding: "2px" },
+  viewportWrapper: { position: "relative", minWidth: 0, minHeight: 0, overflow: "hidden", backgroundColor: "#000000", border: "1px solid #1e293b" },
+  viewport: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, outline: "none" },
+  label: { position: "absolute", top: "10px", left: "10px", color: "#fbbf24", zIndex: 10, fontSize: "12px", fontWeight: "bold", textShadow: "1px 1px 2px #000", pointerEvents: "none" },
+  orientBadge: { position: "absolute", zIndex: 12, color: "#38bdf8", backgroundColor: "rgba(0, 0, 0, 0.55)", border: "1px solid rgba(56, 189, 248, 0.35)", borderRadius: "3px", padding: "1px 6px", fontSize: "12px", fontWeight: "bold", textShadow: "1px 1px 2px #000", pointerEvents: "auto", userSelect: "none" },
+  infoQuadrant: { position: "relative", minWidth: 0, minHeight: 0, backgroundColor: "#000000", border: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
+  metadataCard: { width: "100%", maxWidth: "490px", backgroundColor: "rgba(15, 23, 42, 0.94)", border: "1px solid #334155", borderLeft: "3px solid #fbbf24", borderRadius: "6px", padding: "18px 20px", boxShadow: "0 8px 24px rgba(0,0,0,0.65)" },
+  metadataHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", color: "#fbbf24", fontSize: "11px", fontWeight: "bold", letterSpacing: "0.06em", borderBottom: "1px solid #1e293b", paddingBottom: "8px", marginBottom: "10px" },
+  metadataCloseBtn: { background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "13px", padding: "0 4px" },
+  metadataBody: { display: "flex", flexDirection: "column", gap: "6px" },
+  metaRow: { display: "flex", gap: "8px", fontSize: "12.5px", lineHeight: "1.35" },
+  metaKey: { color: "#94a3b8", minWidth: "115px", flexShrink: 0 },
+  metaVal: { color: "#e2e8f0", wordBreak: "break-word" },
+  metaValStrong: { color: "#ffffff", fontWeight: "bold", wordBreak: "break-word" },
+  metaBadge: { backgroundColor: "#0284c7", color: "#fff", padding: "1px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold" },
+  footerBar: { padding: "5px 20px", backgroundColor: "#0f172a", borderTop: "1px solid #1e293b", color: "#94a3b8", fontSize: "12px", textAlign: "center", flexShrink: 0 },
+  loadingOverlay: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.85)", zIndex: 50, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", color: "#38bdf8" }
+};
