@@ -11,26 +11,21 @@ export default defineConfig({
     }),
   ],
   server: {
-    host: true, // Permite que el servidor sea accesible fuera del contenedor Docker
-    port: 5173, // Asegura el puerto expuesto
-    
-    // 🚀 AQUÍ ESTÁ LA MAGIA: Cabeceras de aislamiento para habilitar SharedArrayBuffer
+    host: true,
+    port: 5173,
     headers: {
       "Cross-Origin-Embedder-Policy": "credentialless",
       "Cross-Origin-Opener-Policy": "same-origin",
     },
-
     watch: {
-      usePolling: true, // 🔥 Obliga a Vite a buscar cambios, solucionando el bloqueo de Ctrl+S
+      usePolling: true,
     },
-    // Agregamos esto para permitir que Ngrok y Cloudflare se conecten sin bloqueos
     allowedHosts: [
       'erratic-irritable-occupier.ngrok-free.dev',
       '.ngrok-free.dev',
-      'portal.mipacs.net' // <-- Tu dominio público agregado aquí
+      'portal.mipacs.net'
     ],
     proxy: {
-      // Todo lo que empiece con /api será redirigido internamente a FastAPI
       '/api': {
         target: 'http://192.168.5.21:8000',
         changeOrigin: true,
