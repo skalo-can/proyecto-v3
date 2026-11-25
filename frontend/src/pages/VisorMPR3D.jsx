@@ -2,7 +2,7 @@
 - VisorMPR3D.jsx — MI_PACS
 - ---------------------------------------------------------
 - Reconstrucción Multiplanar 3D (Axial, Coronal, Sagital) en Cornerstone3D v5.10.8
-- Con carga adaptativa (LAN / Túnel), selector de series, marcadores EN/ES, Brillo/Contraste dinámico y Escudo de Memoria
+- Con carga adaptativa (LAN / Túnel), anti-congelamiento, selector de series, marcadores EN/ES, Brillo/Contraste dinámico y Escudo de Memoria
  */
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -43,6 +43,25 @@ function formatearFechaDicom(rawDate) {
   return rawDate;
 }
 
+function cargarConTimeout(imageId, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timeout descargando corte (${timeoutMs} ms)`));
+    }, timeoutMs);
+
+    csCore.imageLoader
+      .loadAndCacheImage(imageId)
+      .then((img) => {
+        clearTimeout(timer);
+        resolve(img);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 async function cargarCortesPorLotes(
   imageIds,
   onProgress,
@@ -62,12 +81,15 @@ async function cargarCortesPorLotes(
       while (intentos < maxReintentos) {
         if (isCancelledFn()) return;
         try {
-          await csCore.imageLoader.loadAndCacheImage(id);
+          await cargarConTimeout(id, 12000);
           break;
         } catch (err) {
           intentos++;
+          try {
+            csCore.cache.removeImageLoadObject(id);
+          } catch (e) {}
           if (intentos >= maxReintentos) throw err;
-          await new Promise((r) => setTimeout(r, 600 * intentos));
+          await new Promise((r) => setTimeout(r, 500 * intentos));
         }
       }
 
@@ -581,15 +603,15 @@ export default function VisorMPR3D() {
 
         setProgresoCarga({ actual: 0, total: rawImageIds.length });
 
-        // Carga adaptativa: rápida en LAN (6-8 hilos), regulada por túnel (3 hilos + pausa) para estudios de hasta 1,000+ cortes
+        // Carga paralela sin pausas muertas (8 hilos en LAN, 6 hilos por túnel con anti-congelamiento de 12 s)
         const esMasivo = rawImageIds.length >= 800;
         await cargarCortesPorLotes(
           rawImageIds,
           (actual, total) => setProgresoCarga({ actual, total }),
           () => cancelado,
           isLocalhost
-            ? { concurrencia: esMasivo ? 6 : 8, pausaMs: esMasivo ? 15 : 0, maxReintentos: 3 }
-            : { concurrencia: 3, pausaMs: esMasivo ? 80 : 60, maxReintentos: 5 }
+            ? { concurrencia: esMasivo ? 6 : 8, pausaMs: 0, maxReintentos: 3 }
+            : { concurrencia: 6, pausaMs: 0, maxReintentos: 4 }
         );
 
         if (cancelado) return;
