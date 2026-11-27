@@ -699,19 +699,34 @@ export default function VisorMPR3D() {
 
         const volume = await csCore.volumeLoader.createAndCacheVolume(volumeId, { imageIds });
         if (typeof volume.load === "function") {
-          await volume.load();
+          await new Promise((resolve) => {
+            let finalizado = false;
+            const terminar = () => {
+              if (!finalizado) {
+                finalizado = true;
+                resolve();
+              }
+            };
+            const timerRespaldo = setTimeout(terminar, 5000);
+            try {
+              const res = volume.load(() => {
+                clearTimeout(timerRespaldo);
+                terminar();
+              });
+              if (res && typeof res.then === "function") {
+                res.then(() => {
+                  clearTimeout(timerRespaldo);
+                  terminar();
+                });
+              }
+            } catch (e) {
+              clearTimeout(timerRespaldo);
+              terminar();
+            }
+          });
         }
 
         if (cancelado) return;
-
-        // 🛡️ ESCUDO DE MEMORIA: Liberar cortes 2D individuales de la RAM una vez ensamblado el volumen 3D en GPU
-        imageIds.forEach((imgId) => {
-          try {
-            if (csCore.cache && typeof csCore.cache.removeImageLoadObject === "function") {
-              csCore.cache.removeImageLoadObject(imgId);
-            }
-          } catch (e) {}
-        });
 
         await csCore.setVolumesForViewports(renderingEngine, [{ volumeId }], VIEWPORT_IDS);
 
@@ -757,6 +772,18 @@ export default function VisorMPR3D() {
         }
 
         renderingEngine.renderViewports(VIEWPORT_IDS);
+
+        // 🛡️ ESCUDO DE MEMORIA: Liberar cortes 2D individuales solo DESPUÉS de renderizar el volumen 3D en GPU
+        setTimeout(() => {
+          if (cancelado) return;
+          imageIds.forEach((imgId) => {
+            try {
+              if (csCore.cache && typeof csCore.cache.removeImageLoadObject === "function") {
+                csCore.cache.removeImageLoadObject(imgId);
+              }
+            } catch (e) {}
+          });
+        }, 400);
 
         if (!cancelado) {
           const activeLangEn = (localStorage.getItem("i18nextLng") || i18n.language || "").toLowerCase().startsWith("en");
