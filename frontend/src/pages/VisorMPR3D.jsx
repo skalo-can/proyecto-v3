@@ -43,6 +43,35 @@ function formatearFechaDicom(rawDate) {
   return rawDate;
 }
 
+function verificarCompatibilidadGpu3D(totalCortes = 512) {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl2");
+    if (!gl) {
+      return {
+        ok: false,
+        motivo: "NO_WEBGL2",
+        maxTex3D: 0,
+        requerido: Math.max(512, totalCortes),
+      };
+    }
+
+    const maxTex3D = Number(gl.getParameter(gl.MAX_3D_TEXTURE_SIZE) || 0);
+    // Liberar de inmediato el contexto WebGL de prueba para no consumir slots gráficos
+    const loseCtx = gl.getExtension("WEBGL_lose_context");
+    if (loseCtx) loseCtx.loseContext();
+
+    const requerido = Math.max(512, totalCortes);
+    if (maxTex3D < requerido) {
+      return { ok: false, motivo: "LOW_TEXTURE_3D", maxTex3D, requerido };
+    }
+
+    return { ok: true, maxTex3D, requerido };
+  } catch (e) {
+    return { ok: true, maxTex3D: 0, requerido: Math.max(512, totalCortes) };
+  }
+}
+
 function cargarConTimeout(imageId, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -594,6 +623,20 @@ export default function VisorMPR3D() {
 
         const idxSeguro = Math.min(serieIdx, candidatas.length - 1);
         const seriePrincipal = candidatas[idxSeguro];
+
+        // 🛡️ VALIDACIÓN PREVENTIVA DE GPU 3D ANTES DE DESCARGAR EL VOLUMEN
+        const checkGpu = verificarCompatibilidadGpu3D(seriePrincipal.imagenes.length);
+        if (!checkGpu.ok) {
+          throw new Error(
+            checkGpu.motivo === "NO_WEBGL2"
+              ? enIngles
+                ? "This PC does not have WebGL2 / hardware graphics acceleration enabled. Enable 'Use graphics acceleration' in browser settings or use a workstation with a compatible GPU."
+                : "Este equipo no tiene WebGL2 ni aceleración gráfica por hardware activa. Activa 'Usar aceleración de gráficos' en la configuración del navegador o abre el MPR 3D en un equipo con GPU compatible."
+              : enIngles
+                ? `Insufficient 3D GPU capacity for this volume (PC limit: ${checkGpu.maxTex3D} px, required: ${checkGpu.requerido} px). Enable browser hardware acceleration or use a workstation with a modern GPU.`
+                : `Capacidad 3D de GPU insuficiente para este volumen (límite del PC: ${checkGpu.maxTex3D} px, requerido: ${checkGpu.requerido} px). Activa la aceleración de hardware en el navegador o usa un equipo con GPU moderna.`
+          );
+        }
 
         const rawImageIds = seriePrincipal.imagenes.map((img) =>
           isGuest
