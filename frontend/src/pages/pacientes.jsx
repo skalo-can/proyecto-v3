@@ -6,6 +6,7 @@ import ModalEdicionPaciente from "./ModalEdicionPaciente";
 import FiltrosPacientes from "./FiltrosPacientes";
 import TablaPacientes from "./TablaPacientes";
 import ModalEnviarEstudios from "../components/Modals/ModalEnviarEstudios"; 
+import BotonSoporteNOC from "../components/BotonSoporteNOC";
 
 import { useAudioRecorder } from "./useAudioRecorder";
 import { modalitiesLista } from "./modalidades";
@@ -386,7 +387,7 @@ export default function Pacientes() {
             </button>
           </div> 
 
-          {/* Contenedor Derecho: Acciones y Contadores */}
+          {/* Contenedor Derecho: Acciones, Mesa de Ayuda NOC y Contadores */}
           <div style={{ ...styles.headerActions, display: 'flex', alignItems: 'center', gap: '15px' }}>
             {seleccionados.length > 0 && (
               <button onClick={handleAbrirEnvioMultiple} style={{ background: "#2563eb", color: "#fff", border: "1px solid #3b82f6", padding: "8px 16px", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
@@ -400,6 +401,9 @@ export default function Pacientes() {
                 {t('btn_productividad')}
               </button>
             )}
+
+            {/* 🎧 MESA DE AYUDA REMOTA NOC */}
+            <BotonSoporteNOC />
             
             <div style={styles.contadorBadge}>
               <span style={styles.labelContador}>{t('lbl_estudios_pantalla')}</span>

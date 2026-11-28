@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Filtros from "../components/Filtros/Filtros";
+import BotonSoporteNOC from "../components/BotonSoporteNOC";
 import "./Estudios.css";
 
 export default function Estudios() {
@@ -75,73 +76,86 @@ export default function Estudios() {
   // -----------------------------
   // RENDER
   // -----------------------------
-return (
-  <div className="estudios-container fade-in">
+  return (
+    <div className="estudios-container fade-in">
 
-    <h1 className="estudios-title">Estudios</h1>
+      {/* ENCABEZADO CON BOTÓN DE MESA DE AYUDA NOC */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
+          marginBottom: "16px",
+        }}
+      >
+        <h1 className="estudios-title" style={{ margin: 0 }}>Estudios</h1>
+        <BotonSoporteNOC />
+      </div>
 
-    {/* FILTROS */}
-    <div className="glass-panel filtros-panel">
-      <Filtros filtros={filtros} setFiltros={setFiltros} tipo="estudios" />
-    </div>
+      {/* FILTROS */}
+      <div className="glass-panel filtros-panel">
+        <Filtros filtros={filtros} setFiltros={setFiltros} tipo="estudios" />
+      </div>
 
-    {/* TABLA */}
-    <div className="glass-panel tabla-panel">
-      <table className="tabla-estudios">
-        <thead>
-          <tr>
-            <th onClick={() => toggleSort("paciente_id")}>ID Paciente</th>
-            <th onClick={() => toggleSort("nombre")}>Nombre</th>
-            <th onClick={() => toggleSort("apellido")}>Apellido</th>
-            <th onClick={() => toggleSort("modality")}>Modalidad</th>
-            <th onClick={() => toggleSort("fecha")}>Fecha</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {estudios.length === 0 ? (
+      {/* TABLA */}
+      <div className="glass-panel tabla-panel">
+        <table className="tabla-estudios">
+          <thead>
             <tr>
-              <td colSpan="6" className="sin-datos-elegante">
-                No hay estudios disponibles
-              </td>
+              <th onClick={() => toggleSort("paciente_id")}>ID Paciente</th>
+              <th onClick={() => toggleSort("nombre")}>Nombre</th>
+              <th onClick={() => toggleSort("apellido")}>Apellido</th>
+              <th onClick={() => toggleSort("modality")}>Modalidad</th>
+              <th onClick={() => toggleSort("fecha")}>Fecha</th>
+              <th>Acciones</th>
             </tr>
-          ) : (
-            estudios.map((e) => (
-              <tr key={e.id}>
-                <td>{e.paciente_id}</td>
-                <td>{e.paciente_nombre}</td>
-                <td>{e.paciente_apellido}</td>
-                <td>{e.modality}</td>
-                <td>{e.fecha}</td>
-                <td className="acciones">
-                  <button className="btn-accion enviar" onClick={() => handleEnviar(e)}>✉</button>
-                  <button className="btn-accion editar" onClick={() => handleEditar(e)}>✎</button>
-                  <button className="btn-accion eliminar" onClick={() => handleEliminar(e)}>🗑</button>
+          </thead>
+
+          <tbody>
+            {estudios.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="sin-datos-elegante">
+                  No hay estudios disponibles
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              estudios.map((e) => (
+                <tr key={e.id}>
+                  <td>{e.paciente_id}</td>
+                  <td>{e.paciente_nombre}</td>
+                  <td>{e.paciente_apellido}</td>
+                  <td>{e.modality}</td>
+                  <td>{e.fecha}</td>
+                  <td className="acciones">
+                    <button className="btn-accion enviar" onClick={() => handleEnviar(e)}>✉</button>
+                    <button className="btn-accion editar" onClick={() => handleEditar(e)}>✎</button>
+                    <button className="btn-accion eliminar" onClick={() => handleEliminar(e)}>🗑</button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* PAGINACIÓN */}
+      <div className="glass-panel paginacion-panel">
+        <button disabled={pagina === 0} onClick={() => setPagina(pagina - 1)}>
+          ← Anterior
+        </button>
+
+        <span>Página {pagina + 1}</span>
+
+        <button
+          disabled={(pagina + 1) * limit >= total}
+          onClick={() => setPagina(pagina + 1)}
+        >
+          Siguiente →
+        </button>
+      </div>
+
     </div>
-
-    {/* PAGINACIÓN */}
-    <div className="glass-panel paginacion-panel">
-      <button disabled={pagina === 0} onClick={() => setPagina(pagina - 1)}>
-        ← Anterior
-      </button>
-
-      <span>Página {pagina + 1}</span>
-
-      <button
-        disabled={(pagina + 1) * limit >= total}
-        onClick={() => setPagina(pagina + 1)}
-      >
-        Siguiente →
-      </button>
-    </div>
-
-  </div>
-);
+  );
 }

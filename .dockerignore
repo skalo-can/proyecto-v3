@@ -14,3 +14,10 @@ __pycache__/
 
 # Ignorar módulos de Node
 frontend/node_modules/
+
+venv
+.venv
+frontend/node_modules
+**/__pycache__
+*.pyc
+.git

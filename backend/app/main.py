@@ -77,6 +77,7 @@ from app.api.dicom_modalities_api import router as dicom_modalities_router
 from app.api.ris_tecnologo_api import router as tecnologo_api
 from app.api.usuario_api import router as usuario_api
 from app.api import email_api  # 🔥 Agregamos el nuevo router de correos
+from app.api.noc_bridge_api import router as noc_bridge_router, iniciar_agente_noc
 
 # Servidor DICOM dinámico y Scheduler
 from app.services.dicom_service import reiniciar_servidor_dicom
@@ -239,6 +240,7 @@ app.include_router(backup_router, prefix="/api", tags=["Gestión de Backups"])
 app.include_router(plantillas_api.router, prefix="/api")
 app.include_router(firmas_api.router, prefix="/api")
 app.include_router(email_api.router, prefix="/api")
+app.include_router(noc_bridge_router, prefix="/api")
 
 @app.post("/api/notify-new-study")
 async def trigger_notification():
@@ -270,17 +272,23 @@ def startup_event():
     # ----------------------------------------------------
 
     db = SessionLocal()
-    config = get_config(db)
-    if not config:
-        config = create_default_config(db)
-    
-    if os.environ.get("SERVER_STARTED") != "true":
-        os.environ["SERVER_STARTED"] = "true"
-        print(f"🔵 Iniciando Servidor DICOM → AE={config.ae_title}, Puerto={config.port}")
-        reiniciar_servidor_dicom(config.ae_title, config.port)
+    try:
+        config = get_config(db)
+        if not config:
+            config = create_default_config(db)
         
-        print("⏰ Iniciando Planificador Automático (Rutina: 01:00 AM)")
-        inicializar_scheduler()
+        if os.environ.get("SERVER_STARTED") != "true":
+            os.environ["SERVER_STARTED"] = "true"
+            print(f"🔵 Iniciando Servidor DICOM → AE={config.ae_title}, Puerto={config.port}")
+            reiniciar_servidor_dicom(config.ae_title, config.port)
+            
+            print("⏰ Iniciando Planificador Automático (Rutina: 01:00 AM)")
+            inicializar_scheduler()
+
+            print("🛰️ Iniciando Agente de Telemetría NOC (Central de Monitoreo)")
+            iniciar_agente_noc()
+    finally:
+        db.close()
 
 # ---------------------------------------------------------
 # RECEPCIÓN DE AUDIO DE DICTADO MEDICO (FRONTEND)
