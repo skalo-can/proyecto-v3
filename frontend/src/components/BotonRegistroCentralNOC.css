@@ -1,0 +1,210 @@
+.noc-reg-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: linear-gradient(135deg, #161b26 0%, #0b0e14 100%);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  transition: all 0.18s ease;
+}
+
+.noc-reg-trigger-btn:hover {
+  background: linear-gradient(135deg, #fde047 0%, #fbbf24 55%, #d97706 100%);
+  color: #050608;
+  border-color: #fef08a;
+  transform: translateY(-1px);
+}
+
+.noc-reg-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 4, 9, 0.85);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 16px;
+}
+
+.noc-reg-modal {
+  width: 100%;
+  max-width: 660px;
+  max-height: 90vh;
+  background: linear-gradient(165deg, #10141e 0%, #07090e 100%);
+  border: 1px solid #fbbf24;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.92);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.noc-reg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.25);
+  background: rgba(251, 191, 36, 0.05);
+}
+
+.noc-reg-header h3 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 800;
+  color: #fbbf24;
+}
+
+.noc-reg-close {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.noc-reg-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.noc-reg-grid-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.noc-reg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.noc-reg-field.full {
+  grid-column: 1 / -1;
+}
+
+.noc-reg-field label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.noc-reg-field input {
+  background: #0d111a;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 7px;
+  padding: 8px 11px;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.noc-reg-field input:focus {
+  outline: none;
+  border-color: #fbbf24;
+}
+
+.noc-reg-inv-box {
+  background: #0b0e16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.noc-reg-inv-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fbbf24;
+  margin-bottom: 8px;
+}
+
+.noc-reg-inv-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+.noc-reg-inv-list span b {
+  color: #ffffff;
+}
+
+.noc-reg-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.noc-reg-alert-ok {
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #34d399;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.noc-reg-alert-err {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #f87171;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.noc-reg-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 13px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #090c12;
+}
+
+.noc-reg-btn-cancel {
+  background: #182030;
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 7px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.noc-reg-btn-submit {
+  background: linear-gradient(135deg, #fde047 0%, #fbbf24 55%, #d97706 100%);
+  color: #050608;
+  border: 1px solid #fef08a;
+  border-radius: 7px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.noc-reg-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
